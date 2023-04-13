@@ -1,11 +1,6 @@
 ############################################################################################################
 # A script for selecting a sample of galaxies from a catalogue with similar stellar masses and redshifts to
-# the RAGERS radio-loud sample. NOTE: Before running must be in the 'photom' environment - type  
-# 'conda activate photom' in the Terminal prior to running this script.
-#
-# v2: Rather than use estimated rest-frame 500 MHz radio luminosities to categorise galaxies as RL or RQ,
-# counts all galaxies detected in VLA-COSMOS (3 GHz) as RL.
-# v3: Uses RA and Dec cuts defined using the SCUBA-2 sensitivity map.
+# the RAGERS radio-loud sample.
 ############################################################################################################
 
 #import modules/packages
@@ -70,9 +65,10 @@ hal = 2.5					#length of the arrowheads at the point where they intersect the sh
 #######################################################
 
 #relevant paths
-PATH_RAGERS = '/home/cornisht/RAGERS/'
-PATH_CATS = PATH_RAGERS + 'Catalogues/'
-PATH_PLOTS = PATH_RAGERS + 'Plots/'
+PATH_RAGERS = sys.argv[1]
+PATH_CATS = sys.argv[2]
+PATH_DATA = sys.argv[3]
+PATH_PLOTS = sys.argv[4]
 
 #whether or not to include radio-loud RAGERS galaxies with limiting stellar masses
 include_lims = False
@@ -181,7 +177,7 @@ dm_sel = 0.05
 #set a sensitivity limit (mJy/beam)
 sensitivity_limit = 1.3
 #load the SCUBA-2 sensitivity map
-SMAP_file = PATH_RAGERS + 'Data/S2COSMOS_20180927_850_err_mf_crop.fits'
+SMAP_file = PATH_DATA + 'S2COSMOS_20180927_850_err_mf_crop.fits'
 smap = fits.open(SMAP_file)
 #retrieve the data and header (NOTE: the main HDU has 3 axes but the third has one value labelled as 'wavelength' - not actually useful)
 smap_data = smap[0].data
