@@ -2,8 +2,21 @@
 # A script for calculating and plotting the sub-mm number counts in the environments of 10 radio-quiet
 # galaxies for each radio-loud galaxy. The radio-quiet sample may have include galaxies that are 
 # 'double-counted', i.e. they have been matched to more than one radio-loud galaxy; this script accounts
-# for that when selecting the 10 galaxies to use for each set of number counts. Derives completeness
-# corrections by reconstructing the results shown in Fig. 6b of Simpson+19 and applies them. 
+# for that when selecting the 10 galaxies to use for each set of number counts. Does not apply completeness
+# corrections at this stage.
+#
+# v2: Also plots number counts for all sources in each redshift bin.
+# v3: Adds the option to create an additional plot showing the RAs and DECs of each RQ galaxy with its 
+# search radius.
+# v4: Fixed bug - script now actually ensures the same RQ galaxy is not selected for multiple RL galaxies.
+# v5: Adapted to account for overlapping areas when placing apertures around each RQ galaxy.
+# v6: Derives completeness corrections by recreating Fig. 6b from Simpson+19 and applies them to the number 
+# counts.
+# v7: Plots cumulative number counts as well as differential number counts. Also added previously omitted 
+# step in the completeness calculation in which the defined completeness range is broadened to 0–100%.
+# v8: Creates plot(s) showing the combined results for all RQ targets.
+# v9: Adds the blank-field results to each relevant plot, where these are obtained using the whole S2COSMOS
+# catalogue.
 ############################################################################################################
 
 #import modules/packages
@@ -164,10 +177,9 @@ N_sel = 10
 #######################################################
 
 #relevant paths
-PATH_RAGERS = sys.argv[1]
-PATH_CATS = sys.argv[2]
-PATH_DATA = sys.argv[3]
-PATH_PLOTS = sys.argv[4]
+PATH_RAGERS = '/home/cornisht/RAGERS/'
+PATH_CATS = PATH_RAGERS + 'Catalogues/'
+PATH_PLOTS = PATH_RAGERS + 'Plots/'
 
 #catalogue containing data for (radio-quiet) galaxies from COSMOS2020 matched in M* and z with the radio-loud sample
 RQ_CAT = PATH_CATS + 'RAGERS_COSMOS2020_matches_Mstar_z.fits'
