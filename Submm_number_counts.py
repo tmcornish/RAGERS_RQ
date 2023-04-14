@@ -349,7 +349,7 @@ if comp_correct:
 	print(mf.colour_string('Calculating completeness corrections...', 'purple'))
 	#create a grid in flux density-RMS space
 	xmin, xmax = -15., 30.
-	ymin, ymax = 0.5, 3.
+	ymin, ymax = 0.45, 3.05
 	xstep, ystep = 0.01, 0.01
 	xgrid, ygrid = np.mgrid[xmin:xmax+xstep:xstep, ymin:ymax+ystep:ystep]
 	#flat arrays of intervals in flux density and RMS
@@ -397,11 +397,6 @@ if comp_correct:
 	#create a grid of completeness values
 	zgrid = comp_interp(xgrid, ygrid)
 
-	#re-interpolate the completeness now that the NaNs have been replaced
-	points = np.array([xgrid.flatten(), ygrid.flatten()])
-	values = zgrid.flatten()
-	comp_interp = LinearNDInterpolator(points.T, values)
-
 	#uncertainties to give the observed completeness values, arbitrarily chosen such that the 10% and 90% 
 	#values have the highest weighting
 	comp_err = np.array([0.001, 0.01, 0.01, 0.01, 0.001])
@@ -437,7 +432,7 @@ if comp_correct:
 		ctf = comp_to_find[i]
 		y_interp_new = interp1d(S_comp_to_find[i], yspace, fill_value=(ymin-ystep, ymax+ystep), bounds_error=False)
 		Y_new = y_interp_new(xspace)
-		if ctf < comp_to_find[0]:
+		if ctf < comp_list[0]:
 			y_interp_list.insert(i, y_interp_new)
 			values_list.insert(i, [xspace, Y_new, np.full(len(xspace), ctf)])
 		else:
@@ -454,6 +449,8 @@ if comp_correct:
 	#create a grid of completeness values
 	zgrid = comp_interp(xgrid, ygrid)
 
+	print(t_all.T)
+
 	#get the interpolated ~100% completeness curve
 	interp_100 = y_interp_list[-1]
 	#identify all elements in the grid that lie below the 100% completeness curve
@@ -464,6 +461,11 @@ if comp_correct:
 	zero_mask = xgrid <= 0.
 	#fill these values with 0
 	zgrid[zero_mask] = 0.
+
+	#re-interpolate the completeness now that the NaNs have been replaced
+	points = np.array([xgrid.flatten(), ygrid.flatten()])
+	values = zgrid.flatten()
+	comp_interp = LinearNDInterpolator(points.T, values)
 
 	#calculate the completeness at the flux density and RMS of each S2COSMOS source
 	comp_submm = comp_interp(data_submm['S_deboost'], data_submm['RMS'])

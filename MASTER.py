@@ -25,7 +25,7 @@ PATH_DATA = PATH_RAGERS + '/Data/'
 ##################
 
 #toggle `switches' for determining which scripts to run
-rq_sample = False			#select the sample of radio-quiet massive galaxies
+rq_sample = True			#select the sample of radio-quiet massive galaxies
 number_counts = True		#construct number counts
 
 ##################
