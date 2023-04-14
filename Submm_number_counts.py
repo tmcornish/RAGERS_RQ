@@ -177,9 +177,10 @@ N_sel = 10
 #######################################################
 
 #relevant paths
-PATH_RAGERS = '/home/cornisht/RAGERS/'
-PATH_CATS = PATH_RAGERS + 'Catalogues/'
-PATH_PLOTS = PATH_RAGERS + 'Plots/'
+PATH_RAGERS = sys.argv[1]
+PATH_CATS = sys.argv[2]
+PATH_DATA = sys.argv[3]
+PATH_PLOTS = sys.argv[4]
 
 #catalogue containing data for (radio-quiet) galaxies from COSMOS2020 matched in M* and z with the radio-loud sample
 RQ_CAT = PATH_CATS + 'RAGERS_COSMOS2020_matches_Mstar_z.fits'
