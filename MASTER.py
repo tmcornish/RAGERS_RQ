@@ -25,7 +25,7 @@ PATH_DATA = PATH_RAGERS + '/Data/'
 ##################
 
 #toggle `switches' for determining which scripts to run
-rq_sample = True			#select the sample of radio-quiet massive galaxies
+rq_sample = False			#select the sample of radio-quiet massive galaxies
 number_counts = True		#construct number counts
 
 ##################
@@ -34,9 +34,9 @@ settings = [rq_sample, number_counts]
 proc_names = ['Selecting RQ sample', 'Constructing number counts']
 run_str = [
 	f'./Select_radio_quiet_sample.sh {PATH_RAGERS} {PATH_CATS} {PATH_DATA} {PATH_PLOTS}',
-	f'python Submm_number_counts_v10.py {PATH_RAGERS} {PATH_CATS} {PATH_DATA} {PATH_PLOTS}']
+	f'python Submm_number_counts.py {PATH_RAGERS} {PATH_CATS} {PATH_PLOTS}']
 
-print(mf.colour_string(mf.string_important('PROCESSES TO RUN')+'\n', 'olive'))
+print(mf.colour_string(mf.string_important('PROCESSES TO RUN')+'\n', 'cyan'))
 setting_str = []
 for se, pn in zip(settings, proc_names):
 	if se:
