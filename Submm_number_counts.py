@@ -23,6 +23,7 @@ import my_functions as mf
 import colorsys
 import glob
 from scipy.interpolate import LinearNDInterpolator, interp1d
+import scipy.optimize as opt
 
 #######################################################################################
 ########### FORMATTING FOR GRAPHS #####################################################
@@ -116,6 +117,33 @@ def scale_colour(rgb, scale_l=1., scale_s=1.):
 	return colorsys.hls_to_rgb(h, l_new, s_new)
 
 
+def model(theta, x):
+	'''
+	Fermi-Dirac-like distribution to model a completeness curve.
+		theta: fit parameters defining the slope and the x-position at which the completeness = 0.5.
+		x: values (of flux density) at which the distribution is analysed.
+	'''
+	A, B = theta
+	return 1. / (np.exp(A * (-x + B)) + 1.)
+
+def chisq(theta, x, y, yerr):
+	'''
+	Calculates the chi-squared value by comparing a model to the observed values.
+		theta: model fit parameters.
+		x: x-values at which the observed y-values are taken.
+		y: observed y values.
+		yerr: uncertainties in the observed y-values.
+	'''
+	ymodel = model(theta, x)
+	return np.sum(((ymodel - y)/yerr) ** 2.)
+
+def nll(*args):
+	'''
+	Chi-squared function reformatted to be compatible with scipy.optimize.minimize.
+	'''
+	return chisq(*args)
+
+
 ##################
 #### SETTINGS ####
 ##################
@@ -166,8 +194,7 @@ N_sel = 10
 #relevant paths
 PATH_RAGERS = sys.argv[1]
 PATH_CATS = sys.argv[2]
-PATH_DATA = sys.argv[3]
-PATH_PLOTS = sys.argv[4]
+PATH_PLOTS = sys.argv[3]
 
 #catalogue containing data for (radio-quiet) galaxies from COSMOS2020 matched in M* and z with the radio-loud sample
 RQ_CAT = PATH_CATS + 'RAGERS_COSMOS2020_matches_Mstar_z.fits'
@@ -310,7 +337,7 @@ if comp_correct:
 	print(mf.colour_string('Calculating completeness corrections...', 'purple'))
 	#create a grid in flux density-RMS space
 	xmin, xmax = -15., 30.
-	ymin, ymax = 0.5, 3.
+	ymin, ymax = 0.45, 3.05
 	xstep, ystep = 0.01, 0.01
 	xgrid, ygrid = np.mgrid[xmin:xmax+xstep:xstep, ymin:ymax+ystep:ystep]
 	#flat arrays of intervals in flux density and RMS
@@ -320,10 +347,12 @@ if comp_correct:
 	#list to which the flux density, RMS and completeness values will be appended
 	values_list = []
 	#list to which the interpolated RMS as functions of flux density will be appended
-	interp_list = []
+	x_interp_list = []
+	y_interp_list = []
+
 	#lists to which interpolated values of x and y will be appended for each completeness curve
-	x_interp_all = []
-	y_interp_all = []
+	x_interp_vals = []
+	y_interp_vals = []
 	#cycle through the files containing data for the completeness curves in Simpson+19
 	files = sorted(glob.glob(PATH_CATS+'Simpson+19_completeness_curves/*'))
 	for file in files:
@@ -333,22 +362,16 @@ if comp_correct:
 		#reverse the interpolation to get flux density as a function of RMS as well
 		x_interp = interp1d(t_now['col2'], t_now['col1'], fill_value='extrapolate')
 		#get the completeness from the filename
-		comp = float(file[-8:-6])
+		comp = float(file[-8:-6]) / 100.
 		#use the interpolated functions to calculate the flux density at regular intervals of rms and vice versa
 		Y = y_interp(xspace)
 		X = x_interp(yspace)
 		#append the relevant values/functions to the lists
 		values_list.append([xspace, Y, np.full(len(xspace), comp)])
-		interp_list.append(y_interp)
-		x_interp_all.append(X)
-		y_interp_all.append(Y)
-
-	#create estimates of the tracks spanning 0-10 and 90-100% completeness
-	for i in range(1,11):
-		y_lo = interp_list[0](xspace)/(1-i/11.)
-		y_hi = (1-i/11.)*interp_list[-1](xspace)
-		values_list.insert(i-1, [xspace, y_lo, np.full(len(xspace), 10.-i)])
-		values_list.append([xspace, y_hi, np.full(len(xspace), 90.+i)])
+		x_interp_list.append(x_interp)
+		y_interp_list.append(y_interp)
+		x_interp_vals.append(X)
+		y_interp_vals.append(Y)
 
 	#stack the results for each completeness curve
 	t_all = np.hstack(values_list)
@@ -360,21 +383,84 @@ if comp_correct:
 	#create a grid of completeness values
 	zgrid = comp_interp(xgrid, ygrid)
 
-	#get the interpolated 10% and 90% completeness curves
-	interp_10 = interp_list[0]
-	interp_90 = interp_list[-1]
-	#identify all elements in the grid that lie below the 100% completeness curve
-	lower_mask = ygrid < interp_90(xgrid) / 11.
-	#fill these values with 100
-	zgrid[lower_mask] = 100.
-	#identify all elements in the grid that lie above the 0% completeness curve
-	lower_mask = ygrid > interp_10(xgrid) * 11.
-	#fill these values with 100
-	zgrid[lower_mask] = 0.
-
+	'''
 	#re-interpolate the completeness now that the NaNs have been replaced
 	points = np.array([xgrid.flatten(), ygrid.flatten()])
 	values = zgrid.flatten() / 100.
+	comp_interp = LinearNDInterpolator(points.T, values)
+	'''
+
+	#completeness values with curves in Simpson+19
+	comp_list = np.array([0.1, 0.3, 0.5, 0.7, 0.9])
+	#uncertainties to give the observed completeness values, arbitrarily chosen such that the 10% and 90% 
+	#values have the highest weighting
+	comp_err = np.array([0.001, 0.01, 0.01, 0.01, 0.001])
+	#completeness values at which new curves are to be estimated
+	comp_to_find = np.concatenate(([0.0001], np.arange(0.01, 0.1, 0.01), np.arange(0.91, 1., 0.01), [0.99999]))
+
+	S_comp_to_find = []
+	#cycle through values of RMS at which to collapse the 2D completeness function to 1D functions of flux density
+	for i in range(len(yspace)):
+		rms_now = yspace[i]
+		#flux densities at which the completeness curves are well-defined by Simpson et al.
+		S_list = np.array([x_interp_list[j](rms_now) for j in range(len(x_interp_list))])
+		#fit a curve to the data, weighting the 10% and 90% points more heavily
+		initial = [1., S_list[2]]
+		popt = opt.minimize(nll, x0=initial, args=(S_list, comp_list, comp_err))['x']
+		#create x-ranges at which to plot things
+		xrange_lo = xspace[xspace < S_list[0]]
+		xrange_mid = xspace[(xspace >= S_list[0]) * (xspace <= S_list[-1])]
+		xrange_hi = xspace[xspace > S_list[-1]]
+		#evaluate the fitted curve over the low and high x-ranges, and the original completeness curve in the mid range
+		x_range = np.concatenate((xrange_lo, xrange_mid, xrange_hi))
+		z_range = np.concatenate((model(popt, xrange_lo), comp_interp(xrange_mid, rms_now), model(popt, xrange_hi)))
+		#interpolate x w.r.t. z
+		S_interp = interp1d(z_range, x_range, fill_value='extrapolate')
+		#get the flux densities at which the completenesses 
+		S_at_comp = S_interp(comp_to_find)
+		S_comp_to_find.append(S_at_comp)
+
+	S_comp_to_find = np.array(S_comp_to_find).T
+
+	#retrieve the RMS and flux density values, and interpolated fuctions, at which the completeness is well-defined
+	values_list = values_list[10:-10]
+	y_interp_list = y_interp_list[10:-10]
+	#interpolate the flux density w.r.t. rms at each value of completeness
+	for i in range(len(comp_to_find)):
+		ctf = comp_to_find[i]
+		y_interp_new = interp1d(S_comp_to_find[i], yspace, fill_value=(ymin-ystep, ymax+ystep), bounds_error=False)
+		Y_new = y_interp_new(xspace)
+		if ctf < comp_to_find[0]:
+			y_interp_list.insert(i, y_interp_new)
+			values_list.insert(i, [xspace, Y_new, np.full(len(xspace), ctf)])
+		else:
+			y_interp_list.append(y_interp_new)
+			values_list.append([xspace, Y_new, np.full(len(xspace), ctf)])
+
+	#stack the results for each completeness curve
+	t_all = np.hstack(values_list)
+	#split the array into x-y coordinate pairs and the corresponding z values
+	points = t_all[:2]
+	values = t_all[-1]
+	#interpolate completeness as a function of flux density and RMS
+	comp_interp = LinearNDInterpolator(points.T, values)
+	#create a grid of completeness values
+	zgrid = comp_interp(xgrid, ygrid)
+
+	#get the interpolated ~100% completeness curve
+	interp_100 = y_interp_list[-1]
+	#identify all elements in the grid that lie below the 100% completeness curve
+	lower_mask = ygrid < interp_100(xgrid)
+	#fill these values with 100%
+	zgrid[lower_mask] = 1.
+	#identify all elements in the grid that lie below a flux density of 0 mJy
+	zero_mask = xgrid <= 0.
+	#fill these values with 0
+	zgrid[zero_mask] = 0.
+
+	#re-interpolate the completeness now that the NaNs have been replaced
+	points = np.array([xgrid.flatten(), ygrid.flatten()])
+	values = zgrid.flatten()
 	comp_interp = LinearNDInterpolator(points.T, values)
 
 	#calculate the completeness at the flux density and RMS of each S2COSMOS source
