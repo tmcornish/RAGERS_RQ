@@ -5,19 +5,7 @@
 
 # Import necessary packages/modules
 import os, sys
-import my_functions as mf
-
-
-
-####################################
-#### RELEVANT PATHS & VARIABLES ####
-####################################
-
-PATH_RAGERS = '/home/cornisht/RAGERS/'
-PATH_SCRIPTS = PATH_RAGERS + '/Scripts/Analysis_pipeline/'
-PATH_CATS = PATH_RAGERS + '/Catalogues/'
-PATH_PLOTS = PATH_RAGERS + '/Plots/'
-PATH_DATA = PATH_RAGERS + '/Data/'
+from . import rq_general as rqg
 
 
 ##################
@@ -33,10 +21,10 @@ number_counts = True		#construct number counts
 settings = [rq_sample, number_counts]
 proc_names = ['Selecting RQ sample', 'Constructing number counts']
 run_str = [
-	f'./Select_radio_quiet_sample.sh {PATH_RAGERS} {PATH_CATS} {PATH_DATA} {PATH_PLOTS}',
-	f'python Submm_number_counts.py {PATH_RAGERS} {PATH_CATS} {PATH_PLOTS}']
+	'./Select_radio_quiet_sample.sh',
+	'python Submm_number_counts.py']
 
-print(mf.colour_string(mf.string_important('PROCESSES TO RUN')+'\n', 'cyan'))
+print(rqg.colour_string(rqg.string_important('PROCESSES TO RUN')+'\n', 'cyan'))
 setting_str = []
 for se, pn in zip(settings, proc_names):
 	if se:
@@ -52,5 +40,5 @@ print('\n'.join(setting_str)+'\n')
 
 for se, pn, rs in zip(settings, proc_names, run_str):
 	if se:
-		print(mf.colour_string(mf.string_important(pn.upper())+'\n', 'orange')+'\n')
+		print(rqg.colour_string(rqg.string_important(pn.upper())+'\n', 'orange')+'\n')
 		os.system(rs)

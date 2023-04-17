@@ -22,58 +22,24 @@ import matplotlib as mpl
 import matplotlib.patches as patches
 import my_functions as mf
 from photutils.aperture import CircularAperture, SkyCircularAperture, ApertureStats, aperture_photometry
+from . import rq_general as rqg
+from . import plotstyle as ps
 
 #######################################################################################
 ########### FORMATTING FOR GRAPHS #####################################################
 
 #formatting for graphs
-plt.style.use('plotstyle.mplstyle')
-
-#colours
-red = '#eb0505'
-dark_red = '#ab0000'
-ruby = '#C90058'
-crimson = '#AF0404'
-coral = '#FF4848'
-magenta = '#C3027D'
-orange = '#ED5A01'
-green = '#0A8600'
-light_green = '#11C503'
-teal = '#00A091'
-cyan = '#00d0f0'
-blue = '#0066ff'
-light_blue = '#00C2F2'
-dark_blue = '#004ab8'
-purple = '#6D04C4'
-lilac = '#EB89FF'
-plum = '#862388'
-pink = '#E40ACA'
-baby_pink = '#FF89FD'
-fuchsia = '#E102B5'
-grey = '#969696'
-
-#obtain the figure size in inches
-x_size, y_size = 8., 8.
-#formatting for any arrows to be added to the plot for representing upper/lower limits
-ax_frac = 1/40.				#the fraction of the y axis that the total length of a vertical arrow should occupy
-al = ax_frac * y_size		#the length of each arrow in inches (ew, but sadly metric isn't allowed)
-scale = 1./al				#'scale' parameter used for defining the length of each arrow in a quiver
-aw = 0.0175 * al				#the width of each arrow shaft in inches
-hw = 4.						#width of the arrowheads in units of shaft width
-hl = 3.						#length of the arrowheads in units of shaft width
-hal = 2.5					#length of the arrowheads at the point where they intersect the shaft 
-							#(e.g. hal = hl gives a triangular head, hal < hl gives a more pointed head)
-
+plt.style.use(ps.styledict)
 
 #######################################################
 ###############    START OF SCRIPT    #################
 #######################################################
 
 #relevant paths
-PATH_RAGERS = sys.argv[1]
-PATH_CATS = sys.argv[2]
-PATH_DATA = sys.argv[3]
-PATH_PLOTS = sys.argv[4]
+PATH_RAGERS = rqg.PATH_RAGERS
+PATH_CATS = rqg.PATH_CATS
+PATH_DATA = rqg.PATH_DATA
+PATH_PLOTS = rgq.PATH_PLOTS
 
 #whether or not to include radio-loud RAGERS galaxies with limiting stellar masses
 include_lims = False
@@ -355,7 +321,7 @@ with open(N_matched_file, 'w') as file:
 		file.write(f'{ID}\t{N_matches}\n')
 
 		#draw a box on Figure 1 representing this selection window
-		rect = patches.Rectangle((z-dz_sel, m-dm_sel), 2.*dz_sel, 2.*dm_sel, edgecolor=green, facecolor='none', alpha=0.3, zorder=1)
+		rect = patches.Rectangle((z-dz_sel, m-dm_sel), 2.*dz_sel, 2.*dm_sel, edgecolor=ps.green, facecolor='none', alpha=0.3, zorder=1)
 		ax1.add_patch(rect)
 
 		#plot the RAs and Decs of the matched sources on Figure 3
@@ -374,8 +340,8 @@ Mstar_matched_RL = masked_cat_all_RL['ez_mass']
 
 
 #plot the values with their errorbars
-ax1.plot(z_matched_RQ, Mstar_matched_RQ, marker='.', c=magenta, linestyle='None', alpha=0.3, ms=3., label='COSMOS2020 sample (RQ)')
-ax1.plot(z_matched_RL, Mstar_matched_RL, marker='.', c=dark_blue, linestyle='None', alpha=0.3, ms=3., label='COSMOS2020 sample (RL)')
+ax1.plot(z_matched_RQ, Mstar_matched_RQ, marker='.', c=ps.magenta, linestyle='None', alpha=0.3, ms=3., label='COSMOS2020 sample (RQ)')
+ax1.plot(z_matched_RL, Mstar_matched_RL, marker='.', c=ps.dark_blue, linestyle='None', alpha=0.3, ms=3., label='COSMOS2020 sample (RL)')
 #ax1.errorbar(z_matched, Mstar_matched, xerr=(ezlo_matched,ezhi_matched), yerr=(eMstarlo_matched,eMstarhi_matched), ecolor=lilac, fmt='None', alpha=0.3)
 
 
