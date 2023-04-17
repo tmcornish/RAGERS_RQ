@@ -5,7 +5,7 @@
 
 # Import necessary packages/modules
 import os, sys
-from . import rq_general as rqg
+import general as gen
 
 
 ##################
@@ -24,7 +24,7 @@ run_str = [
 	'./Select_radio_quiet_sample.sh',
 	'python Submm_number_counts.py']
 
-print(rqg.colour_string(rqg.string_important('PROCESSES TO RUN')+'\n', 'cyan'))
+print(gen.colour_string(gen.string_important('PROCESSES TO RUN')+'\n', 'cyan'))
 setting_str = []
 for se, pn in zip(settings, proc_names):
 	if se:
@@ -40,5 +40,5 @@ print('\n'.join(setting_str)+'\n')
 
 for se, pn, rs in zip(settings, proc_names, run_str):
 	if se:
-		print(rqg.colour_string(rqg.string_important(pn.upper())+'\n', 'orange')+'\n')
+		print(gen.colour_string(gen.string_important(pn.upper())+'\n', 'orange')+'\n')
 		os.system(rs)

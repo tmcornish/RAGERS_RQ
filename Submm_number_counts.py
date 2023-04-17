@@ -37,8 +37,8 @@ import colorsys
 import glob
 from scipy.interpolate import LinearNDInterpolator, interp1d
 import scipy.optimize as opt
-from . import rq_general as rqg
-from . import plotstyle as ps
+import general as gen
+import plotstyle as ps
 
 #######################################################################################
 ########### FORMATTING FOR GRAPHS #####################################################
@@ -170,9 +170,9 @@ N_sel = 10
 #######################################################
 
 #relevant paths
-PATH_RAGERS = rqg.PATH_RAGERS
-PATH_CATS = rqg.PATH_CATS
-PATH_PLOTS = rgq.PATH_PLOTS
+PATH_RAGERS = gen.PATH_RAGERS
+PATH_CATS = gen.PATH_CATS
+PATH_PLOTS = gen.PATH_PLOTS
 
 #catalogue containing data for (radio-quiet) galaxies from COSMOS2020 matched in M* and z with the radio-loud sample
 RQ_CAT = PATH_CATS + 'RAGERS_COSMOS2020_matches_Mstar_z.fits'
@@ -197,7 +197,7 @@ coords_submm = SkyCoord(RA_submm, DEC_submm, unit='deg')
 ######################
 
 #create the figure (dN/dS vs S)
-f1, ax1 = plt.subplots(2, 2, figsize=(2.*x_size, 2.*y_size))
+f1, ax1 = plt.subplots(2, 2, figsize=(2.*ps.x_size, 2.*ps.y_size))
 #to label axes with common labels, create a big subplot, make it invisible, and label its axes
 ax_big1 = f1.add_subplot(111, frameon=False)
 ax_big1.tick_params(labelcolor='none', top=False, bottom=False, left=False, right=False, which='both')
@@ -225,7 +225,7 @@ markers = ['s', '^', 'v', '*', (8,1,0), 'x', '<', '>', 'p']
 #if told to make an extra figure for the positions of the RQ and RL sources, create the figure
 if plot_positions:
 	#create the figure (Dec. vs RA)
-	f2, ax2 = plt.subplots(2, 2, figsize=(2.*x_size, 2.*y_size))
+	f2, ax2 = plt.subplots(2, 2, figsize=(2.*ps.x_size, 2.*ps.y_size))
 	#to label axes with common labels, create a big subplot, make it invisible, and label its axes
 	ax_big2 = f2.add_subplot(111, frameon=False)
 	ax_big2.tick_params(labelcolor='none', top=False, bottom=False, left=False, right=False, which='both')
@@ -235,7 +235,7 @@ if plot_positions:
 
 if plot_cumulative:
 	#create the figure (N(>S) vs S)
-	f3, ax3 = plt.subplots(2, 2, figsize=(2.*x_size, 2.*y_size))
+	f3, ax3 = plt.subplots(2, 2, figsize=(2.*ps.x_size, 2.*ps.y_size))
 	#to label axes with common labels, create a big subplot, make it invisible, and label its axes
 	ax_big3 = f3.add_subplot(111, frameon=False)
 	ax_big3.tick_params(labelcolor='none', top=False, bottom=False, left=False, right=False, which='both')

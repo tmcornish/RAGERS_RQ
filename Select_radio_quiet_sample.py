@@ -22,8 +22,8 @@ import matplotlib as mpl
 import matplotlib.patches as patches
 import my_functions as mf
 from photutils.aperture import CircularAperture, SkyCircularAperture, ApertureStats, aperture_photometry
-from . import rq_general as rqg
-from . import plotstyle as ps
+import general as gen
+import plotstyle as ps
 
 #######################################################################################
 ########### FORMATTING FOR GRAPHS #####################################################
@@ -36,10 +36,10 @@ plt.style.use(ps.styledict)
 #######################################################
 
 #relevant paths
-PATH_RAGERS = rqg.PATH_RAGERS
-PATH_CATS = rqg.PATH_CATS
-PATH_DATA = rqg.PATH_DATA
-PATH_PLOTS = rgq.PATH_PLOTS
+PATH_RAGERS = gen.PATH_RAGERS
+PATH_CATS = gen.PATH_CATS
+PATH_DATA = gen.PATH_DATA
+PATH_PLOTS = gen.PATH_PLOTS
 
 #whether or not to include radio-loud RAGERS galaxies with limiting stellar masses
 include_lims = False
@@ -181,7 +181,7 @@ ax1.set_xlabel(r'$z$')
 ax1.set_ylabel(r'log$_{10}$($M_{\star}$/M$_{\odot}$)')
 
 #create the figure (number of matches vs redshift and vs stellar mass)
-f2 = plt.figure(figsize=(2*x_size, y_size))
+f2 = plt.figure(figsize=(2*ps.x_size, ps.y_size))
 gs = f2.add_gridspec(ncols=2, nrows=1, width_ratios=[1,1])
 #add axes for each panel
 ax2a = f2.add_subplot(gs[0,0])
@@ -192,7 +192,7 @@ ax2a.set_ylabel(r'Number of matches')
 ax2b.set_xlabel(r'log$_{10}$($M_{\star}$/M$_{\odot}$)')
 
 #create the figure (RA and Dec. of the matched galaxies)
-f3, ax3 = plt.subplots(1, 1, figsize=(1.6*x_size, y_size))
+f3, ax3 = plt.subplots(1, 1, figsize=(1.6*ps.x_size, ps.y_size))
 #label the axes
 ax3.set_xlabel(r'RA (deg)')
 ax3.set_ylabel(r'Dec. (deg)')
