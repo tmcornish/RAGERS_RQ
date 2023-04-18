@@ -4,6 +4,8 @@
 ############################################################################################################
 
 import astrometry as astrom
+import colorsys
+import matplotlib as mpl
 
 ####################################
 #### RELEVANT PATHS & VARIABLES ####
@@ -15,11 +17,6 @@ PATH_SCRIPTS = PATH_RAGERS + '/Scripts/Analysis_repo/'
 PATH_CATS = PATH_RAGERS + '/Catalogues/'
 PATH_PLOTS = PATH_RAGERS + '/Plots/'
 PATH_DATA = PATH_RAGERS + '/Data/'
-
-
-#################################
-#### FORMATTING OUTPUT ##########
-#################################
 
 
 def colour_string(s, c='red'):
@@ -58,6 +55,37 @@ def string_important(s):
 	pad_textline = '#' * N_pad
 	textline = ' '.join([pad_textline, s, pad_textline])	#line containing the important text with padding
 	return '\n'.join([pad_newline, textline, pad_newline])
+
+
+def scale_RGB_colour(rgb, scale_l=1., scale_s=1.):
+	'''
+	Takes any RGB code and scales its 'lightness' and saturation (according to the hls colour 
+	model) by factors of scale_l and scale_s.
+		hex: The RGB colour specifications.
+		scale_l: The factor by which to scale the lightness.
+		scale_s: The factor by which to scale the saturation.
+	'''
+	#convert the rgb to hls (hue, lightness, saturation)
+	h, l, s = colorsys.rgb_to_hls(*rgb)
+	#scale the lightness ad saturation and ensure the results are between 0 and 1
+	l_new = max(0, min(1, l * scale_l))
+	s_new = max(0, min(1, s * scale_s))
+	#convert back to rgb and return the result
+	return colorsys.hls_to_rgb(h, l_new, s_new)
+
+
+def scale_HEX_colour(c_hex, scale_l=1., scale_s=1.):
+	'''
+	Takes any colour HEX code and scales its 'lightness' and saturation (according to the hls colour 
+	model) by factors of scale_l and scale_s.
+		c_hex: The HEX colour code.
+		scale_l: The factor by which to scale the lightness.
+		scale_s: The factor by which to scale the saturation.
+	'''
+	#convert the colour HEX code to RGB format
+	rgb = mpl.colors.ColorConverter.to_rgb(c_hex)
+	#convert back to rgb and return the result
+	return scale_RGB_colour(rgb, scale_l, scale_s)
 
 
 def make_latex_table(data, titles, filename='table.tex', full_pagewidth=False, caption='', include_footnotes=False, footnotes=[], label='tab:tab', alignment='c', padding='0em'):
@@ -207,3 +235,31 @@ def table_to_DS9_regions(T, RAcol, DECcol, convert_to_sexagesimal=True, output_n
 			#finally, account for the possibility that labels was entered as neither True nor False
 			else:
 				raise TypeError('table_to_DS9_regions argument \'labels\' must be either True or False')
+
+
+def array_to_fits(data, filename, CTYPE1='RA', CTYPE2='DEC', CRPIX=[1,1], CRVAL=[0,0], CDELT=[1,1]):
+	'''
+	Takes an array and details describing a coordinate system and creates a FITS file.
+		data: The array containing the data.
+		filename: Output file name.
+		CTYPE1: Name of the variable along axis 1.
+		CTYPE2: Name of the variable along axis 2.
+		CRPIX: Reference pixels in [X,Y].
+		CRVAL: Reference pixel values in [X,Y].
+		CDELT: Pixel scales in [X,Y].
+	'''
+	#create a PrimaryHDU from the chi^2 grid
+	hdu = fits.PrimaryHDU(data)
+	#update the relevant parameters in the header
+	hdu.header['CTYPE1'] = CTYPE1
+	hdu.header['CTYPE2'] = CTYPE2
+	hdu.header['CRPIX1'] = CRPIX[0]
+	hdu.header['CRPIX2'] = CRPIX[1]
+	hdu.header['CRVAL1'] = CRVAL[0]
+	hdu.header['CRVAL2'] = CRVAL[1]
+	hdu.header['CDELT1'] = CDELT[0]
+	hdu.header['CDELT2'] = CDELT[1]
+	#create an HDUList
+	hdul = fits.HDUList([hdu])
+	#write this to the file
+	hdul.writeto(filename, overwrite=True)
