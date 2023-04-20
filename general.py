@@ -6,18 +6,28 @@
 import astrometry as astrom
 import colorsys
 import matplotlib as mpl
+from astropy.io import fits
+import scipy.optimize as opt
+import numpy as np
 
 ####################################
 #### RELEVANT PATHS & VARIABLES ####
 ####################################
 
 #relevant directories
-PATH_RAGERS = '/home/cornisht/RAGERS/'
+PATH_RAGERS = '/Users/thomascornish/Desktop/PhD/RAGERS/'
+#PATH_RAGERS = '/home/cornisht/RAGERS/'
 PATH_SCRIPTS = PATH_RAGERS + '/Scripts/Analysis_repo/'
 PATH_CATS = PATH_RAGERS + '/Catalogues/'
 PATH_PLOTS = PATH_RAGERS + '/Plots/'
 PATH_DATA = PATH_RAGERS + '/Data/'
 
+#search radius to use when finding submm counterparts
+r_search = 6.
+
+###################
+#### FUNCTIONS ####
+###################
 
 def colour_string(s, c='red'):
 	'''
@@ -263,3 +273,45 @@ def array_to_fits(data, filename, CTYPE1='RA', CTYPE2='DEC', CRPIX=[1,1], CRVAL=
 	hdul = fits.HDUList([hdu])
 	#write this to the file
 	hdul.writeto(filename, overwrite=True)
+
+
+def error_message(module, message):
+	'''
+	Prints a nicely formatted error message. For use within other modules as a means of identifying
+	issues. 
+		module: The name of the module being debugged.
+		message: The body of the error message to print.
+	'''
+	err_str = [
+		colour_string(f'{module}\n', 'cyan'),
+		colour_string('Error: '),
+		colour_string(message, 'white')]
+	print(''.join(err_str))
+
+
+def get_ndim(x):
+	'''
+	Takes a variable and determines its the number of dimensions, e.g. 0 for single number (scalar), 
+	1 for a list or 1d array, 2 for a 2d array, etc. Note: only really effective with int, float, 
+	str, list, tuple, and other array-like types.
+		x: The variable for which the rank is to be determined.
+	'''
+	xtype = type(x)
+
+	#if the variable is a single integer, float or string, set ndim = 0
+	if xtype in [int, float, str]:
+		ndim = 0
+	#otherwise, attempt to convert to an array then find the number of dimensions
+	else:
+		x_array = np.array(x)
+		ndim = len(x_array.shape)
+		#if the length is still 0, return None instead and print an error message
+		if ndim == 0:
+			ndim = None
+			error_message('general.get_ndim', f'could not find ndim for data type {xtype.__name__}')
+
+	return ndim
+
+
+
+

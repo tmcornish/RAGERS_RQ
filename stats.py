@@ -2,6 +2,11 @@
 # Module containing functions for the analysis and propagation of uncertainties.
 ###########################################################################################################
 
+import numpy as np
+from scipy.stats import truncnorm
+import scipy.special as special
+from scipy import optimize as opt
+
 
 def percentiles_nsig(n):
 	'''
@@ -14,6 +19,9 @@ def percentiles_nsig(n):
 	p_lo = 0.5 * (1. - f) * 100.
 	p_hi = 0.5 * (1. + f) * 100.
 	return (p_lo, p_hi)
+
+#percentiles corresponding to 1 sigma about the median
+p16, p84 = percentiles_nsig(1.)
 
 
 def gaussian(x, x0, sigma):
@@ -67,3 +75,105 @@ def random_asymmetric_gaussian(mu, sigma_lo, sigma_hi, N):
 	#concatenate the two randomly drawn samples
 	rand_all = np.concatenate([rand_lo, rand_hi])
 	return rand_all
+
+
+def chisq(x, y, yerr, ymodel):
+	'''
+	Calculates chi squared for a set of observed and model values at given x-coordinates.
+
+	Parameters
+	----------
+	x: array-like
+		x-values at which the observations were taken.
+
+	y: array-like
+		y-values for each observation.
+
+	yerr: array-like
+		Uncertainties on each observed y-value (assumed symmetric).
+
+	ymodel: array-like
+		Model y-values for each x-value, calculated using some model function.
+
+	Returns
+	----------
+	chisq: float
+		The chi-squared value for the function.
+	'''
+	#calculate chi-squared
+	chi2 = np.sum(((ymodel - y)/yerr) ** 2.)
+	return chi2
+
+
+def chisq_minimise(x, y, yerr, func, initial):
+	'''
+	Takes a function and performs chi-squared minimisation to determine the best-fit parameters
+	for a set of observations.
+
+	Parameters
+	----------
+	x: array-like
+		x-values at which the observations were taken.
+
+	y: array-like
+		y-values for each observation.
+
+	yerr: array-like
+		Uncertainties on each observed y-value (assumed symmetric).
+
+	func: callable
+		Function to be fitted. Must have the form func(x, params) where params is array-like and
+		comprises the function paramters.
+
+	initial: array-like
+		Initial guesses for the best-fit parameters (must have the same order as when they are fed
+		to the function).
+
+	Returns
+	----------
+	popt: array
+		The best-fit parameters.
+
+	chi2min: float
+		The chi-squared value for the best fit.
+
+	'''
+
+	def chisq_model(params, x_, y_, yerr_):
+		'''
+		Calculates chi-squared for the model function and a given dataset.
+
+		Parameters
+		----------
+		params: array-like
+			List/tuple/array containing the model function parameters.
+	
+		x_: array-like
+			x-values at which the observations were taken.
+
+		y_: array-like
+			y-values for each observation.
+
+		yerr_: array-like
+			Uncertainties on each observed y-value (assumed symmetric).
+
+		Returns
+		----------
+		chisq: float
+			The chi-squared value for the function.
+		'''
+		ymodel = func(x_, params)
+		chi2 = np.sum(((ymodel - y_)/yerr_) ** 2.)
+		return chi2
+
+	#reformat the chisq_model function so that it is compatible with scipy.optimize.minimize
+	nll = lambda *args : chisq_model(*args)
+	#run the optimisation to find the best-fit parameters that minimize chi squared
+	res = opt.minimize(nll, x0=initial, args=(x, y, yerr))
+	#retrieve the best-fit parameters and minimum chi squared value
+	popt = res.x
+	chi2min = res.fun
+	return popt, chi2min
+
+
+

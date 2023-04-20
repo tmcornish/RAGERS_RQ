@@ -1,11 +1,6 @@
 ############################################################################################################
 # A script for selecting a sample of galaxies from a catalogue with similar stellar masses and redshifts to
-# the RAGERS radio-loud sample. NOTE: Before running must be in the 'photom' environment - type  
-# 'conda activate photom' in the Terminal prior to running this script.
-#
-# v2: Rather than use estimated rest-frame 500 MHz radio luminosities to categorise galaxies as RL or RQ,
-# counts all galaxies detected in VLA-COSMOS (3 GHz) as RL.
-# v3: Uses RA and Dec cuts defined using the SCUBA-2 sensitivity map.
+# the RAGERS radio-loud sample.
 ############################################################################################################
 
 #import modules/packages
@@ -20,13 +15,45 @@ import numpy as np
 from matplotlib import pyplot as plt
 import matplotlib as mpl
 import matplotlib.patches as patches
-import my_functions as mf
 from photutils.aperture import CircularAperture, SkyCircularAperture, ApertureStats, aperture_photometry
 import general as gen
 import plotstyle as ps
+import astrometry as ast
 
-#######################################################################################
-########### FORMATTING FOR GRAPHS #####################################################
+
+##################
+#### SETTINGS ####
+##################
+
+include_lims = False	#include radio-loud RAGERS galaxies with limiting stellar masses
+plot_selection = True	#visualise the sample selection in z-M* space
+plot_N_per_RL = True	#plot the number of RQ counterparts per RL source
+plot_positions = True	#plot the positions of the RQ counterparts
+settings = [include_lims, plot_selection, plot_N_per_RL, plot_positions]
+#print the chosen settings to the Terminal
+print(gen.colour_string('CHOSEN SETTINGS:', 'white'))
+settings_print = [
+	'Include stellar mass limits: ',
+	'Plot sample selection: ',
+	'Plot number of RQ counterparts per RL galaxy: ',
+	'Plot RQ counterpart positions: ',
+]
+for i in range(len(settings_print)):
+	if settings[i]:
+		settings_print[i] += 'y'
+	else:
+		settings_print[i] += 'n'
+
+#define z and Mstar intervals within which sources will be considered 'matched' to a RAGERS galaxy
+dz_sel = 0.1
+dm_sel = 0.05
+sel_str = u'Selection criteria:\n  dz = \u00B1'+f'{dz_sel}\n  '+u'dlog(M/Msun) = \u00B1'+f'{dm_sel}'
+#search radius (arcmin) to be used later when looking for submm companions 
+r_search = 6.
+search_str = f'SMG search radius: {r_search} arcmin'
+settings_print.extend([sel_str, search_str])
+
+print(gen.colour_string('\n'.join(settings_print), 'white'))
 
 #formatting for graphs
 plt.style.use(ps.styledict)
@@ -41,13 +68,46 @@ PATH_CATS = gen.PATH_CATS
 PATH_DATA = gen.PATH_DATA
 PATH_PLOTS = gen.PATH_PLOTS
 
-#whether or not to include radio-loud RAGERS galaxies with limiting stellar masses
-include_lims = False
+
+######################
+#### FIGURE SETUP ####
+######################
+
+if plot_selection:
+	#create the figure (stellar mass vs redshift)
+	f1, ax1 = plt.subplots(1, 1)
+	#label the axes
+	ax1.set_xlabel(r'$z$')
+	ax1.set_ylabel(r'log$_{10}$($M_{\star}$/M$_{\odot}$)')
+
+if plot_N_per_RL:
+	#create the figure (number of matches vs redshift and vs stellar mass)
+	f2 = plt.figure(figsize=(2*ps.x_size, ps.y_size))
+	gs = f2.add_gridspec(ncols=2, nrows=1, width_ratios=[1,1])
+	#add axes for each panel
+	ax2a = f2.add_subplot(gs[0,0])
+	ax2b = f2.add_subplot(gs[0,1], sharey=ax2a)
+	#label the axes
+	ax2a.set_xlabel(r'$z$')
+	ax2a.set_ylabel(r'Number of matches')
+	ax2b.set_xlabel(r'log$_{10}$($M_{\star}$/M$_{\odot}$)')
+
+if plot_positions:
+	#create the figure (RA and Dec. of the matched galaxies)
+	f3, ax3 = plt.subplots(1, 1, figsize=(1.6*ps.x_size, ps.y_size))
+	#label the axes
+	ax3.set_xlabel(r'RA (deg)')
+	ax3.set_ylabel(r'Dec. (deg)')
+
+#colourmap to use for plots
+cmap = mpl.cm.rainbow
 
 
 #########################################
 #### LOADING DATA AND CROSS-MATCHING ####
 #########################################
+
+print(gen.colour_string('Loading catalogues and cross-matching...', 'purple'))
 
 #path to the RAGERS radio-loud catalogue
 RL_CAT = PATH_CATS + 'RAGERS_radio_loud_sample.fits'
@@ -68,22 +128,8 @@ z_rl = data_rl['z']
 #number of RAGERS sources
 N_rl = len(data_rl)
 
-
-'''
-#path to the S2COSMOS catalogue (Simpson+19)
-S2C_CAT = PATH_CATS + 'S2COSMOS_sourcecat850_Simpson18.fits'
-data_s2c = Table.read(S2C_CAT, format='fits')
-#get the minimum and maximum RA and Dec. (in deg) from the catalogue
-RA_min, RA_max = min(data_s2c['RA_deg']), max(data_s2c['RA_deg'])
-DEC_min, DEC_max = min(data_s2c['DEC_deg']), max(data_s2c['DEC_deg'])
-#ultimately only want COSMOS2020 galaxies with >4' SCUBA-2 coverage in all directions; add appropriate padding to min and max values
-pad = 5. 	#arcmin
-pad /= 60.	#deg
-RA_min += pad
-RA_max -= pad
-DEC_min += pad
-DEC_max -= pad
-'''
+#get N colours from the colourmap where N is the number of RAGERS sources
+colours = [cmap(i/N_rl) for i in range(N_rl)]
 
 #path to the reference catalogue (COSMOS2020)
 REF_CAT = PATH_CATS + 'COSMOS2020_CLASSIC_R1_v2.0.fits'
@@ -109,7 +155,7 @@ data_vla = data_vla[vla_keep]
 #cols_keep = ['ID_VLA', 'RA_VLA_J2000', 'DEC_VLA_J2000', 'ID_CPT', 'RA_CPT_J2000', 'DEC_CPT_J2000', 'Z_BEST', 'FLUX_INT_3GHz', 'Lradio_10cm', 'Lradio_21cm']
 #data_vla = data_vla[cols_keep]
 #cross-match with the COSMOS2020 catalogue
-data_ref = mf.cross_match_catalogues(data_ref, data_vla, 'ALPHA_J2000', 'DELTA_J2000', 'RA_CPT_J2000', 'DEC_CPT_J2000', tol=1., join='all1')
+data_ref = ast.cross_match_catalogues(data_ref, data_vla, 'ALPHA_J2000', 'DELTA_J2000', 'RA_CPT_J2000', 'DEC_CPT_J2000', tol=1., join='all1')
 #deal with a bug in which the 'true' and 'false' strings in the various VLA flag columns have added whitespace
 for col in ['Xray_AGN', 'MIR_AGN', 'SED_AGN', 'Quiescent_MLAGN', 'SFG', 'Clean_SFG', 'HLAGN', 'MLAGN', 'Radio_excess']:
 	for s in np.unique(data_ref[col]):
@@ -135,15 +181,13 @@ COSMOS_data_matched = []
 #create one more list to which the number of matched sources will be appended for each RAGERS galaxy
 N_matches_all = []
 
-
-#define z and Mstar intervals within which sources will be considered 'matched' to a RAGERS galaxy
-dz_sel = 0.1
-dm_sel = 0.05
-
+print(gen.colour_string('Done!', 'purple'))
 
 #################################
 #### SCUBA-2 SENSITIVITY MAP ####
 #################################
+
+print(gen.colour_string('Creating mask using SCUBA-2 sensitivity mask...', 'purple'))
 
 #set a sensitivity limit (mJy/beam)
 sensitivity_limit = 1.3
@@ -169,43 +213,14 @@ extent = (RA_max, RA_min, DEC_min, DEC_max)
 smap_sel = np.zeros(smap_data[0].shape)
 smap_sel[smap_data[0] <= sensitivity_limit] = 1.
 
-
-######################
-#### FIGURE SETUP ####
-######################
-
-#create the figure (stellar mass vs redshift)
-f1, ax1 = plt.subplots(1, 1)
-#label the axes
-ax1.set_xlabel(r'$z$')
-ax1.set_ylabel(r'log$_{10}$($M_{\star}$/M$_{\odot}$)')
-
-#create the figure (number of matches vs redshift and vs stellar mass)
-f2 = plt.figure(figsize=(2*ps.x_size, ps.y_size))
-gs = f2.add_gridspec(ncols=2, nrows=1, width_ratios=[1,1])
-#add axes for each panel
-ax2a = f2.add_subplot(gs[0,0])
-ax2b = f2.add_subplot(gs[0,1], sharey=ax2a)
-#label the axes
-ax2a.set_xlabel(r'$z$')
-ax2a.set_ylabel(r'Number of matches')
-ax2b.set_xlabel(r'log$_{10}$($M_{\star}$/M$_{\odot}$)')
-
-#create the figure (RA and Dec. of the matched galaxies)
-f3, ax3 = plt.subplots(1, 1, figsize=(1.6*ps.x_size, ps.y_size))
-#label the axes
-ax3.set_xlabel(r'RA (deg)')
-ax3.set_ylabel(r'Dec. (deg)')
-
-#colourmap to use for plots
-cmap = mpl.cm.rainbow
-#get N colours from the colourmap where N is the number of RAGERS sources
-colours = [cmap(i/N_rl) for i in range(N_rl)]
+print(gen.colour_string('Done!', 'purple'))
 
 
 ###########################################
 #### RADIO QUIET GALAXY IDENTIFICATION ####
 ###########################################
+
+print(gen.colour_string('Identifying RQ counterparts...', 'purple'))
 
 #count all galaxies detected in Smolcic as 'radio loud'
 #RL_cut = ~data_ref['RA_VLA_J2000'].mask
@@ -230,11 +245,11 @@ with open(N_matched_file, 'w') as file:
 
 	######################
 
-
-	#begin by plotting the RAGERS RL sample
-	ax1.plot(z_rl, Mstar_rl, linestyle='none', marker='o', c='k', ms=5., label='RAGERS sample', zorder=10.)
-	if include_lims:
-		ax1.quiver(z_rl[Mstar_lims], Mstar_rl[Mstar_lims], 0., -1., color='k', scale=scale, scale_units='inches', width=aw, headwidth=hw, headlength=hl, headaxislength=hal, zorder=9.)
+	if plot_selection:
+		#begin by plotting the RAGERS RL sample
+		ax1.plot(z_rl, Mstar_rl, linestyle='none', marker='o', c='k', ms=5., label='RAGERS sample', zorder=10.)
+		if include_lims:
+			ax1.quiver(z_rl[Mstar_lims], Mstar_rl[Mstar_lims], 0., -1., color='k', scale=scale, scale_units='inches', width=aw, headwidth=hw, headlength=hl, headaxislength=hal, zorder=9.)
 
 	'''
 	#create a mask that's initially all False (one for RQ and one for RL galaxies)
@@ -243,6 +258,8 @@ with open(N_matched_file, 'w') as file:
 	'''
 	masked_cat_all_RQ = []
 	masked_cat_all_RL = []
+
+	print('Number of RQ counterparts:')
 
 	#now cycle through each RAGERS galaxy and identify galaxies with similar redshifts
 	for j in range(N_rl):
@@ -261,7 +278,7 @@ with open(N_matched_file, 'w') as file:
 		#create SkyCoord objects from these coordinates
 		coords = SkyCoord(RAs, DECs, unit='deg')
 		#place apertures of radius 4' around each source and take the median sensitivity
-		apers = SkyCircularAperture(coords, 6.*u.arcmin)
+		apers = SkyCircularAperture(coords, r_search*u.arcmin)
 		aperstats = ApertureStats(smap_data[0], apers, wcs=w)
 		rms_medians = aperstats.median
 		rms_means = aperstats.mean
@@ -308,7 +325,7 @@ with open(N_matched_file, 'w') as file:
 		#count the number of matched sources for this RAGERS galaxy
 		N_matches = len(masked_cat_RQ)
 		N_matches_all.append(N_matches)
-		print(N_matches, np.sum(N_matches_all))
+		print(ID, N_matches)
 
 		#extend the 'ragers_id_col', 'ragers_z_col' and 'ragers_mstar_col' lists by repeating the relevant value x N_matches
 		ragers_id_col.extend([ID]*N_matches)
@@ -320,16 +337,20 @@ with open(N_matched_file, 'w') as file:
 		#write the RAGERS ID and number of companions to the file
 		file.write(f'{ID}\t{N_matches}\n')
 
-		#draw a box on Figure 1 representing this selection window
-		rect = patches.Rectangle((z-dz_sel, m-dm_sel), 2.*dz_sel, 2.*dm_sel, edgecolor=ps.green, facecolor='none', alpha=0.3, zorder=1)
-		ax1.add_patch(rect)
+		if plot_selection:
+			#draw a box on Figure 1 representing this selection window
+			rect = patches.Rectangle((z-dz_sel, m-dm_sel), 2.*dz_sel, 2.*dm_sel, edgecolor=ps.green, facecolor='none', alpha=0.3, zorder=1)
+			ax1.add_patch(rect)
 
-		#plot the RAs and Decs of the matched sources on Figure 3
-		ax3.plot(masked_cat_RQ['ALPHA_J2000'], masked_cat_RQ['DELTA_J2000'], color=c, label=ID, linestyle='None', marker='o', alpha=0.5)
+		if plot_positions:
+			#plot the RAs and Decs of the matched sources on Figure 3
+			ax3.plot(masked_cat_RQ['ALPHA_J2000'], masked_cat_RQ['DELTA_J2000'], color=c, label=ID, linestyle='None', marker='o', alpha=0.5)
 
 #mask the catalogue with the RQ and RL masks
 masked_cat_all_RQ = vstack(masked_cat_all_RQ)
 masked_cat_all_RL = vstack(masked_cat_all_RL)
+
+print(gen.colour_string('Done!', 'purple'))
 
 
 #retrieve relevant parameters and uncertainties
@@ -338,29 +359,33 @@ Mstar_matched_RQ = masked_cat_all_RQ['ez_mass']
 z_matched_RL = masked_cat_all_RL['ez_z_phot']
 Mstar_matched_RL = masked_cat_all_RL['ez_mass']
 
+if plot_selection:
+	print(gen.colour_string('Plotting selection...', 'purple'))
 
-#plot the values with their errorbars
-ax1.plot(z_matched_RQ, Mstar_matched_RQ, marker='.', c=ps.magenta, linestyle='None', alpha=0.3, ms=3., label='COSMOS2020 sample (RQ)')
-ax1.plot(z_matched_RL, Mstar_matched_RL, marker='.', c=ps.dark_blue, linestyle='None', alpha=0.3, ms=3., label='COSMOS2020 sample (RL)')
-#ax1.errorbar(z_matched, Mstar_matched, xerr=(ezlo_matched,ezhi_matched), yerr=(eMstarlo_matched,eMstarhi_matched), ecolor=lilac, fmt='None', alpha=0.3)
+	#plot the values with their errorbars
+	ax1.plot(z_matched_RQ, Mstar_matched_RQ, marker='.', c=ps.magenta, linestyle='None', alpha=0.3, ms=3., label='COSMOS2020 sample (RQ)')
+	ax1.plot(z_matched_RL, Mstar_matched_RL, marker='.', c=ps.dark_blue, linestyle='None', alpha=0.3, ms=3., label='COSMOS2020 sample (RL)')
+	#ax1.errorbar(z_matched, Mstar_matched, xerr=(ezlo_matched,ezhi_matched), yerr=(eMstarlo_matched,eMstarhi_matched), ecolor=lilac, fmt='None', alpha=0.3)
 
 
-#remove duplicates from legend
-handles, labels = ax1.get_legend_handles_labels()
-by_label = dict(zip(labels, handles))
-ax1.legend(by_label.values(), by_label.keys(), loc=2)
+	#remove duplicates from legend
+	handles, labels = ax1.get_legend_handles_labels()
+	by_label = dict(zip(labels, handles))
+	ax1.legend(by_label.values(), by_label.keys(), loc=2)
 
-#format the figure
-f1.tight_layout()
-#save the figure
-if include_lims:
-	figname = 'RQ_sample_selection_incl_RL_limits.png'
-else:
-	figname = 'RQ_sample_selection.png'
-	#set the axis limits
-	#xmin, xmax = ax1.set_xlim(0.5, 4.)
-	ymin, ymax = ax1.set_ylim(11.04, 11.9)
-f1.savefig(PATH_PLOTS+figname, bbox_inches='tight', dpi=300)
+	#format the figure
+	f1.tight_layout()
+	#save the figure
+	if include_lims:
+		figname = 'RQ_sample_selection_incl_RL_limits.png'
+	else:
+		figname = 'RQ_sample_selection.png'
+		#set the axis limits
+		#xmin, xmax = ax1.set_xlim(0.5, 4.)
+		ymin, ymax = ax1.set_ylim(11.04, 11.9)
+	f1.savefig(PATH_PLOTS+figname, bbox_inches='tight', dpi=300)
+
+	print(gen.colour_string('Done!', 'purple'))
 
 
 #stack the data for the matched sources into one table
@@ -376,54 +401,66 @@ COSMOS_data_matched.write(MATCHED_CAT, overwrite=True)
 #### NUMBER OF MATCHES PER SOURCE ####
 ######################################
 
-#plot the number of matches vs redshift in panel 1 of Figure 2
-sc2a = ax2a.scatter(z_rl, N_matches_all, c=Mstar_rl, cmap=cmap)
-#add a colourbar
-cbar2a = f2.colorbar(sc2a, ax=ax2a)
-cbar2a.ax.set_ylabel(r'log$_{10}$($M_{\star}$/M$_{\odot}$)')
+if plot_N_per_RL:
+	print(gen.colour_string('Plotting number of RQ counterparts...', 'purple'))
+
+	#plot the number of matches vs redshift in panel 1 of Figure 2
+	sc2a = ax2a.scatter(z_rl, N_matches_all, c=Mstar_rl, cmap=cmap)
+	#add a colourbar
+	cbar2a = f2.colorbar(sc2a, ax=ax2a)
+	cbar2a.ax.set_ylabel(r'log$_{10}$($M_{\star}$/M$_{\odot}$)')
 
 
-#plot the number of matches vs redshift in panel 1 of Figure 2
-sc2b = ax2b.scatter(Mstar_rl, N_matches_all, c=z_rl, cmap=cmap)
-#add a colourbar
-cbar2b = f2.colorbar(sc2b, ax=ax2b)
-cbar2b.ax.set_ylabel(r'$z$')
+	#plot the number of matches vs redshift in panel 1 of Figure 2
+	sc2b = ax2b.scatter(Mstar_rl, N_matches_all, c=z_rl, cmap=cmap)
+	#add a colourbar
+	cbar2b = f2.colorbar(sc2b, ax=ax2b)
+	cbar2b.ax.set_ylabel(r'$z$')
 
-#format the figure
-f2.tight_layout()
-#save the figure 
-if include_lims:
-	figname = 'N_RQ_vs_Mstar_and_z_incl_RL_limits.png'
-else:
-	figname = 'N_RQ_vs_Mstar_and_z.png'
-f2.savefig(PATH_PLOTS+figname, bbox_inches='tight', dpi=300)
+	#format the figure
+	f2.tight_layout()
+	#save the figure 
+	if include_lims:
+		figname = 'N_RQ_vs_Mstar_and_z_incl_RL_limits.png'
+	else:
+		figname = 'N_RQ_vs_Mstar_and_z.png'
+	f2.savefig(PATH_PLOTS+figname, bbox_inches='tight', dpi=300)
 
+	print(gen.colour_string('Done!', 'purple'))
 
 
 #######################################
 #### RA AND DEC OF MATCHED SOURCES ####
 #######################################
 
-#invert x-axis
-ax3.invert_xaxis()
-#get the axis limits
-xmin, xmax = ax3.get_xlim()
-ymin, ymax = ax3.get_ylim()
+if plot_positions:
+	print(gen.colour_string('Plotting RQ positions...', 'purple'))
 
-#add selection area to the background of the plot
-ax3.imshow(smap_sel, extent=extent, origin='lower', cmap='Greys', alpha=0.1, zorder=0)
-#reset the axis limits
-ax3.set_xlim(xmin, xmax)
-ax3.set_ylim(ymin, ymax)
+	#invert x-axis
+	ax3.invert_xaxis()
+	#get the axis limits
+	xmin, xmax = ax3.get_xlim()
+	ymin, ymax = ax3.get_ylim()
 
-#add legend to right of plot
-ax3.legend(loc='center right', bbox_to_anchor=(1.34, 0.5))
+	#add selection area to the background of the plot
+	ax3.imshow(smap_sel, extent=extent, origin='lower', cmap='Greys', alpha=0.1, zorder=0)
+	#reset the axis limits
+	ax3.set_xlim(xmin, xmax)
+	ax3.set_ylim(ymin, ymax)
 
-#format the figure
-f3.tight_layout()
-#save the figure
-if include_lims:
-	figname = 'RQ_positions_sky_incl_RL_limits.png'
-else:
-	figname = 'RQ_positions_sky.png'
-f3.savefig(PATH_PLOTS+figname, bbox_inches='tight', dpi=300)
+	#add legend to right of plot
+	ax3.legend(loc='center right', title='RQ analogues of...', title_fontsize='x-small', bbox_to_anchor=(1.34, 0.5))
+
+	#format the figure
+	f3.tight_layout()
+	#save the figure
+	if include_lims:
+		figname = 'RQ_positions_sky_incl_RL_limits.png'
+	else:
+		figname = 'RQ_positions_sky.png'
+	f3.savefig(PATH_PLOTS+figname, bbox_inches='tight', dpi=300)
+
+	print(gen.colour_string('Done!', 'purple'))
+
+
+
