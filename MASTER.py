@@ -5,19 +5,7 @@
 
 # Import necessary packages/modules
 import os, sys
-import my_functions as mf
-
-
-
-####################################
-#### RELEVANT PATHS & VARIABLES ####
-####################################
-
-PATH_RAGERS = '/home/cornisht/RAGERS/'
-PATH_SCRIPTS = PATH_RAGERS + '/Scripts/Analysis_pipeline/'
-PATH_CATS = PATH_RAGERS + '/Catalogues/'
-PATH_PLOTS = PATH_RAGERS + '/Plots/'
-PATH_DATA = PATH_RAGERS + '/Data/'
+import general as gen
 
 
 ##################
@@ -25,18 +13,20 @@ PATH_DATA = PATH_RAGERS + '/Data/'
 ##################
 
 #toggle `switches' for determining which scripts to run
-rq_sample = True			#select the sample of radio-quiet massive galaxies
-number_counts = True		#construct number counts
+recreate_S19 = True			#recreate the results (completeness, number counts) from Simpson+19
+rq_sample = False			#select the sample of radio-quiet massive galaxies
+number_counts = False		#construct number counts
 
 ##################
 
-settings = [rq_sample, number_counts]
-proc_names = ['Selecting RQ sample', 'Constructing number counts']
+settings = [recreate_S19, rq_sample, number_counts]
+proc_names = ['Recreating Simpson+19 results', 'Selecting RQ sample', 'Constructing number counts']
 run_str = [
-	f'./Select_radio_quiet_sample.sh {PATH_RAGERS} {PATH_CATS} {PATH_DATA} {PATH_PLOTS}',
-	f'python Submm_number_counts.py {PATH_RAGERS} {PATH_CATS} {PATH_PLOTS}']
+	'python Recreate_S19_number_counts.py',
+	'./Select_radio_quiet_sample.sh',
+	'python Submm_number_counts.py']
 
-print(mf.colour_string(mf.string_important('PROCESSES TO RUN')+'\n', 'cyan'))
+print(gen.colour_string(gen.string_important('PROCESSES TO RUN')+'\n', 'cyan'))
 setting_str = []
 for se, pn in zip(settings, proc_names):
 	if se:
@@ -52,5 +42,5 @@ print('\n'.join(setting_str)+'\n')
 
 for se, pn, rs in zip(settings, proc_names, run_str):
 	if se:
-		print(mf.colour_string(mf.string_important(pn.upper())+'\n', 'orange')+'\n')
+		print(gen.colour_string(gen.string_important(pn.upper())+'\n', 'orange')+'\n')
 		os.system(rs)

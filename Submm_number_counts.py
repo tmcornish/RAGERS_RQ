@@ -37,48 +37,14 @@ import colorsys
 import glob
 from scipy.interpolate import LinearNDInterpolator, interp1d
 import scipy.optimize as opt
+import general as gen
+import plotstyle as ps
 
 #######################################################################################
 ########### FORMATTING FOR GRAPHS #####################################################
 
 #formatting for graphs
-plt.style.use('plotstyle.mplstyle')
-
-#colours
-red = '#eb0505'
-dark_red = '#ab0000'
-ruby = '#C90058'
-crimson = '#AF0404'
-coral = '#FF4848'
-magenta = '#C3027D'
-orange = '#ED5A01'
-green = '#0A8600'
-light_green = '#11C503'
-teal = '#00A091'
-cyan = '#00d0f0'
-blue = '#0066ff'
-light_blue = '#00C2F2'
-dark_blue = '#004ab8'
-purple = '#6D04C4'
-lilac = '#EB89FF'
-plum = '#862388'
-pink = '#E40ACA'
-baby_pink = '#FF89FD'
-fuchsia = '#E102B5'
-grey = '#969696'
-
-#obtain the figure size in inches
-x_size, y_size = 8., 8.
-#formatting for any arrows to be added to the plot for representing upper/lower limits
-ax_frac = 1/40.				#the fraction of the y axis that the total length of a vertical arrow should occupy
-al = ax_frac * y_size		#the length of each arrow in inches (ew, but sadly metric isn't allowed)
-scale = 1./al				#'scale' parameter used for defining the length of each arrow in a quiver
-aw = 0.0175 * al				#the width of each arrow shaft in inches
-hw = 4.						#width of the arrowheads in units of shaft width
-hl = 3.						#length of the arrowheads in units of shaft width
-hal = 2.5					#length of the arrowheads at the point where they intersect the shaft 
-							#(e.g. hal = hl gives a triangular head, hal < hl gives a more pointed head)
-
+plt.style.use(ps.styledict)
 
 #######################################################
 ###################    FUNCTIONS  #####################
@@ -204,9 +170,9 @@ N_sel = 10
 #######################################################
 
 #relevant paths
-PATH_RAGERS = sys.argv[1]
-PATH_CATS = sys.argv[2]
-PATH_PLOTS = sys.argv[3]
+PATH_RAGERS = gen.PATH_RAGERS
+PATH_CATS = gen.PATH_CATS
+PATH_PLOTS = gen.PATH_PLOTS
 
 #catalogue containing data for (radio-quiet) galaxies from COSMOS2020 matched in M* and z with the radio-loud sample
 RQ_CAT = PATH_CATS + 'RAGERS_COSMOS2020_matches_Mstar_z.fits'
@@ -231,7 +197,7 @@ coords_submm = SkyCoord(RA_submm, DEC_submm, unit='deg')
 ######################
 
 #create the figure (dN/dS vs S)
-f1, ax1 = plt.subplots(2, 2, figsize=(2.*x_size, 2.*y_size))
+f1, ax1 = plt.subplots(2, 2, figsize=(2.*ps.x_size, 2.*ps.y_size))
 #to label axes with common labels, create a big subplot, make it invisible, and label its axes
 ax_big1 = f1.add_subplot(111, frameon=False)
 ax_big1.tick_params(labelcolor='none', top=False, bottom=False, left=False, right=False, which='both')
@@ -259,7 +225,7 @@ markers = ['s', '^', 'v', '*', (8,1,0), 'x', '<', '>', 'p']
 #if told to make an extra figure for the positions of the RQ and RL sources, create the figure
 if plot_positions:
 	#create the figure (Dec. vs RA)
-	f2, ax2 = plt.subplots(2, 2, figsize=(2.*x_size, 2.*y_size))
+	f2, ax2 = plt.subplots(2, 2, figsize=(2.*ps.x_size, 2.*ps.y_size))
 	#to label axes with common labels, create a big subplot, make it invisible, and label its axes
 	ax_big2 = f2.add_subplot(111, frameon=False)
 	ax_big2.tick_params(labelcolor='none', top=False, bottom=False, left=False, right=False, which='both')
@@ -269,7 +235,7 @@ if plot_positions:
 
 if plot_cumulative:
 	#create the figure (N(>S) vs S)
-	f3, ax3 = plt.subplots(2, 2, figsize=(2.*x_size, 2.*y_size))
+	f3, ax3 = plt.subplots(2, 2, figsize=(2.*ps.x_size, 2.*ps.y_size))
 	#to label axes with common labels, create a big subplot, make it invisible, and label its axes
 	ax_big3 = f3.add_subplot(111, frameon=False)
 	ax_big3.tick_params(labelcolor='none', top=False, bottom=False, left=False, right=False, which='both')
@@ -500,8 +466,8 @@ if bf_results:
 	xbins_bf = S850_bin_centres * 10. ** (0.004)
 	if combined_plot:
 		labels_ord_combined.append(label_bf)
-		ax4.plot(xbins_bf, N_bf, linestyle='none', marker='D', color=crimson, label=label_bf)
-		ax4.errorbar(xbins_bf, N_bf, fmt='none', yerr=eN_bf, ecolor=crimson, elinewidth=2.)
+		ax4.plot(xbins_bf, N_bf, linestyle='none', marker='D', color=ps.crimson, label=label_bf)
+		ax4.errorbar(xbins_bf, N_bf, fmt='none', yerr=eN_bf, ecolor=ps.crimson, elinewidth=2.)
 
 	if plot_cumulative:
 		#calculate the cumulative counts
@@ -516,8 +482,8 @@ if bf_results:
 		xbins_cumbf = S850_bin_edges[:-1] * 10. ** (0.004)
 
 		if combined_plot:
-			ax5.plot(xbins_cumbf, cumN_bf, linestyle='none', marker='D', color=crimson, label=label_bf)
-			ax5.errorbar(xbins_cumbf, cumN_bf, fmt='none', yerr=ecumN_bf, ecolor=crimson, elinewidth=2.)
+			ax5.plot(xbins_cumbf, cumN_bf, linestyle='none', marker='D', color=ps.crimson, label=label_bf)
+			ax5.errorbar(xbins_cumbf, cumN_bf, fmt='none', yerr=ecumN_bf, ecolor=ps.crimson, elinewidth=2.)
 
 
 #########################################
@@ -615,11 +581,11 @@ for i in range(len(zbin_centres)):
 	#blank field  results
 	if bf_results:
 		labels_ord.append(label_bf)
-		ax1[row_c,col_c].plot(xbins_bf, N_bf, linestyle='none', marker='D', color=grey, label=label_bf, alpha=0.5)
-		ax1[row_c,col_c].errorbar(xbins_bf, N_bf, fmt='none', yerr=eN_bf, ecolor=grey, elinewidth=2., alpha=0.5)
+		ax1[row_c,col_c].plot(xbins_bf, N_bf, linestyle='none', marker='D', color=ps.grey, label=label_bf, alpha=0.5)
+		ax1[row_c,col_c].errorbar(xbins_bf, N_bf, fmt='none', yerr=eN_bf, ecolor=ps.grey, elinewidth=2., alpha=0.5)
 		if plot_cumulative:
-			ax3[row_c,col_c].plot(xbins_cumbf, cumN_bf, linestyle='none', marker='D', color=grey, label=label_bf, alpha=0.5)
-			ax3[row_c,col_c].errorbar(xbins_cumbf, cumN_bf, fmt='none', yerr=ecumN_bf, ecolor=grey, elinewidth=2., alpha=0.5)
+			ax3[row_c,col_c].plot(xbins_cumbf, cumN_bf, linestyle='none', marker='D', color=ps.grey, label=label_bf, alpha=0.5)
+			ax3[row_c,col_c].errorbar(xbins_cumbf, cumN_bf, fmt='none', yerr=ecumN_bf, ecolor=ps.grey, elinewidth=2., alpha=0.5)
 
 	#cycle through the RL galaxies in this redshift bin
 	for j in range(len(rl_zbin)):
@@ -757,7 +723,7 @@ for i in range(len(zbin_centres)):
 		N_rl = N_rl[has_sources]
 
 		if combined_plot:
-			ax4.plot(x_bins, N_rl, color=grey, alpha=0.2)
+			ax4.plot(x_bins, N_rl, color=ps.grey, alpha=0.2)
 
 		#offset at which the points will be plotted relative to the bin centre (to avoid overlapping error bars)
 		x_bins = 10. ** (np.log10(x_bins) + 0.004 * ((-1.) ** ((j+1) % 2.)) * np.floor((j + 2.) / 2.))
@@ -781,7 +747,7 @@ for i in range(len(zbin_centres)):
 			ecumN_rl = ecumcounts_rl / A_rl
 
 			if combined_plot:
-				ax5.plot(S850_bin_edges[:-1], cumN_rl, color=grey, alpha=0.2)
+				ax5.plot(S850_bin_edges[:-1], cumN_rl, color=ps.grey, alpha=0.2)
 
 			#plot the bin heights at the left bin edges
 			x_bins = 10. ** (np.log10(S850_bin_edges[:-1]) + 0.004 * ((-1.) ** ((j+1) % 2.)) * np.floor((j + 2.) / 2.))
