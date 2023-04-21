@@ -1,22 +1,6 @@
 ############################################################################################################
 # A script for calculating and plotting the sub-mm number counts in the environments of 10 radio-quiet
-# galaxies for each radio-loud galaxy. The radio-quiet sample may have include galaxies that are 
-# 'double-counted', i.e. they have been matched to more than one radio-loud galaxy; this script accounts
-# for that when selecting the 10 galaxies to use for each set of number counts. Does not apply completeness
-# corrections at this stage.
-#
-# v2: Also plots number counts for all sources in each redshift bin.
-# v3: Adds the option to create an additional plot showing the RAs and DECs of each RQ galaxy with its 
-# search radius.
-# v4: Fixed bug - script now actually ensures the same RQ galaxy is not selected for multiple RL galaxies.
-# v5: Adapted to account for overlapping areas when placing apertures around each RQ galaxy.
-# v6: Derives completeness corrections by recreating Fig. 6b from Simpson+19 and applies them to the number 
-# counts.
-# v7: Plots cumulative number counts as well as differential number counts. Also added previously omitted 
-# step in the completeness calculation in which the defined completeness range is broadened to 0–100%.
-# v8: Creates plot(s) showing the combined results for all RQ targets.
-# v9: Adds the blank-field results to each relevant plot, where these are obtained using the whole S2COSMOS
-# catalogue.
+# galaxies for each radio-loud galaxy. 
 ############################################################################################################
 
 #import modules/packages
@@ -32,94 +16,19 @@ from matplotlib import pyplot as plt
 import matplotlib as mpl
 import matplotlib.patches as patches
 from matplotlib.colors import LinearSegmentedColormap
-import my_functions as mf
 import colorsys
 import glob
-from scipy.interpolate import LinearNDInterpolator, interp1d
+from scipy.interpolate import LinearNDInterpolator
 import scipy.optimize as opt
 import general as gen
 import plotstyle as ps
+import numcounts as nc
 
 #######################################################################################
 ########### FORMATTING FOR GRAPHS #####################################################
 
 #formatting for graphs
 plt.style.use(ps.styledict)
-
-#######################################################
-###################    FUNCTIONS  #####################
-#######################################################
-
-def area_of_intersection(r_a, r_b, d):
-	'''
-	Calculates the intersecting area between two overlappig circles.
-		r_a: Radius of the first circle.
-		r_b: Radius of the second circle.
-		d: Distance between the centres of the two circles.
-	'''
-	#see which circle has the smaller radius (r1 = bigger circle, r2 = smaller circle)
-	if r_a >= r_b:
-		r1 = r_a
-		r2 = r_b
-	else:
-		r1 = r_b
-		r2 = r_a
-	#check if the distance is greater than the sum of the radii - if so then there is no intersection
-	if d > (r1 + r2):
-		return 0.
-	#if the distance is less than the difference between the two radii, the area is equal to that of the smaller circle
-	if d <= (r1 - r2):
-		return np.pi * (r2 ** 2.)
-
-	#otherwise, the area of intersection is non-trivial and must be calculated differently; see
-	#https://diego.assencio.com/?index=8d6ca3d82151bad815f78addf9b5c1c6 for derivation and notation
-	d1 = ((r1 ** 2.) - (r2 ** 2.) + (d ** 2.)) / (2. * d)
-	d2 = d - d1
-	A1 = (r1 ** 2.) * np.arccos(d1 / r1) - d1 * np.sqrt((r1 ** 2.) - (d1 ** 2.))
-	A2 = (r2 ** 2.) * np.arccos(d2 / r2) - d2 * np.sqrt((r2 ** 2.) - (d2 ** 2.))
-	return A1 + A2
-
-
-def scale_colour(rgb, scale_l=1., scale_s=1.):
-	'''
-	Takes an rgb colour and scales its 'lightness' (according to the hls colour model) by a factor
-	of scale_l.
-		rgb: The (R, G, B) colour specifications.
-		scale_l: The factor by which to scale the lightness.
-	'''
-	#convert the rgb to hls (hue, lightness, saturation)
-	h, l, s = colorsys.rgb_to_hls(*rgb)
-	#scale the lightness and ensure the result is between 0 and 1
-	l_new = max(0, min(1, l * scale_l))
-	s_new = max(0, min(1, s * scale_s))
-	#convert back to rgb and return the result
-	return colorsys.hls_to_rgb(h, l_new, s_new)
-
-def model(theta, x):
-	'''
-	Fermi-Dirac-like distribution to model a completeness curve.
-		theta: fit parameters defining the slope and the x-position at which the completeness = 0.5.
-		x: values (of flux density) at which the distribution is analysed.
-	'''
-	A, B = theta
-	return 1. / (np.exp(A * (-x + B)) + 1.)
-
-def chisq(theta, x, y, yerr):
-	'''
-	Calculates the chi-squared value by comparing a model to the observed values.
-		theta: model fit parameters.
-		x: x-values at which the observed y-values are taken.
-		y: observed y values.
-		yerr: uncertainties in the observed y-values.
-	'''
-	ymodel = model(theta, x)
-	return np.sum(((ymodel - y)/yerr) ** 2.)
-
-def nll(*args):
-	'''
-	Chi-squared function reformatted to be compatible with scipy.optimize.minimize.
-	'''
-	return chisq(*args)
 
 
 ##################
@@ -136,7 +45,7 @@ bf_results = True				#adds the results obtained from the whole S2COSMOS catalogu
 settings = [plot_positions, independent_rq, comp_correct, plot_cumulative, combined_plot, bf_results]
 
 #print the chosen settings to the Terminal
-print(mf.colour_string('CHOSEN SETTINGS:', 'white'))
+print(gen.colour_string('CHOSEN SETTINGS:', 'white'))
 settings_print = [
 	'Plot RQ galaxy positions: ',
 	'Treat RQ galaxies independently: ',
@@ -149,7 +58,7 @@ for i in range(len(settings_print)):
 		settings_print[i] += 'y'
 	else:
 		settings_print[i] += 'n'
-print(mf.colour_string('\n'.join(settings_print), 'white'))
+print(gen.colour_string('\n'.join(settings_print), 'white'))
 
 #850 micron flux density bins to use for submm number counts
 dS = 2.		#bin width (mJy)
@@ -157,7 +66,7 @@ S850_bin_centres = np.arange(2.5, 22.5, dS)
 S850_bin_edges = np.append(S850_bin_centres-(dS/2.), S850_bin_centres[-1]+(dS/2.))
 
 #radius of search area to use in the submm data
-R_arcmin = 6.
+R_arcmin = gen.r_search
 R_deg = R_arcmin / 60.
 #area of aperture (sq. deg)
 A_sqdeg = np.pi * R_deg ** 2.
@@ -172,6 +81,7 @@ N_sel = 10
 #relevant paths
 PATH_RAGERS = gen.PATH_RAGERS
 PATH_CATS = gen.PATH_CATS
+PATH_DATA = gen.PATH_DATA
 PATH_PLOTS = gen.PATH_PLOTS
 
 #catalogue containing data for (radio-quiet) galaxies from COSMOS2020 matched in M* and z with the radio-loud sample
@@ -312,131 +222,45 @@ coords_rq_sub = SkyCoord(data_rq_sub['ALPHA_J2000'], data_rq_sub['DELTA_J2000'],
 ###########################################
 
 if comp_correct:
-	print(mf.colour_string('Calculating completeness corrections...', 'purple'))
-	#create a grid in flux density-RMS space
-	xmin, xmax = -15., 30.
-	ymin, ymax = 0.45, 3.05
-	xstep, ystep = 0.01, 0.01
-	xgrid, ygrid = np.mgrid[xmin:xmax+xstep:xstep, ymin:ymax+ystep:ystep]
-	#flat arrays of intervals in flux density and RMS
-	xspace = np.arange(xmin, xmax+xstep, xstep)
-	yspace = np.arange(ymin, ymax+ystep, ystep)
+	print(gen.colour_string('Calculating completeness corrections...', 'purple'))
 
-	#list to which the flux density, RMS and completeness values will be appended
-	values_list = []
-	#list to which the interpolated RMS as functions of flux density will be appended
-	x_interp_list = []
-	y_interp_list = []
-	#lists to which interpolated values of x and y will be appended for each completeness curve
-	x_interp_vals = []
-	y_interp_vals = []
-	#completenesses at which the curves are well-defined
-	comp_list = []
-	#cycle through the files containing data for the completeness curves in Simpson+19
-	files = sorted(glob.glob(PATH_CATS+'Simpson+19_completeness_curves/*'))
-	for file in files:
-		t_now = Table.read(file, format='ascii')
-		#interpolate the RMS as a function of flux density
-		y_interp = interp1d(t_now['col1'], t_now['col2'], fill_value='extrapolate')
-		#reverse the interpolation to get flux density as a function of RMS as well
-		x_interp = interp1d(t_now['col2'], t_now['col1'], fill_value='extrapolate')
-		#get the completeness from the filename
-		comp = float(file[-8:-6]) / 100.
-		comp_list.append(comp)
-		#use the interpolated functions to calculate the flux density at regular intervals of rms and vice versa
-		Y = y_interp(xspace)
-		X = x_interp(yspace)
-		#append the relevant values/functions to the lists
-		values_list.append([xspace, Y, np.full(len(xspace), comp)])
-		x_interp_list.append(x_interp)
-		y_interp_list.append(y_interp)
-		x_interp_vals.append(X)
-		y_interp_vals.append(Y)
+	#see if a file exists with the reconstructed S2COSMOS completeness grid (should have been created
+	#in previous step of pipeline)
+	compgrid_file = PATH_DATA + 'Completeness_at_S850_and_rms.fits'
+	if os.path.exists(compgrid_file):
+		CG_HDU = fits.open(compgrid_file)[0]
+		zgrid = CG_HDU.data.T
+		hdr = CG_HDU.header
+		#get the min, max and step along the S850 and RMS axes
+		xmin = hdr['CRVAL1']
+		xstep = hdr['CDELT1']
+		xmax = xmin + (hdr['NAXIS1'] - 1) * xstep
+		ymin = hdr['CRVAL2']
+		ystep = hdr['CDELT2']
+		ymax = ymin + (hdr['NAXIS2'] - 1) * ystep
+		#create a grid in flux density-RMS space
+		xgrid, ygrid = np.mgrid[xmin:xmax+xstep:xstep, ymin:ymax+ystep:ystep]
+		#interpolate the completeness values from the file w.r.t. S850 and RMS
+		points = np.array([xgrid.flatten(), ygrid.flatten()])
+		values = zgrid.flatten()
+		comp_interp = LinearNDInterpolator(points.T, values)
+	#otherwise, reconstruct the completeness from scratch
+	else:
+		#list of files contaning the flux densities and RMS values corresponding to a given completeness
+		comp_files = sorted(glob.glob(PATH_CATS + 'Simpson+19_completeness_curves/*'))
+		#corresponding completenesses
+		defined_comps = [0.1, 0.3, 0.5, 0.7, 0.9]
+		#min, max and step of the axes in the completeness grid: x (flux density) and y (RMS)
+		xparams = [-15., 30., 0.01]
+		yparams = [0.45, 3.05, 0.01]
 
-	#stack the results for each completeness curve
-	t_all = np.hstack(values_list)
-	#split the array into x-y coordinate pairs and the corresponding z values
-	points = t_all[:2]
-	values = t_all[-1]
-	#interpolate completeness as a function of flux density and RMS
-	comp_interp = LinearNDInterpolator(points.T, values)
-	#create a grid of completeness values
-	zgrid = comp_interp(xgrid, ygrid)
-
-	#uncertainties to give the observed completeness values, arbitrarily chosen such that the 10% and 90% 
-	#values have the highest weighting
-	comp_err = np.array([0.001, 0.01, 0.01, 0.01, 0.001])
-	#completeness values at which new curves are to be estimated
-	comp_to_find = np.concatenate(([0.0001], np.arange(0.01, 0.1, 0.01), np.arange(0.91, 1., 0.01), [0.99999]))
-
-	S_comp_to_find = []
-	#cycle through values of RMS at which to collapse the 2D completeness function to 1D functions of flux density
-	for i in range(len(yspace)):
-		rms_now = yspace[i]
-		#flux densities at which the completeness curves are well-defined by Simpson et al.
-		S_list = np.array([x_interp_list[j](rms_now) for j in range(len(x_interp_list))])
-		#fit a curve to the data, weighting the 10% and 90% points more heavily
-		initial = [1., S_list[2]]
-		popt = opt.minimize(nll, x0=initial, args=(S_list, comp_list, comp_err))['x']
-		#create x-ranges at which to plot things
-		xrange_lo = xspace[xspace < S_list[0]]
-		xrange_mid = xspace[(xspace >= S_list[0]) * (xspace <= S_list[-1])]
-		xrange_hi = xspace[xspace > S_list[-1]]
-		#evaluate the fitted curve over the low and high x-ranges, and the original completeness curve in the mid range
-		x_range = np.concatenate((xrange_lo, xrange_mid, xrange_hi))
-		z_range = np.concatenate((model(popt, xrange_lo), comp_interp(xrange_mid, rms_now), model(popt, xrange_hi)))
-		#interpolate x w.r.t. z
-		S_interp = interp1d(z_range, x_range, fill_value='extrapolate')
-		#get the flux densities at which the completenesses 
-		S_at_comp = S_interp(comp_to_find)
-		S_comp_to_find.append(S_at_comp)
-
-	S_comp_to_find = np.array(S_comp_to_find).T
-
-	#interpolate the flux density w.r.t. rms at each value of completeness
-	for i in range(len(comp_to_find)):
-		ctf = comp_to_find[i]
-		y_interp_new = interp1d(S_comp_to_find[i], yspace, fill_value=(ymin-ystep, ymax+ystep), bounds_error=False)
-		Y_new = y_interp_new(xspace)
-		if ctf < comp_list[0]:
-			y_interp_list.insert(i, y_interp_new)
-			values_list.insert(i, [xspace, Y_new, np.full(len(xspace), ctf)])
-		else:
-			y_interp_list.append(y_interp_new)
-			values_list.append([xspace, Y_new, np.full(len(xspace), ctf)])
-
-	#stack the results for each completeness curve
-	t_all = np.hstack(values_list)
-	#split the array into x-y coordinate pairs and the corresponding z values
-	points = t_all[:2]
-	values = t_all[-1]
-	#interpolate completeness as a function of flux density and RMS
-	comp_interp = LinearNDInterpolator(points.T, values)
-	#create a grid of completeness values
-	zgrid = comp_interp(xgrid, ygrid)
-
-	print(t_all.T)
-
-	#get the interpolated ~100% completeness curve
-	interp_100 = y_interp_list[-1]
-	#identify all elements in the grid that lie below the 100% completeness curve
-	lower_mask = ygrid < interp_100(xgrid)
-	#fill these values with 100%
-	zgrid[lower_mask] = 1.
-	#identify all elements in the grid that lie below a flux density of 0 mJy
-	zero_mask = xgrid <= 0.
-	#fill these values with 0
-	zgrid[zero_mask] = 0.
-
-	#re-interpolate the completeness now that the NaNs have been replaced
-	points = np.array([xgrid.flatten(), ygrid.flatten()])
-	values = zgrid.flatten()
-	comp_interp = LinearNDInterpolator(points.T, values)
+		#run the function that reconstructs the completeness grid from Simpson+19
+		comp_interp, zgrid = nc.recreate_S19_comp_grid(comp_files, defined_comps, xparams, yparams, plot_grid=False)
 
 	#calculate the completeness at the flux density and RMS of each S2COSMOS source
 	comp_submm = comp_interp(data_submm['S_deboost'], data_submm['RMS'])
 
-	print(mf.colour_string('Done!', 'purple'))
+	print(gen.colour_string('Done!', 'purple'))
 
 #if not told to do completeness corrections, just set the completeness to 1 for everything
 else:
@@ -504,7 +328,7 @@ print_str = 'Constructing number counts'
 if plot_positions:
 	print_str += ' and plotting RQ galaxy positions'
 print_str += '...'
-print(mf.colour_string(print_str, 'purple'))
+print(gen.colour_string(print_str, 'purple'))
 
 #set up a float to which the total overlapping area of annuli placed around ALL RQ galaxies will be added
 A_overlap_ALL = 0.
@@ -593,7 +417,7 @@ for i in range(len(zbin_centres)):
 		ID = rl_zbin[j]
 		labels_ord.insert(-1, ID)
 		#select the colour and marker to use for this dataset
-		c_now = scale_colour(cmap((j+1.)/len(rl_zbin))[:-1], scale_l=0.8)
+		c_now = gen.scale_RGB_colour(cmap((j+1.)/len(rl_zbin))[:-1], scale_l=0.8)
 		mkr_now = markers[j]
 
 		#set up a float to which the total overlapping area of annuli placed around RQ galaxies matched to this RL galaxy will be added
@@ -672,7 +496,7 @@ for i in range(len(zbin_centres)):
 				#calculate the separation from the current R1 galaxy in deg
 				sep = coord_central.separation(coords_other_rl).value
 				#calculate the area of intersection (if any) between this galaxy's search radius and others
-				A_inter = [area_of_intersection(R_deg, R_deg, s) for s in sep]
+				A_inter = [gen.area_of_intersection(R_deg, R_deg, s) for s in sep]
 				#sum the intersection areas and divide by two to account for fact that the overlapping area is calculated
 				#twice for each pair of intersecting circles
 				A_inter = 0.5 * np.sum(A_inter)
@@ -685,7 +509,7 @@ for i in range(len(zbin_centres)):
 				#calculate the separation from the current R1 galaxy in deg
 				sep = coord_central.separation(coords_other_zbin).value
 				#calculate the area of intersection (if any) between this galaxy's search radius and others
-				A_inter = [area_of_intersection(R_deg, R_deg, s) for s in sep]
+				A_inter = [gen.area_of_intersection(R_deg, R_deg, s) for s in sep]
 				#sum the intersection areas and divide by two to account for fact that the overlapping area is calculated
 				#twice for each pair of intersecting circles
 				A_inter = 0.5 * np.sum(A_inter)
@@ -698,7 +522,7 @@ for i in range(len(zbin_centres)):
 				#calculate the separation from the current R1 galaxy in deg
 				sep = coord_central.separation(coords_other_ALL).value
 				#calculate the area of intersection (if any) between this galaxy's search radius and others
-				A_inter = [area_of_intersection(R_deg, R_deg, s) for s in sep]
+				A_inter = [gen.area_of_intersection(R_deg, R_deg, s) for s in sep]
 				#sum the intersection areas and divide by two to account for fact that the overlapping area is calculated
 				#twice for each pair of intersecting circles
 				A_inter = 0.5 * np.sum(A_inter)
@@ -991,7 +815,7 @@ if combined_plot:
 		figname = PATH_PLOTS + f'S850_cumulative_counts_ALL{suffix}.png'
 		f5.savefig(figname, bbox_inches='tight', dpi=300)
 
-print(mf.colour_string('Done!', 'purple'))
+print(gen.colour_string('Done!', 'purple'))
 
 
 

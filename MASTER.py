@@ -13,9 +13,9 @@ import general as gen
 ##################
 
 #toggle `switches' for determining which scripts to run
-recreate_S19 = True			#recreate the results (completeness, number counts) from Simpson+19
+recreate_S19 = False			#recreate the results (completeness, number counts) from Simpson+19
 rq_sample = False			#select the sample of radio-quiet massive galaxies
-number_counts = False		#construct number counts
+number_counts = True		#construct number counts
 
 ##################
 

@@ -314,4 +314,32 @@ def get_ndim(x):
 
 
 
+def area_of_intersection(r_a, r_b, d):
+	'''
+	Calculates the intersecting area between two overlappig circles.
+		r_a: Radius of the first circle.
+		r_b: Radius of the second circle.
+		d: Distance between the centres of the two circles.
+	'''
+	#see which circle has the smaller radius (r1 = bigger circle, r2 = smaller circle)
+	if r_a >= r_b:
+		r1 = r_a
+		r2 = r_b
+	else:
+		r1 = r_b
+		r2 = r_a
+	#check if the distance is greater than the sum of the radii - if so then there is no intersection
+	if d > (r1 + r2):
+		return 0.
+	#if the distance is less than the difference between the two radii, the area is equal to that of the smaller circle
+	if d <= (r1 - r2):
+		return np.pi * (r2 ** 2.)
+
+	#otherwise, the area of intersection is non-trivial and must be calculated differently; see
+	#https://diego.assencio.com/?index=8d6ca3d82151bad815f78addf9b5c1c6 for derivation and notation
+	d1 = ((r1 ** 2.) - (r2 ** 2.) + (d ** 2.)) / (2. * d)
+	d2 = d - d1
+	A1 = (r1 ** 2.) * np.arccos(d1 / r1) - d1 * np.sqrt((r1 ** 2.) - (d1 ** 2.))
+	A2 = (r2 ** 2.) * np.arccos(d2 / r2) - d2 * np.sqrt((r2 ** 2.) - (d2 ** 2.))
+	return A1 + A2
 
