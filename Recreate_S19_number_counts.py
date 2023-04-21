@@ -184,11 +184,14 @@ if plot_cumulative:
 		#attempt a fit to the S19 results and print/plot the best fit
 		popt, _ = stats.chisq_minimise(bin_edges[:-1], bin_heights_c, nc.schechter_model, S19_fit_params[0], yerr=(e_upper_c + e_lower_c) / 2.)
 		ax2.plot(x_range_plot, nc.schechter_model(x_range_plot, popt), c='k', zorder=11, label='Simpson+19 best fit')
+		#estimate the uncertainties on each fit parameter
+		elo_popt, ehi_popt, *_ = stats.uncertainties_in_fit(bin_edges[:-1], bin_heights_c, (e_upper_c, e_lower_c), nc.schechter_model, S19_fit_params[0])
 		#add text with the best-fit parameters
 		best_fit_str = [
-			r'$N_{0} = %.0f$'%popt[0],
-			r'$S_{0} = %.1f$'%popt[1],
-			r'$\gamma = %.1f$'%popt[2]]
+			r'$N_{0} = %.0f^{+%.0f}_{-%.0f}$'%(popt[0],ehi_popt[0],elo_popt[0]),
+			r'$S_{0} = %.1f^{+%.1f}_{-%.1f}$'%(popt[1],ehi_popt[1],elo_popt[1]),
+			r'$\gamma = %.1f^{+%.1f}_{-%.1f}$'%(popt[2],ehi_popt[2],elo_popt[2])
+			]
 		best_fit_str = '\n'.join(best_fit_str)
 		ax2.text(10., 1000., best_fit_str, color='k', ha='left', va='top', fontsize=18.)
 
@@ -329,11 +332,14 @@ if fit_schechter:
 	#plot the fit
 	x_range_plot_fit = x_range_plot*10.**(-0.004)
 	ax1.plot(x_range_plot_fit, nc.schechter_model(x_range_plot_fit, popt_diff), c=fit_colour, zorder=11, label=fit_label)
+	#estimate the uncertainties on each fit parameter
+	elo_popt_diff, ehi_popt_diff, *_ = stats.uncertainties_in_fit(bin_centres, N, (eN_hi, eN_lo), nc.schechter_model, S19_fit_params[0])
 	#add text with the best-fit parameters
 	best_fit_str = [
-		r'$N_{0} = %.0f$'%popt_diff[0],
-		r'$S_{0} = %.1f$'%popt_diff[1],
-		r'$\gamma = %.1f$'%popt_diff[2]]
+		r'$N_{0} = %.0f^{+%.0f}_{-%.0f}$'%(popt_diff[0],ehi_popt_diff[0],elo_popt_diff[0]),
+		r'$S_{0} = %.1f^{+%.1f}_{-%.1f}$'%(popt_diff[1],ehi_popt_diff[1],elo_popt_diff[1]),
+		r'$\gamma = %.1f^{+%.1f}_{-%.1f}$'%(popt_diff[2],ehi_popt_diff[2],elo_popt_diff[2])
+		]
 	best_fit_str = '\n'.join(best_fit_str)
 	ax1.text(4., 11., best_fit_str, color=fit_colour, ha='left', va='top', fontsize=18.)
 
@@ -342,11 +348,14 @@ if fit_schechter:
 		popt_cumul, _ = stats.chisq_minimise(bin_edges[:-1], c, nc.schechter_model, S19_fit_params[0], yerr=(ec_hi+ec_lo)/2.)
 		#plot the fit
 		ax2.plot(x_range_plot_fit, nc.schechter_model(x_range_plot_fit, popt_cumul), c=fit_colour, zorder=11, label=fit_label)
+		#estimate the uncertainties on each fit parameter
+		elo_popt_cumul, ehi_popt_cumul, *_ = stats.uncertainties_in_fit(bin_edges[:-1], c, (ec_hi, ec_lo), nc.schechter_model, S19_fit_params[0])
 		#add text with the best-fit parameters
 		best_fit_str = [
-			r'$N_{0} = %.0f$'%popt_cumul[0],
-			r'$S_{0} = %.1f$'%popt_cumul[1],
-			r'$\gamma = %.1f$'%popt_cumul[2]]
+			r'$N_{0} = %.0f^{+%.0f}_{-%.0f}$'%(popt_cumul[0],ehi_popt_cumul[0],elo_popt_cumul[0]),
+			r'$S_{0} = %.1f^{+%.1f}_{-%.1f}$'%(popt_cumul[1],ehi_popt_cumul[1],elo_popt_cumul[1]),
+			r'$\gamma = %.1f^{+%.1f}_{-%.1f}$'%(popt_cumul[2],ehi_popt_cumul[2],elo_popt_cumul[2])
+			]
 		best_fit_str = '\n'.join(best_fit_str)
 		ax2.text(3., 70., best_fit_str, color=fit_colour, ha='left', va='top', fontsize=18.)
 
