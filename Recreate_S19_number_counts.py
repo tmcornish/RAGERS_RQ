@@ -182,7 +182,7 @@ if plot_cumulative:
 
 	if fit_schechter:
 		#attempt a fit to the S19 results and print/plot the best fit
-		popt, _ = stats.chisq_minimise(bin_edges[:-1], bin_heights_c, (e_upper_c + e_lower_c) / 2., nc.schechter_model, S19_fit_params[0])
+		popt, _ = stats.chisq_minimise(bin_edges[:-1], bin_heights_c, nc.schechter_model, S19_fit_params[0], yerr=(e_upper_c + e_lower_c) / 2.)
 		ax2.plot(x_range_plot, nc.schechter_model(x_range_plot, popt), c='k', zorder=11, label='Simpson+19 best fit')
 		#add text with the best-fit parameters
 		best_fit_str = [
@@ -283,25 +283,9 @@ if comp_corr:
 		pool = Pool(cpu_count()-1)
 		#calculate the completeness for the randomly generated flux densities
 		comp_s2c = np.array(pool.starmap(comp_interp, [[S850_rand[i], RMS] for i in range(len(S850_rand))]))
-		'''
-		#construct completeness-corrected bins, removing any randomly generated sources with 0 completeness
-		zero_comp = comp_s2c == 0.
-		counts_comp_corr = np.array([np.histogram(S850_rand[i][~zero_comp[i]], bin_edges, weights=1./comp_s2c[i][~zero_comp[i]])[0] for i in range(nsim)])
-		#convert these to differential number counts
-		N_comp_corr = counts_comp_corr * weights
-		#take the median values to be the true values and use the 16th and 84th percentiles to estiamte the uncertainties
-		N16, N, N84 = np.nanpercentile(N_comp_corr, q=[stats.p16, 50, stats.p84], axis=0)
-		eN_lo = N - N16
-		eN_hi = N84 - N
-		'''
 	else:
 		comp_s2c = comp_interp(S850, RMS)
-		'''
-		zero_comp = comp_s2c == 0.
-		counts_comp_corr, _  = np.histogram(S850[~zero_comp], bin_edges, weights=1./comp_s2c[~zero_comp])
-		N = counts_comp_corr * weights
-		eN_lo = eN_hi = np.sqrt(counts_comp_corr) * weights
-		'''
+
 	N, eN_lo, eN_hi, counts_comp_corr, weights = nc.differential_numcounts(S850_rand, bin_edges, A, comp=comp_s2c)
 		
 	#write the results as a table to a FITS file
@@ -341,7 +325,7 @@ if fit_schechter:
 		fit_colour = ps.grey
 
 	#best-fit parameters for the differential number counts
-	popt_diff, _ = stats.chisq_minimise(bin_centres, N, (eN_hi+eN_lo)/2., nc.schechter_model, S19_fit_params[0])
+	popt_diff, _ = stats.chisq_minimise(bin_centres, N, nc.schechter_model, S19_fit_params[0], yerr=(eN_hi+eN_lo)/2.)
 	#plot the fit
 	x_range_plot_fit = x_range_plot*10.**(-0.004)
 	ax1.plot(x_range_plot_fit, nc.schechter_model(x_range_plot_fit, popt_diff), c=fit_colour, zorder=11, label=fit_label)
@@ -355,7 +339,7 @@ if fit_schechter:
 
 	if plot_cumulative:
 		#best-fit parameters for the differential number counts
-		popt_cumul, _ = stats.chisq_minimise(bin_edges[:-1], c, (ec_hi+ec_lo)/2., nc.schechter_model, S19_fit_params[0])
+		popt_cumul, _ = stats.chisq_minimise(bin_edges[:-1], c, nc.schechter_model, S19_fit_params[0], yerr=(ec_hi+ec_lo)/2.)
 		#plot the fit
 		ax2.plot(x_range_plot_fit, nc.schechter_model(x_range_plot_fit, popt_cumul), c=fit_colour, zorder=11, label=fit_label)
 		#add text with the best-fit parameters
