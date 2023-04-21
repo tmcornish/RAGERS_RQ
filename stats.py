@@ -6,7 +6,9 @@ import numpy as np
 from scipy.stats import truncnorm
 import scipy.special as special
 from scipy import optimize as opt
-
+from multiprocessing import Pool, cpu_count
+import general as gen
+import warnings
 
 def percentiles_nsig(n):
 	'''
@@ -105,7 +107,7 @@ def chisq(x, y, yerr, ymodel):
 	return chi2
 
 
-def chisq_minimise(x, y, yerr, func, initial):
+def chisq_minimise(x, y, func, initial, yerr=None):
 	'''
 	Takes a function and performs chi-squared minimisation to determine the best-fit parameters
 	for a set of observations.
@@ -118,16 +120,17 @@ def chisq_minimise(x, y, yerr, func, initial):
 	y: array-like
 		y-values for each observation.
 
-	yerr: array-like
-		Uncertainties on each observed y-value (assumed symmetric).
-
 	func: callable
 		Function to be fitted. Must have the form func(x, params) where params is array-like and
-		comprises the function paramters.
+		comprises the function parameters.
 
 	initial: array-like
 		Initial guesses for the best-fit parameters (must have the same order as when they are fed
 		to the function).
+
+	yerr: array-like or None
+		Uncertainties on each observed y-value. If a 2D array, assumed to contain the lower and
+		upper uncertainties. If None, defines chi-squared as chi^2 = sum((obs-exp)^2/exp).
 
 	Returns
 	----------
@@ -139,41 +142,187 @@ def chisq_minimise(x, y, yerr, func, initial):
 
 	'''
 
-	def chisq_model(params, x_, y_, yerr_):
-		'''
-		Calculates chi-squared for the model function and a given dataset.
+	if yerr is not None:
+		#get the dimensions of yerr
+		ndim = gen.get_ndim(yerr)
+		#symmetrise the uncertainties if asymmetric uncertainties provided
+		if ndim == 2:
+			yerr = (yerr[0] + yerr[1]) / 2.
 
-		Parameters
-		----------
-		params: array-like
-			List/tuple/array containing the model function parameters.
-	
-		x_: array-like
-			x-values at which the observations were taken.
+		def chisq_model(params, x_, y_, yerr_):
+			'''
+			Calculates chi-squared for the model function and a given dataset.
 
-		y_: array-like
-			y-values for each observation.
+			Parameters
+			----------
+			params: array-like
+				List/tuple/array containing the model function parameters.
+		
+			x_: array-like
+				x-values at which the observations were taken.
 
-		yerr_: array-like
-			Uncertainties on each observed y-value (assumed symmetric).
+			y_: array-like
+				y-values for each observation.
 
-		Returns
-		----------
-		chisq: float
-			The chi-squared value for the function.
-		'''
-		ymodel = func(x_, params)
-		chi2 = np.sum(((ymodel - y_)/yerr_) ** 2.)
-		return chi2
+			yerr_: array-like
+				Uncertainties on each observed y-value (assumed symmetric).
 
-	#reformat the chisq_model function so that it is compatible with scipy.optimize.minimize
-	nll = lambda *args : chisq_model(*args)
-	#run the optimisation to find the best-fit parameters that minimize chi squared
-	res = opt.minimize(nll, x0=initial, args=(x, y, yerr))
+			Returns
+			----------
+			chisq: float
+				The chi-squared value for the function.
+			'''
+			ymodel = func(x_, params)
+			chi2 = np.sum(((ymodel - y_)/yerr_) ** 2.)
+			return chi2
+
+		#reformat the chisq_model function so that it is compatible with scipy.optimize.minimize
+		nll = lambda *args : chisq_model(*args)
+		#run the optimisation to find the best-fit parameters that minimize chi squared
+		res = opt.minimize(nll, x0=initial, args=(x, y, yerr))
+
+	else:
+		def chisq_model(params, x_, y_):
+			'''
+			Calculates chi-squared for the model function and a given dataset.
+
+			Parameters
+			----------
+			params: array-like
+				List/tuple/array containing the model function parameters.
+		
+			x_: array-like
+				x-values at which the observations were taken.
+
+			y_: array-like
+				y-values for each observation.
+
+			Returns
+			----------
+			chisq: float
+				The chi-squared value for the function.
+			'''
+			ymodel = func(x_, params)
+			chi2 = np.sum(((y - ymodel) ** 2.) / ymodel)
+			return chi2
+
+		#reformat the chisq_model function so that it is compatible with scipy.optimize.minimize
+		nll = lambda *args : chisq_model(*args)
+		#run the optimisation to find the best-fit parameters that minimize chi squared
+		res = opt.minimize(nll, x0=initial, args=(x, y))
+
 	#retrieve the best-fit parameters and minimum chi squared value
 	popt = res.x
 	chi2min = res.fun
 	return popt, chi2min
+
+
+def uncertainties_in_fit(x, y, yerr, func, initial, use_yerr_in_fit=True, nsim=10000, nsigma=1., return_dist=False, ncpu=0):
+	'''
+	Estimates the uncertainties on a fit by perturbing the observations according to their
+	uncertainties.
+
+	Parameters
+	----------
+	x: array-like
+		x-values at which the observations were taken.
+
+	y: array-like
+		y-values for each observation.
+
+	yerr: array-like
+		Uncertainties on each observed y-value. If a 2D array, assumed to contain the lower and
+		upper uncertainties.
+
+	func: callable
+		Function to be fitted. Must have the form func(x, params) where params is array-like and
+		comprises the function paramters.
+
+	initial: array-like
+		Initial guesses for the best-fit parameters (must have the same order as when they are fed
+		to the function).
+
+	use_yerr_in_fit: bool
+		Use the uncertainties in y when fitting the function to each simulated dataset.
+
+	nsim: int
+		The number of iterations to perform when estimating the uncertainties.
+
+	nsigma: float
+		The significance level for which the uncertainties are being estimated.
+
+	return_dist: bool
+		Also return the full distribution for each fit parameter.
+
+	Returns
+	----------
+	e_lo: array-like
+		The lower uncertainties on each fit parameter.
+
+	e_hi: array-like
+		The upper uncertainties on each fit parameter.
+
+	p_all: array
+		Values of each fit parameter at the desired percentiles. Has shape (N, 3) where N is
+		the number of fit parameters.
+
+	popt_all: array
+		Best-fit parameters for all simulated datasets.
+
+	chi2min_all: array
+		Chi-squared values for the fits to all simulated datasets.
+
+	'''
+
+	#set up a multiprocessing Pool using the desired number of CPUs
+	if ncpu == 0:
+		pool = Pool(cpu_count()-1)
+	else:
+		pool = Pool(ncpu)
+
+	#get the dimensions of yerr
+	ndim = gen.get_ndim(yerr)
+	#if 2-dimensional, contains lower and upper uncertainties
+	if ndim == 2:
+		#created nsim randomly generated datasets
+		y_rand = np.array([random_asymmetric_gaussian(y[i], yerr[0][i], yerr[1][i], nsim) for i in range(len(y))]).T
+		#symmetrise the uncertainties
+		yerr = (yerr[0] + yerr[1]) / 2.
+	#if only 1-dimensional, uncertainties are symmetric
+	else:
+		y_rand = random_gaussian(y, yerr, nsim)
+
+	#for each generated dataset, perform a fit and store the best-fit parameters
+	with np.errstate(all='ignore'):
+		if use_yerr_in_fit:
+			popt_all, chi2min_all = zip(*pool.starmap(chisq_minimise, [[x, y_rand[i], func, initial, yerr] for i in range(nsim)]))
+		else:
+			popt_all, chi2min_all = zip(*pool.starmap(chisq_minimise, [[x, y_rand[i], func, initial, None] for i in range(nsim)]))
+	popt_all = np.array(popt_all)
+	chi2min_all = np.array(chi2min_all)
+
+	#calculate the desired percentiles (and the median) for each parameter 
+	perc_lo, perc_hi = percentiles_nsig(nsigma)
+	perc = [perc_lo, 50., perc_hi]
+	if gen.get_ndim(popt_all) > 1:
+		p_lo, p_med, p_hi = np.array([np.nanpercentile(popt_all[:,i], perc) for i in range(len(popt_all[0]))]).T
+	else:
+		p_lo, p_med, p_hi = np.nanpercentile(popt_all, perc)
+	#combine the percentiles into one array
+	p_all = np.array([p_lo, p_med, p_hi]).T
+	#calculate the uncertainties
+	e_lo = p_med - p_lo
+	e_hi = p_hi - p_med
+
+	return e_lo, e_hi, p_all, popt_all, chi2min_all
+
+
+
+
+
+
+
+
 
 
 

@@ -183,7 +183,7 @@ def recreate_S19_comp_grid(
 		S_list = np.array([x_interp_list[j](rms_now) for j in range(len(x_interp_list))])
 		#fit a curve to the data, weighting the 10% and 90% points more heavily
 		initial = [1., S_list[2]]
-		popt, _ = stats.chisq_minimise(S_list, defined_comps, comp_err, FD_like, initial)
+		popt, _ = stats.chisq_minimise(S_list, defined_comps, FD_like, initial, yerr=comp_err)
 		#create x-ranges at which to plot things
 		xrange_lo = xspace[xspace < S_list[0]]
 		xrange_mid = xspace[(xspace >= S_list[0]) * (xspace <= S_list[-1])]
@@ -327,7 +327,6 @@ def schechter_model(S, params):
 
 
 
-#def differential_numcounts(S, bin_edges, A, comp=None, randomise_fluxes=False, e_lo=None, e_hi=None, nsim=10000):
 def differential_numcounts(S, bin_edges, A, comp=None):
 	'''
 	Constructs differential number counts for a given set of flux densities. Optionally also
@@ -345,16 +344,9 @@ def differential_numcounts(S, bin_edges, A, comp=None):
 	A: float or array-like
 		Area probed for all flux density bins, or for each individual bin.
 
-	randomise_fluxes: bool
-		If True, uses the uncertainties in the flux densities to create nsim datasets and uses them
-		to estimate the uncertainities in the bin heights.
-
-	e_lo, e_hi: array-like or None
-		Lower and upper uncerainties on the flux densities. If None, yet randomise_fluxes=True, will
-		create arrays filled with tiny floats such that the randomisation produces identical datasets.
-
-	nsim: int
-		Number of simulated datasets to create if randomise_fluxes=True.
+	comp: array-like or None
+		Completeness of each source. If None, will simply create an array of 1s with the same shape
+		as counts or S (whichever is provided).
 
 	Returns
 	----------
@@ -408,49 +400,11 @@ def differential_numcounts(S, bin_edges, A, comp=None):
 		N = counts * weights
 		eN_lo = eN_hi = ecounts * weights
 
-	'''
-	if randomise_fluxes and (e_lo is None) or (e_hi is None):
-		err_str = [
-				colour_string('numcounts.differential_numcounts\n', 'cyan'),
-				colour_string('Error: ')
-				]
-		if e_lo is None:
-			err_str.append(colour_string('e_lo not provided. Flux densities will not be randomised.', 'white'))
-		if e_hi is None:
-			err_str.append(colour_string('e_hi not provided. Flux densities will not be randomised.', 'white'))		
-		print(''.join(err_str))
-		#switch off randomised flux densities
-		randomise_fluxes = False
-	
-	if randomise_fluxes:
-		#randomly generate flux densities using these values and uncertainties
-		S_rand = np.array([stats.random_asymmetric_gaussian(S[i], e_lo[i], e_hi[i], nsim) for i in range(len(S))]).T
-		#bin the sources in each randomly generated dataset
-		counts = np.array([np.histogram(S_rand[i], bin_edges)[0] for i in range(nsim)])
-		N_rand = counts * weights
-		#take the median values to be the true values and use the 16th and 84th percentiles to estiamte the uncertainties
-		N16, N, N84 = np.percentile(N_rand, q=[stats.p16, 50, stats.p84], axis=0)
-		eN_lo = N - N16
-		eN_hi = N84 - N
-	else:
-		#set S_rand equal to the imported flux densities
-		S_rand = S
-		#bin the sources in the catalogue by their flux densities using the bins defined above
-		counts, _ = np.histogram(S, bins=bin_edges)
-		#Poissonian uncertainties
-		ecounts = np.sqrt(counts)
-
-		#convert to number density
-		N = counts * weights
-		eN_lo = eN_hi = ecounts * weights
-	'''
-
 	return N, eN_lo, eN_hi, counts, weights
 
 
 
 
-#def cumulative_numcounts(counts=None, S=None, bin_edges=None, A=1., randomise_fluxes=False, e_lo=None, e_hi=None, nsim=10000):
 def cumulative_numcounts(counts=None, S=None, bin_edges=None, A=1., comp=None):
 	'''
 	Constructs cumulative number counts, either by taking the cumulative sum of the provided counts or,
@@ -474,16 +428,9 @@ def cumulative_numcounts(counts=None, S=None, bin_edges=None, A=1., comp=None):
 	A: float or array-like
 		Area probed for all flux density bins, or for each individual bin, if counts is None.
 
-	randomise_fluxes: bool
-		If True, uses the uncertainties in the flux densities to create nsim datasets and uses them
-		to estimate the uncertainities in the bin heights (if counts is None).
-
-	e_lo, e_hi: array-like or None
-		Lower and upper uncerainties on the flux densities. If None, yet randomise_fluxes=True, will
-		create arrays filled with tiny floats such that the randomisation produces identical datasets.
-
-	nsim: int
-		Number of simulated datasets to create if randomise_fluxes=True.
+	comp: array-like or None
+		Completeness of each source. If None, will simply create an array of 1s with the same shape
+		as counts or S (whichever is provided).
 
 	Returns
 	----------
@@ -527,32 +474,6 @@ def cumulative_numcounts(counts=None, S=None, bin_edges=None, A=1., comp=None):
 				'Must provide either counts (array-like), or both S (array-like) and bin_edges (array-like).'
 				)
 			return None
-
-		'''
-		if randomise_fluxes and (e_lo is None) or (e_hi is None):
-			err_str = [
-					colour_string('numcounts.cumulative_numcounts\n', 'cyan'),
-					colour_string('Error: ')
-					]
-			if e_lo is None:
-				err_str.append(colour_string('e_lo not provided. Flux densities will not be randomised.', 'white'))
-			if e_hi is None:
-				err_str.append(colour_string('e_hi not provided. Flux densities will not be randomised.', 'white'))		
-			print(''.join(err_str))
-			#switch off randomised flux densities
-			randomise_fluxes = False
-
-		if randomise_fluxes:
-			#randomly generate flux densities using these values and uncertainties
-			S_rand = np.array([stats.random_asymmetric_gaussian(S[i], eS_lo[i], eS_hi[i], nsim) for i in range(len(S))]).T
-			#bin the sources in each randomly generated dataset
-			counts = np.array([np.histogram(S_rand[i], bin_edges)[0] for i in range(nsim)])
-		else:
-			#set S_rand equal to the imported flux densities
-			S_rand = S
-			#bin the sources in the catalogue by their flux densities using the bins defined above
-			counts, _ = np.histogram(S, bins=bin_edges)
-		'''
 
 	#determine whether the array of counts is 1-dimensional or 2-dimensional
 	ndim = gen.get_ndim(counts)
