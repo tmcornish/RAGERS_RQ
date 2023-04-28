@@ -322,12 +322,13 @@ def schechter_model(S, params):
 	'''
 
 	N0, S0, gamma = params
-	y = (N0 / S0) * (S0 / S) ** gamma * np.exp(-S / S0)
+	with np.errstate(all='ignore'):
+		y = (N0 / S0) * (S0 / S) ** gamma * np.exp(-S / S0)
 	return y
 
 
 
-def differential_numcounts(S, bin_edges, A, comp=None):
+def differential_numcounts(S, bin_edges, A, comp=None, poisson=False):
 	'''
 	Constructs differential number counts for a given set of flux densities. Optionally also
 	randomises the flux densities according to their uncertainties to get an estimate of the
@@ -347,6 +348,9 @@ def differential_numcounts(S, bin_edges, A, comp=None):
 	comp: array-like or None
 		Completeness of each source. If None, will simply create an array of 1s with the same shape
 		as counts or S (whichever is provided).
+
+	poisson: bool
+		Whether to include Poissonian uncertainties in the errorbars. 
 
 	Returns
 	----------
@@ -382,30 +386,55 @@ def differential_numcounts(S, bin_edges, A, comp=None):
 	ndim = gen.get_ndim(S)
 	#if 2-dimensional, assume each row is one dataset
 	if ndim == 2:
-		#bin the sources in each dataset
-		counts = np.array([np.histogram(S[i][nonzero_comp[i]], bin_edges, weights=1./comp[i][nonzero_comp[i]])[0] for i in range(len(S))])
+		#get the dimensions of the provided completeness array
+		ndim_comp = gen.get_ndim(comp)
+		if ndim_comp == 2:
+			#bin the sources in each dataset
+			counts = np.array([np.histogram(S[i][nonzero_comp[i]], bin_edges, weights=1./comp[i][nonzero_comp[i]])[0] for i in range(len(S))])
+		else:
+			counts = np.array([np.histogram(S[i][nonzero_comp], bin_edges, weights=1./comp[nonzero_comp])[0] for i in range(len(S))])
+		'''
+		if poisson:
+			#take the median counts in each bin and calculate the Poissonian uncertainties
+			counts_med = np.median(counts, axis=0)
+			ecounts_lo_p, ecounts_hi_p = np.array(stats.poisson_errs_1sig(counts_med))
+			#randomly draw values from a distribution defined by these uncertainties
+			counts_p = 
+		'''
 		N_rand = counts * weights
+
+		
 		#take the median values to be the true values and use the 16th and 84th percentiles to estiamte the uncertainties
 		N16, N, N84 = np.percentile(N_rand, q=[stats.p16, 50, stats.p84], axis=0)
 		eN_lo = N - N16
 		eN_hi = N84 - N
+		if poisson:
+			counts_med = np.median(counts, axis=0)
+			eN_lo_p, eN_hi_p = np.array(stats.poisson_errs_1sig(counts_med)) * weights
+			eN_lo = np.sqrt(eN_lo ** 2. + eN_lo_p ** 2.)
+			eN_hi = np.sqrt(eN_hi ** 2. + eN_hi_p ** 2.)
+			#eN_p = np.sqrt(counts_med) * weights
+			#eN_lo = np.sqrt(eN_lo ** 2. + eN_p ** 2.)
+			#eN_hi = np.sqrt(eN_hi ** 2. + eN_p ** 2.)
+
+
 	#if 1-dimensonal, only one dataset
 	elif ndim == 1:
 		#bin the sources in the catalogue by their flux densities using the bins defined above
 		counts, _ = np.histogram(S, bins=bin_edges, weights=1./comp)
-		#Poissonian uncertainties
-		ecounts = np.sqrt(counts)
 
 		#convert to number density
 		N = counts * weights
-		eN_lo = eN_hi = ecounts * weights
+		#Poissonian uncertainties
+		eN_lo, eN_hi = np.array(stats.poisson_errs_1sig(counts)) * weights
+
 
 	return N, eN_lo, eN_hi, counts, weights
 
 
 
 
-def cumulative_numcounts(counts=None, S=None, bin_edges=None, A=1., comp=None):
+def cumulative_numcounts(counts=None, S=None, bin_edges=None, A=1., comp=None, poisson=True):
 	'''
 	Constructs cumulative number counts, either by taking the cumulative sum of the provided counts or,
 	if counts aren't provided, by calculating from scratch for a given set of flux densities.
@@ -486,7 +515,7 @@ def cumulative_numcounts(counts=None, S=None, bin_edges=None, A=1., comp=None):
 		eN_hi = N84 - N
 	else:
 		#calculate the cumulative counts
-		N = np.cumsum(counts[::-1]/A)[::-1]
+		N = cumcounts = np.cumsum(counts[::-1]/A)[::-1]
 		eN_lo = eN_hi = np.sqrt(N) / A
 
 	return N, eN_lo, eN_hi, cumcounts

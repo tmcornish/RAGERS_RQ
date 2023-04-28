@@ -22,21 +22,25 @@ from multiprocessing import Pool, cpu_count
 #toggle `switches' for additional functionality
 use_cat_from_paper = True	#use the unedited catalogue downloaded from the Simpson+19 paper website
 plot_cumulative = True		#make cumulative number counts as well as differential number counts
-randomise_fluxes = True		#randomly draw flux densities from possible values
+randomise_fluxes = True	#randomly draw flux densities from possible values
 comp_corr = True			#apply the completeness corrections to the number counts
+randomise_comp = True		#calculate completeness corrections for each randomly drawn flux density
 plot_comp = True			#plot the completeness as a function of flux density and RMS
 plot_data_on_comp = True	#plot the positions of each source in RMS-S850 space on the completeness figure
 fit_schechter = True		#fits Schechter functions to the results
 compare_errors = True		#compare the uncertainties from S19 with the reconstruction performed here
+main_only = True			#use only sources from the MAIN region of S2COSMOS
 settings = [
 	use_cat_from_paper,
 	plot_cumulative,
 	randomise_fluxes,
 	comp_corr,
+	randomise_comp,
 	plot_comp,
 	plot_data_on_comp,
 	fit_schechter,
-	compare_errors
+	compare_errors,
+	main_only
 ]
 
 #print the chosen settings to the Terminal
@@ -46,10 +50,12 @@ settings_print = [
 	'Construct cumulative number counts: ',
 	'Randomise source flux densities for error analysis: ',
 	'Apply completeness corrections to number counts: ',
+	'Calculate completeness corrections for each randomly drawn flux density: ',
 	'Plot the completeness as a function S850 and RMS: ',
 	'Show sources on completeness plot: ',
 	'Fit Schechter functions to data: ',
-	'Compare uncertainties with Simpson+19: '
+	'Compare uncertainties with Simpson+19: ',
+	'Use MAIN region only: '
 ]
 for i in range(len(settings_print)):
 	if settings[i]:
@@ -141,11 +147,22 @@ bin_centres = (bin_edges[:-1] + bin_edges[1:]) / 2.
 #bin widths
 dS = bin_edges[1:] - bin_edges[:-1]
 
-#differential number counts in each bin
-bin_heights = np.array(S19_results['dNMS/dSp'])
-#upper and lower uncertainties on the bin counts
-e_upper = np.array(S19_results['E_dNMS/dSp'])
-e_lower = np.array(S19_results['e_dNMS/dSp'])
+if main_only:
+	#differential number counts in each bin
+	bin_heights = np.array(S19_results['dNM/dSp'])
+	#upper and lower uncertainties on the bin counts
+	e_upper = np.array(S19_results['E_dNM/dSp'])
+	e_lower = np.array(S19_results['e_dNM/dSp'])
+	#survey area in square degrees
+	A = np.full(len(bin_centres), 1.6)
+else:
+	#differential number counts in each bin
+	bin_heights = np.array(S19_results['dNMS/dSp'])
+	#upper and lower uncertainties on the bin counts
+	e_upper = np.array(S19_results['E_dNMS/dSp'])
+	e_lower = np.array(S19_results['e_dNMS/dSp'])
+	#survey area in square degrees
+	A = np.full(len(bin_centres), 2.6)
 
 #best-fit Schechter parameters (N0, S0, with their upper and lower uncertainties
 S19_fit_params = np.array([
@@ -157,17 +174,18 @@ S19_fit_params = np.array([
 ax1.plot(bin_centres, bin_heights, marker='o', c='k', linestyle='none', zorder=10, label='Simpson+19 results')
 ax1.errorbar(bin_centres, bin_heights, yerr=(e_lower, e_upper), ecolor='k', fmt='none', zorder=9)
 
-#plot the best-fit Schechter function
-x_range_plot = np.logspace(np.log10(bin_edges[0]), np.log10(bin_edges[-1]), 100)
-ax1.plot(x_range_plot, nc.schechter_model(x_range_plot, S19_fit_params[0]), c='k', zorder=11, label='Simpson+19 best fit')
-#add text with the best-fit parameters
-best_fit_str = [
-	r'$N_{0} = %.0f^{+%.0f}_{-%.0f}$'%tuple(S19_fit_params[:,0]),
-	r'$S_{0} = %.1f^{+%.1f}_{-%.1f}$'%tuple(S19_fit_params[:,1]),
-	r'$\gamma = %.1f^{+%.1f}_{-%.1f}$'%tuple(S19_fit_params[:,2])
-]
-best_fit_str = '\n'.join(best_fit_str)
-ax1.text(9., 600., best_fit_str, color='k', ha='left', va='top', fontsize=18.)
+if fit_schechter:
+	#plot the best-fit Schechter function
+	x_range_plot = np.logspace(np.log10(bin_edges[0]), np.log10(bin_edges[-1]), 100)
+	ax1.plot(x_range_plot, nc.schechter_model(x_range_plot, S19_fit_params[0]), c='k', zorder=11, label='Simpson+19 best fit')
+	#add text with the best-fit parameters
+	best_fit_str = [
+		r'$N_{0} = %.0f^{+%.0f}_{-%.0f}$'%tuple(S19_fit_params[:,0]),
+		r'$S_{0} = %.1f^{+%.1f}_{-%.1f}$'%tuple(S19_fit_params[:,1]),
+		r'$\gamma = %.1f^{+%.1f}_{-%.1f}$'%tuple(S19_fit_params[:,2])
+	]
+	best_fit_str = '\n'.join(best_fit_str)
+	ax1.text(9., 600., best_fit_str, color='k', ha='left', va='top', fontsize=18.)
 
 
 if plot_cumulative:
@@ -185,7 +203,7 @@ if plot_cumulative:
 		popt, _ = stats.chisq_minimise(bin_edges[:-1], bin_heights_c, nc.schechter_model, S19_fit_params[0], yerr=(e_upper_c + e_lower_c) / 2.)
 		ax2.plot(x_range_plot, nc.schechter_model(x_range_plot, popt), c='k', zorder=11, label='Simpson+19 best fit')
 		#estimate the uncertainties on each fit parameter
-		elo_popt, ehi_popt, *_ = stats.uncertainties_in_fit(bin_edges[:-1], bin_heights_c, (e_upper_c, e_lower_c), nc.schechter_model, S19_fit_params[0])
+		elo_popt, ehi_popt, *_ = stats.uncertainties_in_fit(bin_edges[:-1], bin_heights_c, (e_upper_c, e_lower_c), nc.schechter_model, S19_fit_params[0], use_yerr_in_fit=False)
 		#add text with the best-fit parameters
 		best_fit_str = [
 			r'$N_{0} = %.0f^{+%.0f}_{-%.0f}$'%(popt[0],ehi_popt[0],elo_popt[0]),
@@ -205,33 +223,37 @@ if use_cat_from_paper:
 	#catalogue containing submm data for S2COSMOS sources
 	SUBMM_CAT = PATH_CATS + 'Simpson+19_S2COSMOS_source_cat.fits'
 	data_submm = Table.read(SUBMM_CAT, format='fits')
+	if main_only:
+		data_submm = data_submm[data_submm['Sample'] == 'MAIN']
 	#get the (deboosted) 850 µm flux densities and the uncertainties
 	S850 = data_submm['S850-deb']
-	eS850_lo = data_submm['e_S850-deb']
-	eS850_hi = data_submm['E_S850-deb']
+	eS850_lo = data_submm['e_S850-deb'] #/ (2. * np.sqrt(2. * np.log(2.)))
+	eS850_hi = data_submm['E_S850-deb'] #/ (2. * np.sqrt(2. * np.log(2.)))
 	#also get the RMS
 	RMS = data_submm['e_S850-obs']
 else:
 	#catalogue containing submm data for S2COSMOS sources
 	SUBMM_CAT = PATH_CATS + 'S2COSMOS_sourcecat850_Simpson18.fits'
 	data_submm = Table.read(SUBMM_CAT, format='fits')
+	if main_only:
+		data_submm = data_submm[data_submm['CATTYPE'] == 'MAIN']
 	#get the (deboosted) 850 µm flux densities and the uncertainties
 	S850 = data_submm['S_deboost']
-	eS850_lo = data_submm['S_deboost_errlo']
-	eS850_hi = data_submm['S_deboost_errhi']
+	eS850_lo = data_submm['S_deboost_errlo'] #/ (2. * np.sqrt(2. * np.log(2.)))
+	eS850_hi = data_submm['S_deboost_errhi'] #/ (2. * np.sqrt(2. * np.log(2.)))
 	#also get the RMS
 	RMS = data_submm['RMS']
 
 if randomise_fluxes:
 	S850_rand = np.array([stats.random_asymmetric_gaussian(S850[i], eS850_lo[i], eS850_hi[i], nsim) for i in range(len(S850))]).T
+	#S850_rand = np.array([stats.random_gaussian(S850[i], min(eS850_lo[i],eS850_hi[i]), nsim) for i in range(len(S850))]).T
+	#S850_rand = stats.random_gaussian(S850, 0.5*(eS850_lo+eS850_hi), nsim).T
+	#S850_rand = np.random.uniform(low=S850-eS850_lo, high=S850+eS850_hi, size=(nsim, len(S850)))
 else:
 	S850_rand = S850[:]
 
-#survey area in square degrees
-A = np.full(len(bin_centres), 2.6)
-
 #construct the differential number counts
-N, eN_lo, eN_hi, counts, weights = nc.differential_numcounts(S850_rand, bin_edges, A)
+N, eN_lo, eN_hi, counts, weights = nc.differential_numcounts(S850_rand, bin_edges, A, poisson=True)
 #plot these results
 x_bins = bin_centres * 10. **  0.004
 ax1.plot(x_bins, N, marker='s', c=ps.grey, linestyle='none', zorder=2, label='S2COSMOS catalogue')
@@ -281,7 +303,7 @@ if comp_corr:
 
 	print(gen.colour_string('Applying completeness corrections...', 'purple'))
 
-	if randomise_fluxes:
+	if randomise_fluxes and randomise_comp:
 		#set up a multiprocessing Pool using all but one CPU
 		pool = Pool(cpu_count()-1)
 		#calculate the completeness for the randomly generated flux densities
@@ -289,7 +311,7 @@ if comp_corr:
 	else:
 		comp_s2c = comp_interp(S850, RMS)
 
-	N, eN_lo, eN_hi, counts_comp_corr, weights = nc.differential_numcounts(S850_rand, bin_edges, A, comp=comp_s2c)
+	N, eN_lo, eN_hi, counts_comp_corr, weights = nc.differential_numcounts(S850_rand, bin_edges, A, comp=comp_s2c, poisson=True)
 		
 	#write the results as a table to a FITS file
 	t_results = Table([bin_centres, N, eN_lo, eN_hi], names=['S850', 'N_comp_corr', 'eN_lo', 'eN_hi'])
@@ -333,7 +355,7 @@ if fit_schechter:
 	x_range_plot_fit = x_range_plot*10.**(-0.004)
 	ax1.plot(x_range_plot_fit, nc.schechter_model(x_range_plot_fit, popt_diff), c=fit_colour, zorder=11, label=fit_label)
 	#estimate the uncertainties on each fit parameter
-	elo_popt_diff, ehi_popt_diff, *_ = stats.uncertainties_in_fit(bin_centres, N, (eN_hi, eN_lo), nc.schechter_model, S19_fit_params[0])
+	elo_popt_diff, ehi_popt_diff, *_ = stats.uncertainties_in_fit(bin_centres, N, (eN_hi, eN_lo), nc.schechter_model, S19_fit_params[0], use_yerr_in_fit=False)
 	#add text with the best-fit parameters
 	best_fit_str = [
 		r'$N_{0} = %.0f^{+%.0f}_{-%.0f}$'%(popt_diff[0],ehi_popt_diff[0],elo_popt_diff[0]),
@@ -341,7 +363,7 @@ if fit_schechter:
 		r'$\gamma = %.1f^{+%.1f}_{-%.1f}$'%(popt_diff[2],ehi_popt_diff[2],elo_popt_diff[2])
 		]
 	best_fit_str = '\n'.join(best_fit_str)
-	ax1.text(4., 11., best_fit_str, color=fit_colour, ha='left', va='top', fontsize=18.)
+	ax1.text(4., 12., best_fit_str, color=fit_colour, ha='left', va='top', fontsize=18.)
 
 	if plot_cumulative:
 		#best-fit parameters for the differential number counts
@@ -349,7 +371,7 @@ if fit_schechter:
 		#plot the fit
 		ax2.plot(x_range_plot_fit, nc.schechter_model(x_range_plot_fit, popt_cumul), c=fit_colour, zorder=11, label=fit_label)
 		#estimate the uncertainties on each fit parameter
-		elo_popt_cumul, ehi_popt_cumul, *_ = stats.uncertainties_in_fit(bin_edges[:-1], c, (ec_hi, ec_lo), nc.schechter_model, S19_fit_params[0])
+		elo_popt_cumul, ehi_popt_cumul, *_ = stats.uncertainties_in_fit(bin_edges[:-1], c, (ec_hi, ec_lo), nc.schechter_model, S19_fit_params[0], use_yerr_in_fit=False)
 		#add text with the best-fit parameters
 		best_fit_str = [
 			r'$N_{0} = %.0f^{+%.0f}_{-%.0f}$'%(popt_cumul[0],ehi_popt_cumul[0],elo_popt_cumul[0]),

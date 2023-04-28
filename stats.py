@@ -56,7 +56,7 @@ def random_gaussian(mu, sigma, N):
 	return rand
 
 
-def random_asymmetric_gaussian(mu, sigma_lo, sigma_hi, N):
+def random_asymmetric_gaussian(mu, sigma_lo, sigma_hi, N, xmin=None, xmax=None):
 	'''
 	Randomly draws values from an asymmetric 'normal' distribution. To be used e.g. when propagating 
 	asymmetric uncertainties. NOTE: Only works for single-value arguments.
@@ -64,19 +64,44 @@ def random_asymmetric_gaussian(mu, sigma_lo, sigma_hi, N):
 		sigma_lo: Standard deviation(s) of the distribution(s) below the mean(s).
 		sigma_hi: Standard deviation(s) of the distribution(s) above the mean(s).
 		N: Number of random values to be drawn from the distribution(s).
+		xmin: Minimum allowed value for x; if None, assumes -inf.
+		xmax: Maximum allowed value for x; if None, assumes inf.
 	'''
+	#rescale the limiting values of x (if provided)
+	if xmin is not None:
+		xmin = (xmin - mu) / sigma_lo
+	else:
+		xmin = -np.inf
+	if xmax is not None:
+		xmax = (xmax - mu) / sigma_hi
+	else:
+		xmax = np.inf
 	#choose the number of values to draw from each side of the distribution based on the ratio of the uncertainties
-	N_hi = int(np.nan_to_num(np.ceil(N / (1. + sigma_lo / sigma_hi)), nan=0.))
-	N_lo = int(np.floor(N - N_hi))
-	#randomly draw values from truncated normal distributions, corresponding to the lower and upper halves of a normal distribution
-	rand_lo = truncnorm.rvs(-np.inf, 0., size=N_lo)
-	rand_hi = truncnorm.rvs(0., np.inf, size=N_hi)
+	#N_hi = int(np.nan_to_num(np.ceil(N / (1. + sigma_lo / sigma_hi)), nan=0.))
+	#N_lo = int(np.floor(N - N_hi))
+	N_lo = N_hi = int(N/2)
+	if (xmin < 0.) and (xmax > 0.):
+		rand_lo = truncnorm.rvs(xmin, 0., size=N_lo) * sigma_lo + mu
+		rand_hi = truncnorm.rvs(0., xmax, size=N_hi) * sigma_hi + mu
+	elif (xmin >= 0.) and (xmax > 0.):
+		rand_lo = []
+		rand_hi = truncnorm.rvs(0., xmax, size=N) * sigma_hi + mu
+	elif (xmin < 0.) and (xmax <= 0.):
+		rand_hi = []
+		rand_lo = truncnorm.rvs(xmin, 0., size=N) * sigma_lo + mu
+	else:
+		gen.error_message('stats.random_asymmetric_gaussian', 'Attempting to draw from a distribution with width of 0. Try loosening the constraints.')
+		rand_lo = []
+		rand_hi = []
 	#scale and shift each distribution according to the standard deviations and means
-	rand_lo = rand_lo * sigma_lo + mu
-	rand_hi = rand_hi * sigma_hi + mu
+	#rand_lo = rand_lo * sigma_lo + mu
+	#rand_hi = rand_hi * sigma_hi + mu
 	#concatenate the two randomly drawn samples
 	rand_all = np.concatenate([rand_lo, rand_hi])
+	#shuffle the concatenated array so that draws from the two half-gaussians are mixed
+	#np.random.shuffle(rand_all)
 	return rand_all
+
 
 
 def chisq(x, y, yerr, ymodel):
@@ -290,7 +315,7 @@ def uncertainties_in_fit(x, y, yerr, func, initial, use_yerr_in_fit=True, nsim=1
 		yerr = (yerr[0] + yerr[1]) / 2.
 	#if only 1-dimensional, uncertainties are symmetric
 	else:
-		y_rand = random_gaussian(y, yerr, nsim)
+		y_rand = random_gaussian(y, yerr, nsim).T
 
 	#for each generated dataset, perform a fit and store the best-fit parameters
 	with np.errstate(all='ignore'):
@@ -298,6 +323,9 @@ def uncertainties_in_fit(x, y, yerr, func, initial, use_yerr_in_fit=True, nsim=1
 			popt_all, chi2min_all = zip(*pool.starmap(chisq_minimise, [[x, y_rand[i], func, initial, yerr] for i in range(nsim)]))
 		else:
 			popt_all, chi2min_all = zip(*pool.starmap(chisq_minimise, [[x, y_rand[i], func, initial, None] for i in range(nsim)]))
+	pool.close()
+	pool.join()
+
 	popt_all = np.array(popt_all)
 	chi2min_all = np.array(chi2min_all)
 
@@ -318,11 +346,51 @@ def uncertainties_in_fit(x, y, yerr, func, initial, use_yerr_in_fit=True, nsim=1
 
 
 
+def poisson_CI_1sig(N):
+	'''
+	Using the approximations from Gehrels (1986), calculates the bounds of the 1-sigma confidence
+	interval of the Poisson distribution for N occurrences.
+
+	Parameters
+	----------
+	N: int or float or array-like
+		Number of occurrences.
+
+	Returns
+	----------
+	Nlo, Nhi: floats or array-like
+		Lower and upper bounds of the 1-sigma confidence interval, respectively.
+	'''
+
+	#account for possibility of 0 occurrences
+	if gen.get_ndim(N) == 0:
+		try:
+			Nlo = N * (1. - 1./(9.*N) - 1./(3.*np.sqrt(N))) ** 3.
+		except ZeroDivisionError:
+			Nlo = 0.
+	else:
+		Nlo = N * (1. - 1./(9.*N) - 1./(3.*np.sqrt(N))) ** 3.
+		Nlo[np.isinf(Nlo)] = 0.
+	Nhi = N + np.sqrt(N + 0.75) + 1.
+
+	return Nlo, Nhi
 
 
+def poisson_errs_1sig(N):
+	'''
+	Using the approximations from Gehrels (1986), calculates the 1-sigma Poissonian uncertainties
+	for N occurrences.
 
+	Parameters
+	----------
+	N: int or float or array-like
+		Number of occurrences.
 
-
-
-
+	Returns
+	----------
+	elo, ehi: floats or array-like
+		Lower and upper 1-sigma uncertainties, respectively.
+	'''
+	elo, ehi = np.abs(np.array(poisson_CI_1sig(N)) - N)
+	return elo, ehi
 
