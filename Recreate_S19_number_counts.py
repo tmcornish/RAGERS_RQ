@@ -28,6 +28,7 @@ randomise_comp = True		#calculate completeness corrections for each randomly dra
 plot_comp = True			#plot the completeness as a function of flux density and RMS
 plot_data_on_comp = True	#plot the positions of each source in RMS-S850 space on the completeness figure
 fit_schechter = True		#fits Schechter functions to the results
+exclude_faint = False		#exclude faintest bins from Schechter fitting
 compare_errors = True		#compare the uncertainties from S19 with the reconstruction performed here
 main_only = True			#use only sources from the MAIN region of S2COSMOS
 settings = [
@@ -39,6 +40,7 @@ settings = [
 	plot_comp,
 	plot_data_on_comp,
 	fit_schechter,
+	exclude_faint,
 	compare_errors,
 	main_only
 ]
@@ -54,6 +56,7 @@ settings_print = [
 	'Plot the completeness as a function S850 and RMS: ',
 	'Show sources on completeness plot: ',
 	'Fit Schechter functions to data: ',
+	'Exclude faintest bins from Schechter fitting: ',
 	'Compare uncertainties with Simpson+19: ',
 	'Use MAIN region only: '
 ]
@@ -174,19 +177,31 @@ S19_fit_params = np.array([
 ax1.plot(bin_centres, bin_heights, marker='o', c='k', linestyle='none', zorder=10, label='Simpson+19 results')
 ax1.errorbar(bin_centres, bin_heights, yerr=(e_lower, e_upper), ecolor='k', fmt='none', zorder=9)
 
-if fit_schechter:
-	#plot the best-fit Schechter function
-	x_range_plot = np.logspace(np.log10(bin_edges[0]), np.log10(bin_edges[-1]), 100)
-	ax1.plot(x_range_plot, nc.schechter_model(x_range_plot, S19_fit_params[0]), c='k', zorder=11, label='Simpson+19 best fit')
-	#add text with the best-fit parameters
-	best_fit_str = [
-		r'$N_{0} = %.0f^{+%.0f}_{-%.0f}$'%tuple(S19_fit_params[:,0]),
-		r'$S_{0} = %.1f^{+%.1f}_{-%.1f}$'%tuple(S19_fit_params[:,1]),
-		r'$\gamma = %.1f^{+%.1f}_{-%.1f}$'%tuple(S19_fit_params[:,2])
-	]
-	best_fit_str = '\n'.join(best_fit_str)
-	ax1.text(9., 600., best_fit_str, color='k', ha='left', va='top', fontsize=18.)
+#plot the best-fit Schechter function
+x_range_plot = np.logspace(np.log10(bin_edges[0]), np.log10(bin_edges[-1]), 100)
+ax1.plot(x_range_plot, nc.schechter_model(x_range_plot, S19_fit_params[0]), c='k', zorder=11, label='Simpson+19 best fit')
+#add text with the best-fit parameters
+best_fit_str = [
+	r'$N_{0} = %.0f^{+%.0f}_{-%.0f}$'%tuple(S19_fit_params[:,0]),
+	r'$S_{0} = %.1f^{+%.1f}_{-%.1f}$'%tuple(S19_fit_params[:,1]),
+	r'$\gamma = %.1f^{+%.1f}_{-%.1f}$'%tuple(S19_fit_params[:,2])
+]
 
+if fit_schechter:
+	#attempt a fit to the S19 results and print/plot the best fit
+	popt, _ = stats.chisq_minimise(bin_centres, bin_heights, nc.schechter_model, S19_fit_params[0], yerr=(e_upper+e_lower)/2.)
+	ax1.plot(x_range_plot, nc.schechter_model(x_range_plot, popt), c='k', linestyle='--', zorder=11, label='Simpson+19; my fit')
+	#estimate the uncertainties on each fit parameter
+	elo_popt, ehi_popt, *_ = stats.uncertainties_in_fit(bin_centres, bin_heights, (e_upper, e_lower), nc.schechter_model, S19_fit_params[0], use_yerr_in_fit=False)
+	#add text with the best-fit parameters
+	for i in range(len(best_fit_str)):
+		if i == 0:
+			best_fit_str[i] += r' $(%.0f^{+%.0f}_{-%.0f})$'%(popt[i],ehi_popt[i],elo_popt[i])
+		else:
+			best_fit_str[i] += r' $(%.1f^{+%.1f}_{-%.1f})$'%(popt[i],ehi_popt[i],elo_popt[i])
+
+best_fit_str = '\n'.join(best_fit_str)
+ax1.text(2., 30., best_fit_str, color='k', ha='left', va='top', fontsize=18.)
 
 if plot_cumulative:
 	#cumulative number counts in each bin
@@ -349,13 +364,21 @@ if fit_schechter:
 	else:
 		fit_colour = ps.grey
 
+	#if told to exclude faint bins, set the lowest index to 2
+	if exclude_faint:
+		imin = 2
+		#suffix to use for figures in which the faintest bins have been excluded
+		suffix_ef = '_excl_faint'
+	else:
+		imin = 0
+		suffix_ef = ''
 	#best-fit parameters for the differential number counts
-	popt_diff, _ = stats.chisq_minimise(bin_centres, N, nc.schechter_model, S19_fit_params[0], yerr=(eN_hi+eN_lo)/2.)
+	popt_diff, _ = stats.chisq_minimise(bin_centres[imin:], N[imin:], nc.schechter_model, S19_fit_params[0], yerr=(eN_hi+eN_lo)[imin:]/2.)
 	#plot the fit
 	x_range_plot_fit = x_range_plot*10.**(-0.004)
 	ax1.plot(x_range_plot_fit, nc.schechter_model(x_range_plot_fit, popt_diff), c=fit_colour, zorder=11, label=fit_label)
 	#estimate the uncertainties on each fit parameter
-	elo_popt_diff, ehi_popt_diff, *_ = stats.uncertainties_in_fit(bin_centres, N, (eN_hi, eN_lo), nc.schechter_model, S19_fit_params[0], use_yerr_in_fit=False)
+	elo_popt_diff, ehi_popt_diff, *_ = stats.uncertainties_in_fit(bin_centres[imin:], N[imin:], (eN_hi[imin:], eN_lo[imin:]), nc.schechter_model, S19_fit_params[0], use_yerr_in_fit=False)
 	#add text with the best-fit parameters
 	best_fit_str = [
 		r'$N_{0} = %.0f^{+%.0f}_{-%.0f}$'%(popt_diff[0],ehi_popt_diff[0],elo_popt_diff[0]),
@@ -363,15 +386,15 @@ if fit_schechter:
 		r'$\gamma = %.1f^{+%.1f}_{-%.1f}$'%(popt_diff[2],ehi_popt_diff[2],elo_popt_diff[2])
 		]
 	best_fit_str = '\n'.join(best_fit_str)
-	ax1.text(4., 12., best_fit_str, color=fit_colour, ha='left', va='top', fontsize=18.)
+	ax1.text(9., 1000., best_fit_str, color=fit_colour, ha='left', va='top', fontsize=18.)
 
 	if plot_cumulative:
 		#best-fit parameters for the differential number counts
-		popt_cumul, _ = stats.chisq_minimise(bin_edges[:-1], c, nc.schechter_model, S19_fit_params[0], yerr=(ec_hi+ec_lo)/2.)
+		popt_cumul, _ = stats.chisq_minimise(bin_edges[imin:-1], c[imin:], nc.schechter_model, S19_fit_params[0], yerr=(ec_hi+ec_lo)[imin:]/2.)
 		#plot the fit
 		ax2.plot(x_range_plot_fit, nc.schechter_model(x_range_plot_fit, popt_cumul), c=fit_colour, zorder=11, label=fit_label)
 		#estimate the uncertainties on each fit parameter
-		elo_popt_cumul, ehi_popt_cumul, *_ = stats.uncertainties_in_fit(bin_edges[:-1], c, (ec_hi, ec_lo), nc.schechter_model, S19_fit_params[0], use_yerr_in_fit=False)
+		elo_popt_cumul, ehi_popt_cumul, *_ = stats.uncertainties_in_fit(bin_edges[imin:-1], c[imin:], (ec_hi[imin:], ec_lo[imin:]), nc.schechter_model, S19_fit_params[0], use_yerr_in_fit=False)
 		#add text with the best-fit parameters
 		best_fit_str = [
 			r'$N_{0} = %.0f^{+%.0f}_{-%.0f}$'%(popt_cumul[0],ehi_popt_cumul[0],elo_popt_cumul[0]),
@@ -415,7 +438,7 @@ ax1.set_xticks(xtick_min_locs, labels=[f'{s:g}' if s in xtick_min_labels else ''
 #minimise unnecesary whitespace
 f1.tight_layout()
 #save the figure
-f1.savefig(PATH_PLOTS + f'Simpson+19_number_counts_improved_comp.png', dpi=300)
+f1.savefig(PATH_PLOTS + f'Simpson+19_number_counts_improved_comp{suffix_ef}.png', dpi=300)
 
 if plot_cumulative:
 	ax2.legend()
@@ -424,7 +447,7 @@ if plot_cumulative:
 	#minimise unnecesary whitespace
 	f2.tight_layout()
 	#save the figure
-	f2.savefig(PATH_PLOTS + f'Simpson+19_cumulative_counts_improved_comp.png', dpi=300)
+	f2.savefig(PATH_PLOTS + f'Simpson+19_cumulative_counts_improved_comp{suffix_ef}.png', dpi=300)
 
 if plot_comp:
 	#set the axes limits (completeness grid)

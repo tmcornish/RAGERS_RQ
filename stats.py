@@ -9,6 +9,7 @@ from scipy import optimize as opt
 from multiprocessing import Pool, cpu_count
 import general as gen
 import warnings
+import random
 
 def percentiles_nsig(n):
 	'''
@@ -79,7 +80,18 @@ def random_asymmetric_gaussian(mu, sigma_lo, sigma_hi, N, xmin=None, xmax=None):
 	#choose the number of values to draw from each side of the distribution based on the ratio of the uncertainties
 	#N_hi = int(np.nan_to_num(np.ceil(N / (1. + sigma_lo / sigma_hi)), nan=0.))
 	#N_lo = int(np.floor(N - N_hi))
-	N_lo = N_hi = int(N/2)
+	#if told to drawn >1 values, draw half from each side of the distribution
+	if N > 1:
+		N_lo = N_hi = int(N/2)
+	else:
+		#otherwise, use a 'coin flip' to choose which side to draw the single value from
+		coin_flip = random.random()
+		if coin_flip < 0.5:
+			N_lo = 1
+			N_hi = 0
+		else:
+			N_lo = 0
+			N_hi = 1
 	if (xmin < 0.) and (xmax > 0.):
 		rand_lo = truncnorm.rvs(xmin, 0., size=N_lo) * sigma_lo + mu
 		rand_hi = truncnorm.rvs(0., xmax, size=N_hi) * sigma_hi + mu
@@ -99,7 +111,7 @@ def random_asymmetric_gaussian(mu, sigma_lo, sigma_hi, N, xmin=None, xmax=None):
 	#concatenate the two randomly drawn samples
 	rand_all = np.concatenate([rand_lo, rand_hi])
 	#shuffle the concatenated array so that draws from the two half-gaussians are mixed
-	#np.random.shuffle(rand_all)
+	np.random.shuffle(rand_all)
 	return rand_all
 
 
@@ -245,7 +257,9 @@ def chisq_minimise(x, y, func, initial, yerr=None):
 def uncertainties_in_fit(x, y, yerr, func, initial, use_yerr_in_fit=True, nsim=10000, nsigma=1., return_dist=False, ncpu=0):
 	'''
 	Estimates the uncertainties on a fit by perturbing the observations according to their
-	uncertainties.
+	uncertainties. NOTE: currently assumes uncorrelated uncertainties. To account for correlated
+	uncertainties, will need to reperform the fit letting only one parameter vary at a time (fixing
+	the others to their best-fit values).
 
 	Parameters
 	----------
@@ -370,7 +384,7 @@ def poisson_CI_1sig(N):
 			Nlo = 0.
 	else:
 		Nlo = N * (1. - 1./(9.*N) - 1./(3.*np.sqrt(N))) ** 3.
-		Nlo[np.isinf(Nlo)] = 0.
+		Nlo[np.isinf(Nlo) * np.isnan(Nlo)] = 0.
 	Nhi = N + np.sqrt(N + 0.75) + 1.
 
 	return Nlo, Nhi

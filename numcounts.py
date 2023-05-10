@@ -399,24 +399,49 @@ def differential_numcounts(S, bin_edges, A, comp=None, poisson=False):
 			counts_med = np.median(counts, axis=0)
 			ecounts_lo_p, ecounts_hi_p = np.array(stats.poisson_errs_1sig(counts_med))
 			#randomly draw values from a distribution defined by these uncertainties
-			counts_p = 
+			counts_p = np.array([stats.random_asymmetric_gaussian(counts_med[i], ecounts_lo_p[i], ecounts_hi_p[i], len(S)) for i in range(len(counts_med))]).T
+			#concatenate with the array of existing counts
+			counts = np.concatenate([counts, counts_p], axis=0)
+			np.random.shuffle(counts)
 		'''
-		N_rand = counts * weights
+		'''
+		if poisson:
+			#take the median counts in each bin and randomly draw from Poisson distributions
+			counts_med = np.median(counts, axis=0)
+			counts_p = np.random.poisson(counts_med, size=(len(counts), len(counts_med)))
+			counts = np.concatenate([counts, counts_p], axis=0)
+			np.random.shuffle(counts)
+		'''
+		'''
+		if poisson:
+			ecounts_lo_p, ecounts_hi_p = np.array(stats.poisson_errs_1sig(counts))
+			ecounts_lo_p[np.isnan(ecounts_lo_p)] = 0.
+			counts = np.array([[stats.random_asymmetric_gaussian(c[j], ec_lo[j], ec_hi[j], 1)[0] for j in range(len(c))] for c,ec_lo,ec_hi in zip(counts,ecounts_lo_p,ecounts_hi_p)])
+		'''
+		'''
+		if poisson:
+			#permute each count 1000 times according to its Poissonian uncertainties
+			counts_p = np.random.poisson(counts, size=(1000, *counts.shape))
+			N_rand = counts * weights
+			N16, N, N84 = np.percentile(N_rand, q=[stats.p16, 50, stats.p84], axis=[0,1])
+		else:
+			N_rand = counts * weights
+			N16, N, N84 = np.percentile(N_rand, q=[stats.p16, 50, stats.p84], axis=0)
+		'''
 
-		
+		N_rand = counts * weights
 		#take the median values to be the true values and use the 16th and 84th percentiles to estiamte the uncertainties
 		N16, N, N84 = np.percentile(N_rand, q=[stats.p16, 50, stats.p84], axis=0)
 		eN_lo = N - N16
 		eN_hi = N84 - N
+		
+		
 		if poisson:
 			counts_med = np.median(counts, axis=0)
 			eN_lo_p, eN_hi_p = np.array(stats.poisson_errs_1sig(counts_med)) * weights
 			eN_lo = np.sqrt(eN_lo ** 2. + eN_lo_p ** 2.)
 			eN_hi = np.sqrt(eN_hi ** 2. + eN_hi_p ** 2.)
-			#eN_p = np.sqrt(counts_med) * weights
-			#eN_lo = np.sqrt(eN_lo ** 2. + eN_p ** 2.)
-			#eN_hi = np.sqrt(eN_hi ** 2. + eN_p ** 2.)
-
+		
 
 	#if 1-dimensonal, only one dataset
 	elif ndim == 1:
@@ -513,10 +538,16 @@ def cumulative_numcounts(counts=None, S=None, bin_edges=None, A=1., comp=None, p
 		N16, N, N84 = np.percentile(cumcounts, q=[stats.p16, 50, stats.p84], axis=0)
 		eN_lo = N - N16
 		eN_hi = N84 - N
+
+		if poisson:
+			cumcounts_med = np.median(cumcounts, axis=0)
+			eN_lo_p, eN_hi_p = np.array(stats.poisson_errs_1sig(cumcounts_med))
+			eN_lo = np.sqrt(eN_lo ** 2. + eN_lo_p ** 2.)
+			eN_hi = np.sqrt(eN_hi ** 2. + eN_hi_p ** 2.)
 	else:
 		#calculate the cumulative counts
 		N = cumcounts = np.cumsum(counts[::-1]/A)[::-1]
-		eN_lo = eN_hi = np.sqrt(N) / A
+		eN_lo, eN_hi = np.array(stats.poisson_errs_1sig(cumcounts))
 
 	return N, eN_lo, eN_hi, cumcounts
 
