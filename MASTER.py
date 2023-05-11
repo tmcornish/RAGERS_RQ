@@ -13,14 +13,17 @@ import general as gen
 ##################
 
 #toggle `switches' for determining which scripts to run
-recreate_S19 = True			#recreate the results (completeness, number counts) from Simpson+19
+recreate_S19 = True		#recreate the results (completeness, number counts) from Simpson+19
 rq_sample = False			#select the sample of radio-quiet massive galaxies
 number_counts = False		#construct number counts
 
 ##################
 
 settings = [recreate_S19, rq_sample, number_counts]
-proc_names = ['Recreating Simpson+19 results', 'Selecting RQ sample', 'Constructing number counts']
+proc_names = [
+	'Recreating Simpson+19 results', 
+	'Selecting RQ sample', 
+	'Constructing number counts']
 run_str = [
 	'python Recreate_S19_number_counts.py',
 	'./Select_radio_quiet_sample.sh',

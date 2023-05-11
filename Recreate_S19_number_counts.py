@@ -3,6 +3,7 @@
 ############################################################################################################
 
 #import modules/packages
+import os
 import general as gen
 import stats
 import plotstyle as ps
@@ -11,7 +12,9 @@ import numpy as np
 import matplotlib as mpl
 from matplotlib import pyplot as plt
 from matplotlib.ticker import StrMethodFormatter
+from scipy.interpolate import LinearNDInterpolator
 from astropy.table import Table
+from astropy.io import fits
 import glob
 from multiprocessing import Pool, cpu_count
 
@@ -22,12 +25,12 @@ from multiprocessing import Pool, cpu_count
 #toggle `switches' for additional functionality
 use_cat_from_paper = True	#use the unedited catalogue downloaded from the Simpson+19 paper website
 plot_cumulative = True		#make cumulative number counts as well as differential number counts
-randomise_fluxes = True	#randomly draw flux densities from possible values
+randomise_fluxes = True		#randomly draw flux densities from possible values
 comp_corr = True			#apply the completeness corrections to the number counts
 randomise_comp = True		#calculate completeness corrections for each randomly drawn flux density
 plot_comp = True			#plot the completeness as a function of flux density and RMS
 plot_data_on_comp = True	#plot the positions of each source in RMS-S850 space on the completeness figure
-fit_schechter = True		#fits Schechter functions to the results
+fit_schechter = False		#fits Schechter functions to the results
 exclude_faint = False		#exclude faintest bins from Schechter fitting
 compare_errors = True		#compare the uncertainties from S19 with the reconstruction performed here
 main_only = True			#use only sources from the MAIN region of S2COSMOS
@@ -103,6 +106,8 @@ ax1.set_yscale('log')
 #override the weird formatting to which pyplot defaults when the scale is logged
 ax1.get_xaxis().set_major_formatter(mpl.ticker.StrMethodFormatter('{x:.0f}'))
 ax1.get_yaxis().set_major_formatter(mpl.ticker.StrMethodFormatter('{x:g}'))
+#suffix to use for figures in which the faintest bins have been excluded
+suffix_ef = ''
 
 if plot_cumulative:
 	#create the figure (cumulative number counts)
@@ -260,10 +265,15 @@ else:
 	RMS = data_submm['RMS']
 
 if randomise_fluxes:
-	S850_rand = np.array([stats.random_asymmetric_gaussian(S850[i], eS850_lo[i], eS850_hi[i], nsim) for i in range(len(S850))]).T
-	#S850_rand = np.array([stats.random_gaussian(S850[i], min(eS850_lo[i],eS850_hi[i]), nsim) for i in range(len(S850))]).T
-	#S850_rand = stats.random_gaussian(S850, 0.5*(eS850_lo+eS850_hi), nsim).T
-	#S850_rand = np.random.uniform(low=S850-eS850_lo, high=S850+eS850_hi, size=(nsim, len(S850)))
+	#see if file exists containing randomised flux densities already
+	npz_filename = PATH_CATS + 'S2COSMOS_randomised_S850.npz'
+	if os.path.exists(npz_filename):
+		rand_data = np.load(npz_filename)
+		S850_rand = rand_data['S850_rand']
+	else:
+		S850_rand = np.array([stats.random_asymmetric_gaussian(S850[i], eS850_lo[i], eS850_hi[i], nsim) for i in range(len(S850))]).T
+		#set up a dictionary containing the randomised data
+		dict_rand = {'S850_rand':S850_rand}
 else:
 	S850_rand = S850[:]
 
@@ -289,16 +299,42 @@ if plot_cumulative:
 if comp_corr:
 	print(gen.colour_string('Calculating completeness corrections...', 'purple'))
 
-	#list of files contaning the flux densities and RMS values corresponding to a given completeness
-	comp_files = sorted(glob.glob(PATH_CATS + 'Simpson+19_completeness_curves/*'))
-	#corresponding completenesses
-	defined_comps = [0.1, 0.3, 0.5, 0.7, 0.9]
-	#min, max and step of the axes in the completeness grid: x (flux density) and y (RMS)
-	xparams = [-15., 30., 0.01]
-	yparams = [0.45, 3.05, 0.01]
-
-	#run the function that reconstructs the completeness grid from Simpson+19
-	comp_interp, zgrid = nc.recreate_S19_comp_grid(comp_files, defined_comps, xparams, yparams, plot_grid=plot_comp, other_axes=ax3)
+	#see if a file exists with the reconstructed S2COSMOS completeness grid (should have been created
+	#in previous step of pipeline)
+	compgrid_file = PATH_DATA + 'Completeness_at_S850_and_rms.fits'
+	if os.path.exists(compgrid_file):
+		CG_HDU = fits.open(compgrid_file)[0]
+		zgrid = CG_HDU.data.T
+		hdr = CG_HDU.header
+		#get the min, max and step along the S850 and RMS axes
+		xmin = hdr['CRVAL1']
+		xstep = hdr['CDELT1']
+		xmax = xmin + (hdr['NAXIS1'] - 1) * xstep
+		xparams = [xmin, xmax, xstep]
+		ymin = hdr['CRVAL2']
+		ystep = hdr['CDELT2']
+		ymax = ymin + (hdr['NAXIS2'] - 1) * ystep
+		yparams = [ymin, ymax, ystep]
+		#create a grid in flux density-RMS space
+		xgrid, ygrid = np.mgrid[xmin:xmax+xstep:xstep, ymin:ymax+ystep:ystep]
+		#interpolate the completeness values from the file w.r.t. S850 and RMS
+		points = np.array([xgrid.flatten(), ygrid.flatten()])
+		values = zgrid.flatten()
+		comp_interp = LinearNDInterpolator(points.T, values)
+	#otherwise, reconstruct the completeness from scratch
+	else:
+		#list of files contaning the flux densities and RMS values corresponding to a given completeness
+		comp_files = sorted(glob.glob(PATH_CATS + 'Simpson+19_completeness_curves/*'))
+		#corresponding completenesses
+		defined_comps = [0.1, 0.3, 0.5, 0.7, 0.9]
+		#min, max and step of the axes in the completeness grid: x (flux density) and y (RMS)
+		xparams = [-15., 30., 0.01]
+		yparams = [0.45, 3.05, 0.01]
+		#run the function that reconstructs the completeness grid from Simpson+19
+		comp_interp, zgrid = nc.recreate_S19_comp_grid(comp_files, defined_comps, xparams, yparams, plot_grid=plot_comp, other_axes=ax3)
+		#save the completeness grid to a FITS file
+		compgrid_file = PATH_DATA + 'Completeness_at_S850_and_rms.fits'
+		gen.array_to_fits(zgrid.T, compgrid_file, CRPIX=[1,1], CRVAL=[xparams[0],yparams[0]], CDELT=[xparams[2],yparams[2]])
 
 	if plot_data_on_comp:
 		#plot the submm sources
@@ -309,20 +345,22 @@ if comp_corr:
 	else:
 		suffix_comp = ''
 
-	#save the completeness grid to a FITS file
-	compgrid_file = PATH_DATA + 'Completeness_at_S850_and_rms.fits'
-	gen.array_to_fits(zgrid.T, compgrid_file, CRPIX=[1,1], CRVAL=[xparams[0],yparams[0]], CDELT=[xparams[2],yparams[2]])
-
 	print(gen.colour_string('Done!', 'purple'))
 
 
 	print(gen.colour_string('Applying completeness corrections...', 'purple'))
 
 	if randomise_fluxes and randomise_comp:
-		#set up a multiprocessing Pool using all but one CPU
-		pool = Pool(cpu_count()-1)
-		#calculate the completeness for the randomly generated flux densities
-		comp_s2c = np.array(pool.starmap(comp_interp, [[S850_rand[i], RMS] for i in range(len(S850_rand))]))
+		#see if the completeness has already been calculated for the randomised flux densities
+		if 'rand_data' in globals():
+			comp_s2c = rand_data['comp_rand']
+		else:
+			#set up a multiprocessing Pool using all but one CPU
+			pool = Pool(cpu_count()-1)
+			#calculate the completeness for the randomly generated flux densities
+			comp_s2c = np.array(pool.starmap(comp_interp, [[S850_rand[i], RMS] for i in range(len(S850_rand))]))
+			#add these completenesses to the dictionary of randomly generated data
+			dict_rand['comp_rand'] = comp_s2c
 	else:
 		comp_s2c = comp_interp(S850, RMS)
 
@@ -371,7 +409,6 @@ if fit_schechter:
 		suffix_ef = '_excl_faint'
 	else:
 		imin = 0
-		suffix_ef = ''
 	#best-fit parameters for the differential number counts
 	popt_diff, _ = stats.chisq_minimise(bin_centres[imin:], N[imin:], nc.schechter_model, S19_fit_params[0], yerr=(eN_hi+eN_lo)[imin:]/2.)
 	#plot the fit
@@ -425,9 +462,9 @@ if compare_errors:
 
 
 
-########################
-#### SAVING FIGURES ####
-########################
+##################################
+#### SAVING FIGURES AND FILES ####
+##################################
 
 ax1.legend()
 #set the minor tick locations on the x-axis
@@ -465,7 +502,9 @@ if compare_errors:
 	f4.savefig(PATH_PLOTS + 'Simpson+19_number_counts_uncertainty_comparison_improved_comp.png', dpi=300)
 
 
-
+if randomise_fluxes and ('dict_rand' in globals()):
+	#save the randomised flux densities (and completenesses if generated) to a compressed numpy archive
+	np.savez_compressed(npz_filename, **dict_rand)
 
 
 
