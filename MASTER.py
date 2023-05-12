@@ -13,8 +13,8 @@ import general as gen
 ##################
 
 #toggle `switches' for determining which scripts to run
-recreate_S19 = True		#recreate the results (completeness, number counts) from Simpson+19
-rq_sample = False			#select the sample of radio-quiet massive galaxies
+recreate_S19 = False		#recreate the results (completeness, number counts) from Simpson+19
+rq_sample = True			#select the sample of radio-quiet massive galaxies
 number_counts = False		#construct number counts
 
 ##################
@@ -25,8 +25,8 @@ proc_names = [
 	'Selecting RQ sample', 
 	'Constructing number counts']
 run_str = [
-	'./Recreate_S19_number_counts.sh',
-	'./Select_radio_quiet_sample.sh',
+	'python Recreate_S19_number_counts.py',
+	'python Select_radio_quiet_sample.py',
 	'python Submm_number_counts.py']
 
 print(gen.colour_string(gen.string_important('PROCESSES TO RUN')+'\n', 'cyan'))
