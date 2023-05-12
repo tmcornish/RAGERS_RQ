@@ -25,7 +25,7 @@ proc_names = [
 	'Selecting RQ sample', 
 	'Constructing number counts']
 run_str = [
-	'python Recreate_S19_number_counts.py',
+	'./Recreate_S19_number_counts.sh',
 	'./Select_radio_quiet_sample.sh',
 	'python Submm_number_counts.py']
 

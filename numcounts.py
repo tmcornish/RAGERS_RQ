@@ -12,7 +12,6 @@ from matplotlib.colors import LinearSegmentedColormap
 from astropy.table import Table
 from matplotlib.ticker import AutoMinorLocator
 
-
 def FD_like(x, theta):
 	'''
 	Fermi-Dirac-like distribution to model a completeness curve.
@@ -550,6 +549,11 @@ def cumulative_numcounts(counts=None, S=None, bin_edges=None, A=1., comp=None, p
 		eN_lo, eN_hi = np.array(stats.poisson_errs_1sig(cumcounts))
 
 	return N, eN_lo, eN_hi, cumcounts
+
+
+
+
+
 
 
 
