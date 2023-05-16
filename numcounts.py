@@ -7,10 +7,12 @@ import stats
 import numpy as np
 from scipy.interpolate import LinearNDInterpolator, interp1d
 import scipy.optimize as opt
+from scipy.stats import poisson
 from matplotlib import pyplot as plt
 from matplotlib.colors import LinearSegmentedColormap
 from astropy.table import Table
 from matplotlib.ticker import AutoMinorLocator
+import emcee
 
 def FD_like(x, theta):
 	'''
@@ -327,7 +329,7 @@ def schechter_model(S, params):
 
 
 
-def differential_numcounts(S, bin_edges, A, comp=None, poisson=False):
+def differential_numcounts(S, bin_edges, A, comp=None, incl_poisson=False):
 	'''
 	Constructs differential number counts for a given set of flux densities. Optionally also
 	randomises the flux densities according to their uncertainties to get an estimate of the
@@ -348,7 +350,7 @@ def differential_numcounts(S, bin_edges, A, comp=None, poisson=False):
 		Completeness of each source. If None, will simply create an array of 1s with the same shape
 		as counts or S (whichever is provided).
 
-	poisson: bool
+	incl_poisson: bool
 		Whether to include Poissonian uncertainties in the errorbars. 
 
 	Returns
@@ -392,41 +394,6 @@ def differential_numcounts(S, bin_edges, A, comp=None, poisson=False):
 			counts = np.array([np.histogram(S[i][nonzero_comp[i]], bin_edges, weights=1./comp[i][nonzero_comp[i]])[0] for i in range(len(S))])
 		else:
 			counts = np.array([np.histogram(S[i][nonzero_comp], bin_edges, weights=1./comp[nonzero_comp])[0] for i in range(len(S))])
-		'''
-		if poisson:
-			#take the median counts in each bin and calculate the Poissonian uncertainties
-			counts_med = np.median(counts, axis=0)
-			ecounts_lo_p, ecounts_hi_p = np.array(stats.poisson_errs_1sig(counts_med))
-			#randomly draw values from a distribution defined by these uncertainties
-			counts_p = np.array([stats.random_asymmetric_gaussian(counts_med[i], ecounts_lo_p[i], ecounts_hi_p[i], len(S)) for i in range(len(counts_med))]).T
-			#concatenate with the array of existing counts
-			counts = np.concatenate([counts, counts_p], axis=0)
-			np.random.shuffle(counts)
-		'''
-		'''
-		if poisson:
-			#take the median counts in each bin and randomly draw from Poisson distributions
-			counts_med = np.median(counts, axis=0)
-			counts_p = np.random.poisson(counts_med, size=(len(counts), len(counts_med)))
-			counts = np.concatenate([counts, counts_p], axis=0)
-			np.random.shuffle(counts)
-		'''
-		'''
-		if poisson:
-			ecounts_lo_p, ecounts_hi_p = np.array(stats.poisson_errs_1sig(counts))
-			ecounts_lo_p[np.isnan(ecounts_lo_p)] = 0.
-			counts = np.array([[stats.random_asymmetric_gaussian(c[j], ec_lo[j], ec_hi[j], 1)[0] for j in range(len(c))] for c,ec_lo,ec_hi in zip(counts,ecounts_lo_p,ecounts_hi_p)])
-		'''
-		'''
-		if poisson:
-			#permute each count 1000 times according to its Poissonian uncertainties
-			counts_p = np.random.poisson(counts, size=(1000, *counts.shape))
-			N_rand = counts * weights
-			N16, N, N84 = np.percentile(N_rand, q=[stats.p16, 50, stats.p84], axis=[0,1])
-		else:
-			N_rand = counts * weights
-			N16, N, N84 = np.percentile(N_rand, q=[stats.p16, 50, stats.p84], axis=0)
-		'''
 
 		N_rand = counts * weights
 		#take the median values to be the true values and use the 16th and 84th percentiles to estiamte the uncertainties
@@ -434,13 +401,14 @@ def differential_numcounts(S, bin_edges, A, comp=None, poisson=False):
 		eN_lo = N - N16
 		eN_hi = N84 - N
 		
-		
-		if poisson:
+		#includes Poissonian uncertainties - NOTE: currently treats the uncertainties as if they're
+		#symmetric, which isn't necessarily true. Workarounds exist (see e.g. Barlow 2003) but they
+		#give similar enough results for this to be okay for now.
+		if incl_poisson:
 			counts_med = np.median(counts, axis=0)
 			eN_lo_p, eN_hi_p = np.array(stats.poisson_errs_1sig(counts_med)) * weights
 			eN_lo = np.sqrt(eN_lo ** 2. + eN_lo_p ** 2.)
 			eN_hi = np.sqrt(eN_hi ** 2. + eN_hi_p ** 2.)
-		
 
 	#if 1-dimensonal, only one dataset
 	elif ndim == 1:
@@ -458,7 +426,7 @@ def differential_numcounts(S, bin_edges, A, comp=None, poisson=False):
 
 
 
-def cumulative_numcounts(counts=None, S=None, bin_edges=None, A=1., comp=None, poisson=True):
+def cumulative_numcounts(counts=None, S=None, bin_edges=None, A=1., comp=None, incl_poisson=True):
 	'''
 	Constructs cumulative number counts, either by taking the cumulative sum of the provided counts or,
 	if counts aren't provided, by calculating from scratch for a given set of flux densities.
@@ -532,25 +500,233 @@ def cumulative_numcounts(counts=None, S=None, bin_edges=None, A=1., comp=None, p
 	ndim = gen.get_ndim(counts)
 	if ndim == 2:
 		#calculate the cumulative counts for each randomly generated dataset
-		cumcounts = np.cumsum(counts[:,::-1]/A, axis=1)[:,::-1]
+		cumcounts = np.cumsum(counts[:,::-1], axis=1)[:,::-1]
 		#take the median values to be the true values and use the 16th and 84th percentiles to estiamte the uncertainties
-		N16, N, N84 = np.percentile(cumcounts, q=[stats.p16, 50, stats.p84], axis=0)
+		N16, N, N84 = np.percentile(cumcounts, q=[stats.p16, 50, stats.p84], axis=0) / A
 		eN_lo = N - N16
 		eN_hi = N84 - N
 
-		if poisson:
+		if incl_poisson:
 			cumcounts_med = np.median(cumcounts, axis=0)
-			eN_lo_p, eN_hi_p = np.array(stats.poisson_errs_1sig(cumcounts_med))
+			eN_lo_p, eN_hi_p = np.array(stats.poisson_errs_1sig(cumcounts_med)) / A
 			eN_lo = np.sqrt(eN_lo ** 2. + eN_lo_p ** 2.)
 			eN_hi = np.sqrt(eN_hi ** 2. + eN_hi_p ** 2.)
 	else:
 		#calculate the cumulative counts
-		N = cumcounts = np.cumsum(counts[::-1]/A)[::-1]
-		eN_lo, eN_hi = np.array(stats.poisson_errs_1sig(cumcounts))
+		cumcounts = np.cumsum(counts[::-1])[::-1]
+		N = cumcounts / A
+		eN_lo, eN_hi = np.array(stats.poisson_errs_1sig(cumcounts)) / A
 
 	return N, eN_lo, eN_hi, cumcounts
 
 
+
+def fit_schechter_mcmc(x, y, yerr, nwalkers, niter, initial, offsets=0.01, pool=None):
+	'''
+	Uses MCMC to fit a Schechter function to data.
+
+	Parameters
+	----------
+	x: array-like
+		Independent variable (flux density).
+
+	y: array-like
+		Dependent variable (surface density).
+
+	yerr: array-like
+		(Symmetric) uncertainties in the dependent variable.
+
+	nwalkers: int
+		Number of walkers to use when running the MCMC.
+
+	niter: int
+		Number of steps for each walker to take before the simulation completes.
+
+	initial: list
+		Initial guesses for each fit parameter.
+
+	offsets: float or array-like
+		Offsets in each dimension of the parameter space from an initial fit, used to determine
+		the starting positions of each walker.
+	
+	pool: Pool or None
+		If provided, specifies the pool to use for parellilsation.
+
+	Returns
+	----------
+
+	'''
+
+	def model(theta, S):
+		'''
+		The model form of the Schechter function to be fitted to the data.
+
+		Parameters
+		----------
+		theta: tuple
+			Fit parameters (N0, S0, gamma).
+
+		S: array-like
+			Flux density.
+
+		Returns
+		----------
+		y: array-like
+			Model y-values for each value in x.
+		'''
+
+		N0, S0, gamma = theta
+		y = (N0 / S0) * (S0 / S) ** gamma * np.exp(-S / S0)
+		return y
+
+
+	def lnlike(theta, x, y, yerr):
+		'''
+		Calculates the log-likelihood of the model.
+
+		Parameters
+		----------
+		theta: tuple
+			Fit parameters (N0, S0, gamma).
+
+		x: array-like
+			Independent variable (flux density).
+
+		y: array-like
+			Dependent variable (surface density).
+
+		yerr: array-like
+			(Symmetric) uncertainties in the dependent variable.
+
+		Returns
+		----------
+		L: float
+			Log-likelihood.
+		'''
+
+		ymodel = model(theta, x)
+		L = -0.5 * np.sum(((y - ymodel) / yerr) ** 2.)
+		return L
+
+	def lnprior(theta):
+		'''
+		Sets the priors on the fit parameters.
+
+		Parameters
+		----------
+		theta: tuple
+			Fit parameters (N0, S0, gamma).
+
+		Returns
+		----------
+		0 or inf: float
+			Returns 0 if the parameters satisfy the priors, and returns -inf if one or more of 
+			them does not.
+		'''
+
+		N0, S0, gamma = theta
+		if (1000. <= N0 <= 10000.) and (1. <= S0 <= 10.) and (-1. <= gamma <= 6.):
+			return 0.
+		else:
+			return -np.inf
+
+	def lnprob(theta, x, y, yerr):
+		'''
+		Calculates the logged probability of the data matching the fit.
+
+		Parameters
+		----------
+		theta: tuple
+			Fit parameters (N0, S0, gamma).
+
+		x: array-like
+			Independent variable (flux density).
+
+		y: array-like
+			Dependent variable (surface density).
+
+		yerr: array-like
+			(Symmetric) uncertainties in the dependent variable.
+
+		Returns
+		----------
+		P: float
+			Logged probability of the data matching the fit.
+		'''
+
+		lp = lnprior(theta)
+		if not np.isfinite(lp):
+			return -np.inf
+		else:
+			return lp + lnlike(theta, x, y, yerr)
+
+
+	def main(p0, nwalkers, niter, ndim, lnprob, data, pool=None):
+		'''
+		Actually runs the MCMC to perform the fit.
+
+		Parameters
+		----------
+
+		p0: list
+			List of initial starting points for each walker.
+
+		nwalkers: int
+			Number of walkers to use when running the MCMC.
+
+		niter: int
+			Number of steps for each walker to take before the simulation completes.
+
+		ndim: int
+			Number of parameters to fit.
+
+		lnprob: callable
+			Function for calculating the logged probability of the data matching the fit.
+
+		data: tuple or array-like 
+			Contains (as three separate entries) the x values, the y values, and the uncertainties
+			in y.
+
+		pool: Pool or None
+			If provided, specifies the pool to use for parellilsation.
+		'''
+
+		sampler = emcee.EnsembleSampler(nwalkers, ndim, lnprob, args=data, pool=pool)
+
+		print("Running burn-in...")
+		p0, _, _ = sampler.run_mcmc(p0, 100)
+		sampler.reset()
+
+		print("Running production...")
+		pos, prob, state = sampler.run_mcmc(p0, niter, progress=True)
+
+		return sampler, pos, prob, state
+
+	#use an optimiser to get a better initial estimate for the fit parameters
+	nll = lambda *args: -lnlike(*args)
+	result = opt.minimize(nll, x0=initial, args=(x, y, yerr))
+	initial = result['x']
+
+	#number of parameters to be fitted
+	ndim = len(initial)
+
+	#initial starting points for each walker in the MCMC
+	offsets = np.array(offsets)
+	p0 = [np.array(initial) + offsets * np.random.randn(ndim) for i in range(nwalkers)]
+
+	data = (x, y, yerr)
+	sampler, pos, prob, state = main(p0,nwalkers,niter,ndim,lnprob,data,pool=pool)
+	samples = sampler.flatchain
+	#theta_max  = samples[np.argmax(sampler.flatlnprobability)]
+
+	#get the median, 16th and 84th percentiles for each parameter
+	q = np.percentile(samples, [stats.p16, 50., stats.p84], axis=0)
+	best = q[1]
+	uncert = np.diff(q, axis=0)
+	e_lo = uncert[0]
+	e_hi = uncert[1]
+
+	return best, e_lo, e_hi
 
 
 

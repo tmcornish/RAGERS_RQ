@@ -25,6 +25,9 @@ PATH_DATA = PATH_RAGERS + '/Data/'
 #search radius to use when finding submm counterparts
 r_search = 6.
 
+#minimum number of RQ counterparts required per RL galaxy
+n_rq = 10
+
 ###################
 #### FUNCTIONS ####
 ###################

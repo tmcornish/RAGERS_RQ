@@ -17,215 +17,6 @@ from astropy.table import Table
 from astropy.io import fits
 import glob
 from multiprocessing import Pool, cpu_count
-import emcee
-from scipy import optimize as opt
-
-
-#########################################
-############### FUNCTIONS ###############
-#########################################
-
-def fit_schechter_mcmc(x, y, yerr, nwalkers, niter, initial, pool=None):
-	'''
-	Uses MCMC to fit a Schechter function to data.
-
-	Parameters
-	----------
-	x: array-like
-		Independent variable (flux density).
-
-	y: array-like
-		Dependent variable (surface density).
-
-	yerr: array-like
-		(Symmetric) uncertainties in the dependent variable.
-
-	nwalkers: int
-		Number of walkers to use when running the MCMC.
-
-	niter: int
-		Number of steps for each walker to take before the simulation completes.
-
-	initial: list
-		Initial guesses for each fit parameter.
-	
-	pool: Pool or None
-		If provided, specifies the pool to use for parellilsation.
-
-	Returns
-	----------
-
-	'''
-
-	def model(theta, S):
-		'''
-		The model form of the Schechter function to be fitted to the data.
-
-		Parameters
-		----------
-		theta: tuple
-			Fit parameters (N0, S0, gamma).
-
-		S: array-like
-			Flux density.
-
-		Returns
-		----------
-		y: array-like
-			Model y-values for each value in x.
-		'''
-
-		N0, S0, gamma = theta
-		y = (N0 / S0) * (S0 / S) ** gamma * np.exp(-S / S0)
-		return y
-
-
-	def lnlike(theta, x, y, yerr):
-		'''
-		Calculates the log-likelihood of the model.
-
-		Parameters
-		----------
-		theta: tuple
-			Fit parameters (N0, S0, gamma).
-
-		x: array-like
-			Independent variable (flux density).
-
-		y: array-like
-			Dependent variable (surface density).
-
-		yerr: array-like
-			(Symmetric) uncertainties in the dependent variable.
-
-		Returns
-		----------
-		L: float
-			Log-likelihood.
-		'''
-
-		ymodel = model(theta, x)
-		L = -0.5 * np.sum(((y - ymodel) / yerr) ** 2.)
-		return L
-
-	def lnprior(theta):
-		'''
-		Sets the priors on the fit parameters.
-
-		Parameters
-		----------
-		theta: tuple
-			Fit parameters (N0, S0, gamma).
-
-		Returns
-		----------
-		0 or inf: float
-			Returns 0 if the parameters satisfy the priors, and returns -inf if one or more of 
-			them does not.
-		'''
-
-		N0, S0, gamma = theta
-		if (1000. <= N0 <= 10000.) and (1. <= S0 <= 10.) and (-1. <= gamma <= 6.):
-			return 0.
-		else:
-			return -np.inf
-
-	def lnprob(theta, x, y, yerr):
-		'''
-		Calculates the logged probability of the data matching the fit.
-
-		Parameters
-		----------
-		theta: tuple
-			Fit parameters (N0, S0, gamma).
-
-		x: array-like
-			Independent variable (flux density).
-
-		y: array-like
-			Dependent variable (surface density).
-
-		yerr: array-like
-			(Symmetric) uncertainties in the dependent variable.
-
-		Returns
-		----------
-		P: float
-			Logged probability of the data matching the fit.
-		'''
-
-		lp = lnprior(theta)
-		if not np.isfinite(lp):
-			return -np.inf
-		else:
-			return lp + lnlike(theta, x, y, yerr)
-
-
-	def main(p0, nwalkers, niter, ndim, lnprob, data, pool=None):
-		'''
-		Actually runs the MCMC to perform the fit.
-
-		Parameters
-		----------
-
-		p0: list
-			List of initial starting points for each walker.
-
-		nwalkers: int
-			Number of walkers to use when running the MCMC.
-
-		niter: int
-			Number of steps for each walker to take before the simulation completes.
-
-		ndim: int
-			Number of parameters to fit.
-
-		lnprob: callable
-			Function for calculating the logged probability of the data matching the fit.
-
-		data: tuple or array-like 
-			Contains (as three separate entries) the x values, the y values, and the uncertainties
-			in y.
-
-		pool: Pool or None
-			If provided, specifies the pool to use for parellilsation.
-		'''
-
-		sampler = emcee.EnsembleSampler(nwalkers, ndim, lnprob, args=data, pool=pool)
-
-		print("Running burn-in...")
-		p0, _, _ = sampler.run_mcmc(p0, 100)
-		sampler.reset()
-
-		print("Running production...")
-		pos, prob, state = sampler.run_mcmc(p0, niter)
-
-		return sampler, pos, prob, state
-
-	#use an optimiser to get a better initial estimate for the fit parameters
-	nll = lambda *args: -lnlike(*args)
-	result = opt.minimize(nll, x0=initial, args=(x, y, yerr))
-	initial = result['x']
-
-	#number of parameters to be fitted
-	ndim = len(initial)
-
-	#initial starting points for each walker in the MCMC
-	p0 = [np.array(initial) + np.array([10.,0.01,0.01]) * np.random.randn(ndim) for i in range(nwalkers)]
-
-	data = (x, y, yerr)
-	sampler, pos, prob, state = main(p0,nwalkers,niter,ndim,lnprob,data,pool=pool)
-	samples = sampler.flatchain
-	#theta_max  = samples[np.argmax(sampler.flatlnprobability)]
-
-	#get the median, 16tha dn 84th percentiles for each parameter
-	q = np.percentile(samples, [stats.p16, 50., stats.p84], axis=0)
-	best = q[1]
-	uncert = np.diff(q, axis=0)
-	e_lo = uncert[0]
-	e_hi = uncert[1]
-
-	return best, e_lo, e_hi
 
 
 ##################
@@ -403,6 +194,7 @@ best_fit_str = [
 ]
 
 if fit_schechter:
+	print(gen.colour_string('Fitting to Simpson+19 differential number counts...', 'purple'))
 	'''
 	#attempt a fit to the S19 results and print/plot the best fit
 	popt, _ = stats.chisq_minimise(bin_centres, bin_heights, nc.schechter_model, S19_fit_params[0], yerr=(e_upper+e_lower)/2.)
@@ -416,7 +208,7 @@ if fit_schechter:
 		else:
 			best_fit_str[i] += r' $(%.1f^{+%.1f}_{-%.1f})$'%(popt[i],ehi_popt[i],elo_popt[i])
 	'''
-	popt, elo_popt, ehi_popt = fit_schechter_mcmc(bin_centres, bin_heights, (e_upper+e_lower)/2., 100, 10000, S19_fit_params[0], pool=None) 
+	popt, elo_popt, ehi_popt = nc.fit_schechter_mcmc(bin_centres, bin_heights, (e_upper+e_lower)/2., 100, 10000, S19_fit_params[0], pool=None) 
 	ax1.plot(x_range_plot, nc.schechter_model(x_range_plot, popt), c='k', linestyle='--', zorder=11, label='Simpson+19; my fit')
 	#add text with the best-fit parameters
 	for i in range(len(best_fit_str)):
@@ -424,7 +216,7 @@ if fit_schechter:
 			best_fit_str[i] += r' $(%.0f^{+%.0f}_{-%.0f})$'%(popt[i],ehi_popt[i],elo_popt[i])
 		else:
 			best_fit_str[i] += r' $(%.1f^{+%.1f}_{-%.1f})$'%(popt[i],ehi_popt[i],elo_popt[i])
-	
+	print(gen.colour_string('Done!', 'purple'))
 
 best_fit_str = '\n'.join(best_fit_str)
 ax1.text(2., 30., best_fit_str, color='k', ha='left', va='top', fontsize=18.)
@@ -440,6 +232,7 @@ if plot_cumulative:
 	ax2.errorbar(bin_edges[:-1], bin_heights_c, yerr=(e_lower_c, e_upper_c), ecolor='k', fmt='none', zorder=9)
 
 	if fit_schechter:
+		print(gen.colour_string('Fitting to Simpson+19 cumulative number counts...', 'purple'))
 		'''
 		#attempt a fit to the S19 results and print/plot the best fit
 		popt, _ = stats.chisq_minimise(bin_edges[:-1], bin_heights_c, nc.schechter_model, S19_fit_params[0], yerr=(e_upper_c + e_lower_c) / 2.)
@@ -455,8 +248,7 @@ if plot_cumulative:
 		best_fit_str = '\n'.join(best_fit_str)
 		ax2.text(10., 1000., best_fit_str, color='k', ha='left', va='top', fontsize=18.)
 		'''
-
-		popt, elo_popt, ehi_popt = fit_schechter_mcmc(bin_edges[:-1], bin_heights_c, (e_upper_c+e_lower_c)/2., 100, 10000, S19_fit_params[0], pool=None) 
+		popt, elo_popt, ehi_popt = nc.fit_schechter_mcmc(bin_edges[:-1], bin_heights_c, (e_upper_c+e_lower_c)/2., 100, 10000, S19_fit_params[0], pool=None) 
 		ax2.plot(x_range_plot, nc.schechter_model(x_range_plot, popt), c='k', zorder=11, label='Simpson+19 best fit')
 		#add text with the best-fit parameters
 		best_fit_str = [
@@ -466,7 +258,7 @@ if plot_cumulative:
 			]
 		best_fit_str = '\n'.join(best_fit_str)
 		ax2.text(10., 1000., best_fit_str, color='k', ha='left', va='top', fontsize=18.)
-
+		print(gen.colour_string('Done!', 'purple'))
 
 #####################################
 #### ATTEMPT TO RECREATE RESULTS ####
@@ -511,7 +303,7 @@ else:
 	S850_rand = S850[:]
 
 #construct the differential number counts
-N, eN_lo, eN_hi, counts, weights = nc.differential_numcounts(S850_rand, bin_edges, A, poisson=True)
+N, eN_lo, eN_hi, counts, weights = nc.differential_numcounts(S850_rand, bin_edges, A, incl_poisson=True)
 #plot these results
 x_bins = bin_centres * 10. **  0.004
 ax1.plot(x_bins, N, marker='s', c=ps.grey, linestyle='none', zorder=2, label='S2COSMOS catalogue')
@@ -566,7 +358,6 @@ if comp_corr:
 		#run the function that reconstructs the completeness grid from Simpson+19
 		comp_interp, zgrid = nc.recreate_S19_comp_grid(comp_files, defined_comps, xparams, yparams, plot_grid=plot_comp, other_axes=ax3)
 		#save the completeness grid to a FITS file
-		compgrid_file = PATH_DATA + 'Completeness_at_S850_and_rms.fits'
 		gen.array_to_fits(zgrid.T, compgrid_file, CRPIX=[1,1], CRVAL=[xparams[0],yparams[0]], CDELT=[xparams[2],yparams[2]])
 
 	if plot_data_on_comp:
@@ -597,7 +388,7 @@ if comp_corr:
 	else:
 		comp_s2c = comp_interp(S850, RMS)
 
-	N, eN_lo, eN_hi, counts_comp_corr, weights = nc.differential_numcounts(S850_rand, bin_edges, A, comp=comp_s2c, poisson=True)
+	N, eN_lo, eN_hi, counts_comp_corr, weights = nc.differential_numcounts(S850_rand, bin_edges, A, comp=comp_s2c, incl_poisson=True)
 		
 	#write the results as a table to a FITS file
 	t_results = Table([bin_centres, N, eN_lo, eN_hi], names=['S850', 'N_comp_corr', 'eN_lo', 'eN_hi'])
@@ -652,7 +443,7 @@ if fit_schechter:
 	elo_popt_diff, ehi_popt_diff, *_ = stats.uncertainties_in_fit(bin_centres[imin:], N[imin:], (eN_hi[imin:], eN_lo[imin:]), nc.schechter_model, S19_fit_params[0], use_yerr_in_fit=False)
 	'''
 
-	popt_diff, elo_popt_diff, ehi_popt_diff = fit_schechter_mcmc(bin_centres[imin:], N[imin:], (eN_hi+eN_lo)[imin:]/2., 100, 10000, S19_fit_params[0], pool=None) 
+	popt_diff, elo_popt_diff, ehi_popt_diff = nc.fit_schechter_mcmc(bin_centres[imin:], N[imin:], (eN_hi+eN_lo)[imin:]/2., 100, 10000, S19_fit_params[0], pool=None) 
 	#plot the fit
 	x_range_plot_fit = x_range_plot*10.**(-0.004)
 	ax1.plot(x_range_plot_fit, nc.schechter_model(x_range_plot_fit, popt_diff), c=fit_colour, zorder=11, label=fit_label)
@@ -674,7 +465,7 @@ if fit_schechter:
 		#estimate the uncertainties on each fit parameter
 		elo_popt_cumul, ehi_popt_cumul, *_ = stats.uncertainties_in_fit(bin_edges[imin:-1], c[imin:], (ec_hi[imin:], ec_lo[imin:]), nc.schechter_model, S19_fit_params[0], use_yerr_in_fit=False)
 		'''
-		popt_cumul, elo_popt_cumul, ehi_popt_cumul = fit_schechter_mcmc(bin_edges[imin:-1], c[imin:], (ec_hi+ec_lo)[imin:]/2., 100, 10000, S19_fit_params[0], pool=None) 
+		popt_cumul, elo_popt_cumul, ehi_popt_cumul = nc.fit_schechter_mcmc(bin_edges[imin:-1], c[imin:], (ec_hi+ec_lo)[imin:]/2., 100, 10000, S19_fit_params[0], pool=None) 
 		#plot the fit
 		ax2.plot(x_range_plot_fit, nc.schechter_model(x_range_plot_fit, popt_cumul), c=fit_colour, zorder=11, label=fit_label)
 		#add text with the best-fit parameters

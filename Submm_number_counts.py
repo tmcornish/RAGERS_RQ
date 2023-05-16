@@ -23,6 +23,7 @@ import scipy.optimize as opt
 import general as gen
 import plotstyle as ps
 import numcounts as nc
+import stats
 
 #######################################################################################
 ########### FORMATTING FOR GRAPHS #####################################################
@@ -36,43 +37,75 @@ plt.style.use(ps.styledict)
 ##################
 
 #toggle `switches' for additional functionality
+use_cat_from_paper = True		#use the unedited catalogue downloaded from the Simpson+19 paper website
 plot_positions = True			#plot positions of selected RQ galaxies with their search areas
 independent_rq = True			#treat the RQ galaxies as independent (i.e. do not account for overlap between search areas)
 comp_correct = True				#apply completeness corrections
 plot_cumulative = True			#plot cumulative number counts as well as differential
 combined_plot = True			#create plot(s) summarising the results from all targets
 bf_results = True				#adds the results obtained from the whole S2COSMOS catalogue
-settings = [plot_positions, independent_rq, comp_correct, plot_cumulative, combined_plot, bf_results]
+main_only = True				#use only sources from the MAIN region of S2COSMOS for blank-field results
+randomise_fluxes = False			#randomly draw flux densities from possible values
+repeat_sel = False				#perform the random RQ selection several times 
+settings = [
+	use_cat_from_paper,
+	plot_positions, 
+	independent_rq, 
+	comp_correct,
+	plot_cumulative,
+	combined_plot,
+	bf_results,
+	main_only,
+	randomise_fluxes,
+	repeat_sel]
 
 #print the chosen settings to the Terminal
 print(gen.colour_string('CHOSEN SETTINGS:', 'white'))
 settings_print = [
+	'Use catalogue linked to Simpson+19 paper: ',
 	'Plot RQ galaxy positions: ',
 	'Treat RQ galaxies independently: ',
 	'Apply completeness corrections: ',
 	'Plot cumulative number counts: ',
 	'Combine all targets into one plot: ',
-	'Plot blank-field results: ']
+	'Plot blank-field results: ',
+	'Use MAIN region only (for blank-field results): ',
+	'Randomise source flux densities for error analysis: ',
+	'Repeat the random selection of RQ galaxies several times: ']
 for i in range(len(settings_print)):
 	if settings[i]:
 		settings_print[i] += 'y'
 	else:
 		settings_print[i] += 'n'
+
+#radius of search area to use in the submm data
+R_arcmin = gen.r_search
+settings_print.append(f'Radius used to search for RQ companions (arcmin): {R_arcmin}')
+
+nsim = 10000		#number of iterations to use if randomising the flux densities/completeness
+if randomise_fluxes:
+	settings_print.append(f'Number of iterations for randomisation: {nsim}')
+
+N_sel = gen.n_rq	#number of matched galaxies to use per RL galaxy when constructing the number counts
+settings_print.append(f'Number of RQ galaxies per RL galaxy: {N_sel}')
+
+nsamples = 100		#number of times to reselect RQ subsamples
+if repeat_sel:
+	settings_print.append(f'Number of times to select RQ samples: {nsamples}')
+
 print(gen.colour_string('\n'.join(settings_print), 'white'))
+
 
 #850 micron flux density bins to use for submm number counts
 dS = 2.		#bin width (mJy)
 S850_bin_centres = np.arange(2.5, 22.5, dS)
 S850_bin_edges = np.append(S850_bin_centres-(dS/2.), S850_bin_centres[-1]+(dS/2.))
 
-#radius of search area to use in the submm data
-R_arcmin = gen.r_search
+#convert search radius to degrees
 R_deg = R_arcmin / 60.
 #area of aperture (sq. deg)
 A_sqdeg = np.pi * R_deg ** 2.
 
-#number of matched galaxies to use per RL galaxy when constructing the number counts
-N_sel = 10
 
 #######################################################
 ###############    START OF SCRIPT    #################
@@ -93,14 +126,54 @@ DEC_rq_all = data_rq['DELTA_J2000']
 #convert these into SkyCoord objects
 coords_rq_all = SkyCoord(RA_rq_all, DEC_rq_all, unit='deg')
 
-#catalogue containing submm data for S2COSMOS sources
-SUBMM_CAT = PATH_CATS + 'S2COSMOS_sourcecat850_Simpson18.fits'
-data_submm = Table.read(SUBMM_CAT, format='fits')
-#get the RAs and DECs
-RA_submm = data_submm['RA_deg']
-DEC_submm = data_submm['DEC_deg']
-#convert these into SkyCoord objects
+if use_cat_from_paper:
+	#catalogue containing submm data for S2COSMOS sources
+	SUBMM_CAT = PATH_CATS + 'Simpson+19_S2COSMOS_source_cat.fits'
+	data_submm = Table.read(SUBMM_CAT, format='fits')
+	if main_only:
+		data_submm = data_submm[data_submm['Sample'] == 'MAIN']
+	#relevant column names
+	RA_col, DEC_col = 'RA_deg', 'DEC_deg'
+	S850_col, eS850_lo_col, eS850_hi_col = 'S850-deb', 'e_S850-deb', 'E_S850-deb'
+	sample_col = 'Sample'
+	rms_col = 'e_S850-obs'
+else:
+	#catalogue containing submm data for S2COSMOS sources
+	SUBMM_CAT = PATH_CATS + 'S2COSMOS_sourcecat850_Simpson18.fits'
+	data_submm = Table.read(SUBMM_CAT, format='fits')
+	#relevant column names
+	RA_col, DEC_col = 'RA_deg', 'DEC_deg'
+	S850_col, eS850_lo_col, eS850_hi_col = 'S_deboost', 'S_deboost_errlo', 'S_deboost_errhi'
+	sample_col = 'CATTYPE'
+	rms_col = 'RMS'
+
+#cut the catalogue to only include the MAIN sample if told to do so
+if main_only:
+	data_submm = data_submm[data_submm[sample_col] == 'MAIN']
+#get the (deboosted) 850 µm flux densities and the uncertainties
+S850 = data_submm[S850_col]
+eS850_lo = data_submm[eS850_lo_col]
+eS850_hi = data_submm[eS850_hi_col]
+#also get the RMS
+RMS = data_submm[rms_col]
+#get the RA and Dec.
+RA_submm = data_submm[RA_col]
+DEC_submm = data_submm[DEC_col]
+#create SkyCoord objects
 coords_submm = SkyCoord(RA_submm, DEC_submm, unit='deg')
+
+if randomise_fluxes:
+	#see if file exists containing randomised flux densities already
+	npz_filename = PATH_CATS + 'S2COSMOS_randomised_S850.npz'
+	if os.path.exists(npz_filename):
+		rand_data = np.load(npz_filename)
+		S850_rand = rand_data['S850_rand']
+	else:
+		S850_rand = np.array([stats.random_asymmetric_gaussian(S850[i], eS850_lo[i], eS850_hi[i], nsim) for i in range(len(S850))]).T
+		#set up a dictionary containing the randomised data
+		dict_rand = {'S850_rand':S850_rand}
+else:
+	S850_rand = S850[:]
 
 ######################
 #### FIGURE SETUP ####
@@ -256,15 +329,29 @@ if comp_correct:
 
 		#run the function that reconstructs the completeness grid from Simpson+19
 		comp_interp, zgrid = nc.recreate_S19_comp_grid(comp_files, defined_comps, xparams, yparams, plot_grid=False)
+		#save the completeness grid to a FITS file
+		gen.array_to_fits(zgrid.T, compgrid_file, CRPIX=[1,1], CRVAL=[xparams[0],yparams[0]], CDELT=[xparams[2],yparams[2]])
 
-	#calculate the completeness at the flux density and RMS of each S2COSMOS source
-	comp_submm = comp_interp(data_submm['S_deboost'], data_submm['RMS'])
+	if randomise_fluxes:
+		#see if the completeness has already been calculated for the randomised flux densities
+		if 'rand_data' in globals():
+			comp_submm = rand_data['comp_rand']
+		else:
+			#set up a multiprocessing Pool using all but one CPU
+			pool = Pool(cpu_count()-1)
+			#calculate the completeness for the randomly generated flux densities
+			comp_submm = np.array(pool.starmap(comp_interp, [[S850_rand[i], RMS] for i in range(len(S850_rand))]))
+			#add these completenesses to the dictionary of randomly generated data
+			dict_rand['comp_rand'] = comp_submm
+	else:
+		#calculate the completeness at the flux density and RMS of each S2COSMOS source
+		comp_submm = comp_interp(S850_rand, data_submm[rms_col])
 
 	print(gen.colour_string('Done!', 'purple'))
 
 #if not told to do completeness corrections, just set the completeness to 1 for everything
 else:
-	comp_submm = np.ones(len(data_submm))
+	comp_submm = np.ones(S850_rand.shape)
 
 
 #############################
@@ -276,38 +363,28 @@ if bf_results:
 	#label to use for the blank field data points
 	label_bf = 'S2COSMOS'
 
-	#bin the sources in the catalogue by their flux densities using the bins defined above
-	counts_bf, _ = np.histogram(data_submm['S_deboost'], bins=S850_bin_edges, weights=1./comp_submm)
-	#Poissonian uncertainties
-	ecounts_bf = np.sqrt(counts_bf)
-	#survey area in square degrees
-	A_bf = 2.6
-	#divide the counts by the area times the width of the bin
-	weights = 1. / (A_bf * dS)
-	N_bf = counts_bf * weights
-	eN_bf = ecounts_bf * weights
-	eN_bf[eN_bf == N_bf] *= 0.999		#prevents errors when logging plot
+	#blank-field (S2COSMOS) survey area
+	if main_only:
+		A_bf = 1.6
+	else:
+		A_bf = 2.6
+
+	#construct the differential number counts
+	N_bf, eN_bf_lo, eN_bf_hi, counts_bf, weights = nc.differential_numcounts(S850_rand, S850_bin_edges, A_bf, comp=comp_submm, incl_poisson=True)
 	xbins_bf = S850_bin_centres * 10. ** (0.004)
 	if combined_plot:
 		labels_ord_combined.append(label_bf)
 		ax4.plot(xbins_bf, N_bf, linestyle='none', marker='D', color=ps.crimson, label=label_bf)
-		ax4.errorbar(xbins_bf, N_bf, fmt='none', yerr=eN_bf, ecolor=ps.crimson, elinewidth=2.)
+		ax4.errorbar(xbins_bf, N_bf, fmt='none', yerr=(eN_bf_lo,eN_bf_hi), ecolor=ps.crimson, elinewidth=2.)
 
 	if plot_cumulative:
 		#calculate the cumulative counts
-		cumcounts_bf = np.cumsum(counts_bf[::-1])[::-1]
-		#calculate the Poissonian uncertainties
-		ecumcounts_bf = np.sqrt(cumcounts_bf)
-
-		#divide the counts (and uncertainties) by the area
-		cumN_bf = cumcounts_bf / A_bf
-		ecumN_bf = ecumcounts_bf / A_bf
-		ecumN_bf[ecumN_bf == cumN_bf] *= 0.999		#prevents errors when logging plot
+		cumN_bf, ecumN_bf_lo, ecumN_bf_hi, cumcounts_bf = nc.cumulative_numcounts(counts=counts_bf, A=A_bf)
 		xbins_cumbf = S850_bin_edges[:-1] * 10. ** (0.004)
 
 		if combined_plot:
 			ax5.plot(xbins_cumbf, cumN_bf, linestyle='none', marker='D', color=ps.crimson, label=label_bf)
-			ax5.errorbar(xbins_cumbf, cumN_bf, fmt='none', yerr=ecumN_bf, ecolor=ps.crimson, elinewidth=2.)
+			ax5.errorbar(xbins_cumbf, cumN_bf, fmt='none', yerr=(ecumN_bf_lo,ecumN_bf_hi), ecolor=ps.crimson, elinewidth=2.)
 
 
 #########################################
@@ -339,6 +416,8 @@ idx_submm_ALL = np.unique(idx_submm_ALL)
 #create a Table containing this subset of submm sources
 data_submm_ALL = data_submm[idx_submm_ALL]
 comp_submm_ALL = comp_submm[idx_submm_ALL]
+#create an empty list to which Tables of matched submm sources will be appended for each RQ galaxy
+t_submm_ALL = []
 if independent_rq:
 	#create an array to which the total counts will be added from all RQ galaxies in the current z bin
 	counts_ALL = np.zeros(len(S850_bin_centres))
@@ -386,6 +465,8 @@ for i in range(len(zbin_centres)):
 	#create a Table containing this subset of submm sources
 	data_submm_zbin = data_submm[idx_submm_zbin]
 	comp_submm_zbin = comp_submm[idx_submm_zbin]
+	#create an empty list to which Tables of matched submm sources will be appended for each RQ galaxy in this zbin
+	t_submm_zbin = []
 	if independent_rq:
 		#create an array to which the total counts will be added from all RQ galaxies in the current z bin
 		counts_zbin = np.zeros(len(S850_bin_centres))
@@ -406,10 +487,10 @@ for i in range(len(zbin_centres)):
 	if bf_results:
 		labels_ord.append(label_bf)
 		ax1[row_c,col_c].plot(xbins_bf, N_bf, linestyle='none', marker='D', color=ps.grey, label=label_bf, alpha=0.5)
-		ax1[row_c,col_c].errorbar(xbins_bf, N_bf, fmt='none', yerr=eN_bf, ecolor=ps.grey, elinewidth=2., alpha=0.5)
+		ax1[row_c,col_c].errorbar(xbins_bf, N_bf, fmt='none', yerr=(eN_bf_lo,eN_bf_hi), ecolor=ps.grey, elinewidth=2., alpha=0.5)
 		if plot_cumulative:
 			ax3[row_c,col_c].plot(xbins_cumbf, cumN_bf, linestyle='none', marker='D', color=ps.grey, label=label_bf, alpha=0.5)
-			ax3[row_c,col_c].errorbar(xbins_cumbf, cumN_bf, fmt='none', yerr=ecumN_bf, ecolor=ps.grey, elinewidth=2., alpha=0.5)
+			ax3[row_c,col_c].errorbar(xbins_cumbf, cumN_bf, fmt='none', yerr=(ecumN_bf_lo,ecumN_bf_hi), ecolor=ps.grey, elinewidth=2., alpha=0.5)
 
 	#cycle through the RL galaxies in this redshift bin
 	for j in range(len(rl_zbin)):
@@ -436,6 +517,8 @@ for i in range(len(zbin_centres)):
 		#create a Table containing this subset of submm sources
 		data_submm_rl = data_submm[idx_submm_rl]
 		comp_submm_rl = comp_submm[idx_submm_rl]
+		#create an empty list to which Tables of matched submm sources will be appended for each RQ galaxy corresponding to the current RL galaxy
+		t_submm_rl = []
 		if independent_rq:
 			#set up array for the total counts in each bin for all N_sel RQ galaxies
 			counts_rl = np.zeros(len(S850_bin_centres))
@@ -443,7 +526,7 @@ for i in range(len(zbin_centres)):
 			repeated_rl = np.zeros(len(data_submm), dtype=bool)
 		else:
 			#bin these sources by their 850 micron flux density
-			counts_rl, _ = np.histogram(data_submm_rl['S_deboost'], bins=S850_bin_edges, weights=1./comp_submm_rl)
+			counts_rl, _ = np.histogram(data_submm_rl[S850_col], bins=S850_bin_edges, weights=1./comp_submm_rl)
 			
 		
 		################################
@@ -478,7 +561,7 @@ for i in range(len(zbin_centres)):
 				#get the (deboosted) flux densities of the matched sources, ensuring no repeated sources
 				matched_mask = np.zeros(len(data_submm), dtype=bool)
 				matched_mask[idx_coords_submm_matched] = True
-				S850_matched_rl = data_submm['S_deboost'][matched_mask]
+				S850_matched_rl = data_submm[S850_col][matched_mask]
 				comp_matched_rl = comp_submm[matched_mask]
 				#bin the sources by their flux densities
 				counts_now, _ = np.histogram(S850_matched_rl, bins=S850_bin_edges, weights=1./comp_matched_rl)
@@ -785,6 +868,8 @@ if not independent_rq:
 	suffix += '_no_overlap'
 if comp_correct:
 	suffix += '_comp_corr'
+#add the search radius to the file name
+suffix += f'_{R_arcmin:.1f}arcmin'
 
 #minimise unnecesary whitespace
 f1.tight_layout()
