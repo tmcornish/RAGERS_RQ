@@ -33,12 +33,13 @@ import astrometry as ast
 plt.style.use(ps.styledict)
 
 
-##################
-#### SETTINGS ####
-##################
+############################
+#### SETTINGS (GENERAL) ####
+############################
 
 #toggle `switches' for additional functionality
 use_cat_from_paper = True		#use the unedited catalogue downloaded from the Simpson+19 paper website
+use_S19_bins = True				#use the flux density bins from Simpson+19
 plot_positions = True			#plot positions of selected RQ galaxies with their search areas
 independent_rq = True			#treat the RQ galaxies as independent (i.e. do not account for overlap between search areas)
 comp_correct = True				#apply completeness corrections
@@ -48,9 +49,11 @@ bf_results = True				#adds the results obtained from the whole S2COSMOS catalogu
 main_only = gen.main_only		#use only sources from the MAIN region of S2COSMOS for blank-field results
 randomise_fluxes = True			#randomly draw flux densities from possible values
 bin_by_mass = True				#bin galaxies by stellar mass as well as redshift
+fit_schechter = True			#fit Schechter finctions to the number counts
 repeat_sel = True				#perform the random RQ selection several times 
 settings = [
 	use_cat_from_paper,
+	use_S19_bins,
 	plot_positions, 
 	independent_rq, 
 	comp_correct,
@@ -60,12 +63,14 @@ settings = [
 	main_only,
 	randomise_fluxes,
 	bin_by_mass,
+	fit_schechter,
 	repeat_sel]
 
 #print the chosen settings to the Terminal
 print(gen.colour_string('CHOSEN SETTINGS:', 'white'))
 settings_print = [
 	'Use catalogue linked to Simpson+19 paper: ',
+	'Use flux density bins from Simpson+19: ', 
 	'Plot RQ galaxy positions: ',
 	'Treat RQ galaxies independently: ',
 	'Apply completeness corrections: ',
@@ -75,6 +80,7 @@ settings_print = [
 	'Use MAIN region only (for blank-field results): ',
 	'Randomise source flux densities for error analysis: ',
 	'Bin galaxies by stellar mass: ',
+	'Fit Schechter functions: ',
 	'Repeat the random selection of RQ galaxies several times: ']
 for i in range(len(settings_print)):
 	if settings[i]:
@@ -97,29 +103,55 @@ nsamples = 100		#number of times to reselect RQ subsamples
 if repeat_sel:
 	settings_print.append(f'Number of times to select RQ samples: {nsamples}')
 
+#number of walkers and iterations to use in MCMC fitting
+nwalkers = 100
+niter = 1000
+if fit_schechter:
+	settings_print.append(f'Number of walkers to use for MCMC: {nwalkers}')
+	settings_print.append(f'Number of iterations to use for MCMC: {niter}')
+
 print(gen.colour_string('\n'.join(settings_print), 'white'))
 
-
-#850 micron flux density bins to use for submm number counts
-dS = 2.		#bin width (mJy)
-S850_bin_centres = np.arange(2.5, 22.5, dS)
-S850_bin_edges = np.append(S850_bin_centres-(dS/2.), S850_bin_centres[-1]+(dS/2.))
-
-#convert search radius to degrees
-R_deg = R_arcmin / 60.
-#area of aperture (sq. deg)
-A_sqdeg = np.pi * R_deg ** 2.
-
-
-#######################################################
-###############    START OF SCRIPT    #################
-#######################################################
 
 #relevant paths
 PATH_RAGERS = gen.PATH_RAGERS
 PATH_CATS = gen.PATH_CATS
 PATH_DATA = gen.PATH_DATA
 PATH_PLOTS = gen.PATH_PLOTS
+
+
+##################################
+#### SETTINGS (NUMBER COUNTS) ####
+##################################
+
+#convert search radius to degrees
+R_deg = R_arcmin / 60.
+#area of aperture (sq. deg)
+A_sqdeg = np.pi * R_deg ** 2.
+
+if use_S19_bins:
+	#load the table summarising the nmber counts results
+	S19_results_file = PATH_CATS + 'Simpson+19_number_counts_tab.txt'
+	S19_results = Table.read(S19_results_file, format='ascii')
+	#bin edges and centres for the differential number counts
+	S850_bin_edges = np.concatenate([np.array(S19_results['S850']), [22.]])
+	S850_bin_centres = (S850_bin_edges[:-1] + S850_bin_edges[1:]) / 2.
+	#delete the Table to conserve memory
+	del S19_results, S19_results_file
+	#bin widths
+	dS = S850_bin_edges[1:] - S850_bin_edges[:-1]
+else:
+	#850 micron flux density bins to use for submm number counts
+	dS = 2.		#bin width (mJy)
+	S850_bin_centres = np.arange(2.5, 22.5, dS)
+	S850_bin_edges = np.append(S850_bin_centres-(dS/2.), S850_bin_centres[-1]+(dS/2.))
+
+
+
+#######################################################
+###############    START OF SCRIPT    #################
+#######################################################
+
 
 #catalogue containing data for (radio-quiet) galaxies from COSMOS2020 matched in M* and z with the radio-loud sample
 RQ_CAT = PATH_CATS + 'RAGERS_COSMOS2020_matches_Mstar_z.fits'
@@ -566,6 +598,7 @@ for i in range(len(zbin_centres)):
 
 		#remove any bins with 0 sources
 		has_sources = N_rl > 0.
+		#has_sources = np.full(len(S850_bin_centres), True)
 		x_bins = S850_bin_centres[has_sources]
 		eN_rl_lo = eN_rl_lo[has_sources]
 		eN_rl_hi = eN_rl_hi[has_sources]
@@ -631,6 +664,7 @@ for i in range(len(zbin_centres)):
 
 	#remove any bins with 0 sources
 	has_sources = N_zbin > 0.
+	#has_sources = np.full(len(S850_bin_centres), True)
 	x_bins = S850_bin_centres[has_sources]
 	eN_zbin_lo = eN_zbin_lo[has_sources]
 	eN_zbin_hi = eN_zbin_hi[has_sources]
@@ -647,14 +681,15 @@ for i in range(len(zbin_centres)):
 	ax1[row_z,col_z].set_yscale('log')
 
 	#add text to the top right corner displaying the redshift bin
-	ax1[row_z,col_z].text(0.95, 0.95, r'$%.1f \leq z < %.1f$'%(z-dz/2.,z+dz/2.), transform=ax1[row_z,col_z].transAxes, ha='right', va='top')
+	bin_text = r'$%.1f \leq z < %.1f$'%(z-dz/2.,z+dz/2.)
+	ax1[row_z,col_z].text(0.95, 0.95, bin_text, transform=ax1[row_z,col_z].transAxes, ha='right', va='top')
 
 	#set the minor tick locations on the x-axis
 	ax1[row_z,col_z].set_xticks(xtick_min_locs, labels=xtick_min_labels, minor=True)
 
 	#set the axes limits
 	ax1[row_z,col_z].set_xlim(1.5, 20.)
-	ax1[row_z,col_z].set_ylim(0.1, 1000.)
+	ax1[row_z,col_z].set_ylim(0.1, 1300.)
 	#force matplotlib to label with the actual numbers
 	#ax1[row_z,col_z].get_xaxis().set_major_formatter(mpl.ticker.ScalarFormatter())
 	#ax1[row_z,col_z].get_yaxis().set_major_formatter(mpl.ticker.ScalarFormatter())
@@ -690,13 +725,13 @@ for i in range(len(zbin_centres)):
 		ax3[row_z,col_z].set_yscale('log')
 
 		#add text to the top right corner displaying the redshift bin
-		ax3[row_z,col_z].text(0.95, 0.95, r'$%.1f \leq z < %.1f$'%(z-dz/2.,z+dz/2.), transform=ax3[row_z,col_z].transAxes, ha='right', va='top')
+		ax3[row_z,col_z].text(0.95, 0.95, bin_text, transform=ax3[row_z,col_z].transAxes, ha='right', va='top')
 
 		#set the minor tick locations on the x-axis
 		ax3[row_z,col_z].set_xticks(xtick_min_locs, labels=xtick_min_labels, minor=True)
 
 		#set the axes limits
-		ax3[row_z,col_z].set_xlim(0.8, 20.)
+		ax3[row_z,col_z].set_xlim(1.5, 20.)
 		ax3[row_z,col_z].set_ylim(0.1, 4000.)
 		#force matplotlib to label with the actual numbers
 		#ax3[row_z,col_z].get_xaxis().set_major_formatter(mpl.ticker.ScalarFormatter())
@@ -713,7 +748,7 @@ for i in range(len(zbin_centres)):
 	#perform whichever steps from above are relevant for the positions plot if created
 	if plot_positions:
 		#add text to the top right corner displaying the redshift bin
-		ax2[row_z,col_z].text(0.95, 0.95, r'$%.1f \leq z < %.1f$'%(z-dz/2.,z+dz/2.), transform=ax2[row_z,col_z].transAxes, ha='right', va='top')
+		ax2[row_z,col_z].text(0.95, 0.95, bin_text, transform=ax2[row_z,col_z].transAxes, ha='right', va='top')
 		#set the axes limits
 		ax2[row_z,col_z].set_xlim(150.9, 149.3)
 		ax2[row_z,col_z].set_ylim(1.5, 3.)
@@ -754,6 +789,7 @@ if combined_plot:
 
 	#remove any bins with 0 sources
 	has_sources = N_ALL > 0.
+	#has_sources = np.full(len(S850_bin_centres), True)
 	x_bins = S850_bin_centres[has_sources]
 	eN_ALL_lo = eN_ALL_lo[has_sources]
 	eN_ALL_hi = eN_ALL_hi[has_sources]
@@ -774,7 +810,7 @@ if combined_plot:
 
 	#set the axes limits
 	ax4.set_xlim(1.5, 20.)
-	ax4.set_ylim(0.1, 1000.)
+	ax4.set_ylim(0.1, 1300.)
 	#force matplotlib to label with the actual numbers
 	#ax4.get_xaxis().set_major_formatter(mpl.ticker.ScalarFormatter())
 	#ax4.get_yaxis().set_major_formatter(mpl.ticker.ScalarFormatter())
@@ -796,6 +832,7 @@ if combined_plot:
 
 		#remove any bins with 0 sources
 		has_sources = cumN_ALL > 0.
+		#has_sources = np.full(len(S850_bin_centres), True)
 		x_bins = S850_bin_edges[:-1][has_sources]
 		ecumN_ALL_lo = ecumN_ALL_lo[has_sources]
 		ecumN_ALL_hi = ecumN_ALL_hi[has_sources]
@@ -815,7 +852,7 @@ if combined_plot:
 		ax5.set_xticks(xtick_min_locs, labels=xtick_min_labels, minor=True)
 
 		#set the axes limits
-		ax5.set_xlim(0.8, 20.)
+		ax5.set_xlim(1.5, 20.)
 		ax5.set_ylim(0.1, 4000.)
 		#force matplotlib to label with the actual numbers
 		#ax5.get_xaxis().set_major_formatter(mpl.ticker.ScalarFormatter())
@@ -829,6 +866,7 @@ if combined_plot:
 		by_label = dict(zip(labels, handles))
 		ax5.legend([by_label[i] for i in labels_ord_combined], [i for i in labels_ord_combined], loc=3)
 
+print(gen.colour_string('Done!', 'purple'))
 
 #####################################
 #### BINNING RL GALAXIES BY MASS ####
@@ -947,6 +985,7 @@ if bin_by_mass:
 
 			#remove any bins with 0 sources
 			has_sources = N_rl > 0.
+			#has_sources = np.full(len(S850_bin_centres), True)
 			x_bins = S850_bin_centres[has_sources]
 			eN_rl_lo = eN_rl_lo[has_sources]
 			eN_rl_hi = eN_rl_hi[has_sources]
@@ -1007,6 +1046,7 @@ if bin_by_mass:
 
 		#remove any bins with 0 sources
 		has_sources = N_Mbin > 0.
+		#has_sources = np.full(len(S850_bin_centres), True)
 		x_bins = S850_bin_centres[has_sources]
 		eN_Mbin_lo = eN_Mbin_lo[has_sources]
 		eN_Mbin_hi = eN_Mbin_hi[has_sources]
@@ -1031,7 +1071,7 @@ if bin_by_mass:
 
 		#set the axes limits
 		ax6[i].set_xlim(1.5, 20.)
-		ax6[i].set_ylim(0.1, 1000.)
+		ax6[i].set_ylim(0.1, 1300.)
 		#force matplotlib to label with the actual numbers
 		#ax6[i].get_xaxis().set_major_formatter(mpl.ticker.ScalarFormatter())
 		#ax6[i].get_yaxis().set_major_formatter(mpl.ticker.ScalarFormatter())
@@ -1064,13 +1104,13 @@ if bin_by_mass:
 			ax7[i].set_yscale('log')
 
 			#add text to the top right corner displaying the redshift bin
-			ax7[i].text(0.95, 0.95, r'$%.1f \leq z < %.1f$'%(z-dz/2.,z+dz/2.), transform=ax7[i].transAxes, ha='right', va='top')
+			ax7[i].text(0.95, 0.95, bin_text, transform=ax7[i].transAxes, ha='right', va='top')
 
 			#set the minor tick locations on the x-axis
 			ax7[i].set_xticks(xtick_min_locs, labels=xtick_min_labels, minor=True)
 
 			#set the axes limits
-			ax7[i].set_xlim(0.8, 20.)
+			ax7[i].set_xlim(1.5, 20.)
 			ax7[i].set_ylim(0.1, 4000.)
 			#force matplotlib to label with the actual numbers
 			#ax7[i].get_xaxis().set_major_formatter(mpl.ticker.ScalarFormatter())
@@ -1082,11 +1122,11 @@ if bin_by_mass:
 			handles, labels = ax7[i].get_legend_handles_labels()
 			labels_ord = [s for s in labels_ord if s in labels]
 			by_label = dict(zip(labels, handles))
-			ax7[i].legend([by_label[i] for i in labels_ord], [i for i in labels_ord], loc=3)
+			ax7[i].legend([by_label[ii] for ii in labels_ord], [ii for ii in labels_ord], loc=3)
 
-########################
-#### SAVING FIGURES ####
-########################
+###########################################
+#### FINAL FORMATTING & SAVING FIGURES ####
+###########################################
 
 #suffix to use for figure based on the operations performed
 suffix = ''
