@@ -40,13 +40,14 @@ plt.style.use(ps.styledict)
 #toggle `switches' for additional functionality
 use_cat_from_paper = True		#use the unedited catalogue downloaded from the Simpson+19 paper website
 plot_positions = True			#plot positions of selected RQ galaxies with their search areas
-independent_rq = False			#treat the RQ galaxies as independent (i.e. do not account for overlap between search areas)
+independent_rq = True			#treat the RQ galaxies as independent (i.e. do not account for overlap between search areas)
 comp_correct = True				#apply completeness corrections
 plot_cumulative = True			#plot cumulative number counts as well as differential
 combined_plot = True			#create plot(s) summarising the results from all targets
 bf_results = True				#adds the results obtained from the whole S2COSMOS catalogue
 main_only = gen.main_only		#use only sources from the MAIN region of S2COSMOS for blank-field results
 randomise_fluxes = True			#randomly draw flux densities from possible values
+bin_by_mass = True				#bin galaxies by stellar mass as well as redshift
 repeat_sel = True				#perform the random RQ selection several times 
 settings = [
 	use_cat_from_paper,
@@ -58,6 +59,7 @@ settings = [
 	bf_results,
 	main_only,
 	randomise_fluxes,
+	bin_by_mass,
 	repeat_sel]
 
 #print the chosen settings to the Terminal
@@ -72,6 +74,7 @@ settings_print = [
 	'Plot blank-field results: ',
 	'Use MAIN region only (for blank-field results): ',
 	'Randomise source flux densities for error analysis: ',
+	'Bin galaxies by stellar mass: ',
 	'Repeat the random selection of RQ galaxies several times: ']
 for i in range(len(settings_print)):
 	if settings[i]:
@@ -248,6 +251,26 @@ if combined_plot:
 		ax5.set_xlabel(r'$S_{850~\mu{\rm m}}$ (mJy)')
 		ax5.set_ylabel(r'$N(>S)$ (deg$^{-2}$)')
 
+if bin_by_mass:
+	#create the figure (dN/dS vs S)
+	f6, ax6 = plt.subplots(1, 3, figsize=(3.*ps.x_size, ps.y_size))
+	#to label axes with common labels, create a big subplot, make it invisible, and label its axes
+	ax_big6 = f6.add_subplot(111, frameon=False)
+	ax_big6.tick_params(labelcolor='none', top=False, bottom=False, left=False, right=False, which='both')
+	#label x and y axes
+	ax_big6.set_xlabel(r'$S_{850~\mu{\rm m}}$ (mJy)', labelpad=10.)
+	ax_big6.set_ylabel(r'$dN/dS$ (deg$^{-2}$ mJy$^{-1}$)', labelpad=20.)
+
+	if plot_cumulative:
+		#create the figure (N(>S) vs S)
+		f7, ax7 = plt.subplots(1, 3, figsize=(3.*ps.x_size, ps.y_size))
+		#to label axes with common labels, create a big subplot, make it invisible, and label its axes
+		ax_big7 = f7.add_subplot(111, frameon=False)
+		ax_big7.tick_params(labelcolor='none', top=False, bottom=False, left=False, right=False, which='both')
+		#label x and y axes
+		ax_big7.set_xlabel(r'$S_{850~\mu{\rm m}}$ (mJy)', labelpad=10.)
+		ax_big7.set_ylabel(r'$N(>S)$ (deg$^{-2}$)', labelpad=20.)
+
 ###########################################################
 #### RANDOMLY SELECTING RQ GALAXIES FOR EACH RL GALAXY ####
 ###########################################################
@@ -257,9 +280,11 @@ RAGERS_IDs, idx_unique, n_rq_per_rl = np.unique(data_rq['RAGERS_ID'], return_ind
 #sort the IDs in order of increasing number of RQ matches
 idx_ordered = np.argsort(n_rq_per_rl)
 RAGERS_IDs = RAGERS_IDs[idx_ordered]
-#also get a list of RAGERS RL redshifts and order them
+#also get lists of the RAGERS RL redshifts and stellar masses and order them
 RAGERS_zs = data_rq['RAGERS_z'][idx_unique]
 RAGERS_zs = RAGERS_zs[idx_ordered]
+RAGERS_Ms = data_rq['RAGERS_logMstar'][idx_unique]
+RAGERS_Ms = RAGERS_Ms[idx_ordered]
 
 #set up a list to which the data for the selected RQ sources will be appended
 data_rq_sub = []
@@ -404,7 +429,7 @@ zbin_centres = zbin_edges[:-1] + 0.5 * dz
 #### CONSTRUCTING NUMBER COUNTS ####
 ####################################
 
-print_str = 'Constructing number counts'
+print_str = 'Constructing number counts (redshift-binned)'
 if plot_positions:
 	print_str += ' and plotting RQ galaxy positions'
 print_str += '...'
@@ -421,11 +446,11 @@ for i in range(len(zbin_centres)):
 
 	#plot data in the left-hand column if i is even; plot in the right-hand column if i is odd
 	if (i % 2 == 0):
-		row_c = int(i/2)			#the row in which the current subplot lies
-		col_c = 0					#the column in which the current subplot lies
+		row_z = int(i/2)			#the row in which the current subplot lies
+		col_z = 0					#the column in which the current subplot lies
 	else:
-		row_c = int((i-1)/2)		#the row in which the current subplot lies
-		col_c = 1					#the column in which the current subplot lies
+		row_z = int((i-1)/2)		#the row in which the current subplot lies
+		col_z = 1					#the column in which the current subplot lies
 
 	#get the IDs of all RAGERS sources in the current bin
 	zmask = (RAGERS_zs >= (z - dz / 2.)) * (RAGERS_zs < (z + dz / 2.))
@@ -453,11 +478,11 @@ for i in range(len(zbin_centres)):
 	#blank field  results
 	if bf_results:
 		labels_ord.append(label_bf)
-		ax1[row_c,col_c].plot(xbins_bf, N_bf, linestyle='none', marker='D', color=ps.grey, label=label_bf, alpha=0.5)
-		ax1[row_c,col_c].errorbar(xbins_bf, N_bf, fmt='none', yerr=(eN_bf_lo,eN_bf_hi), ecolor=ps.grey, elinewidth=2., alpha=0.5)
+		ax1[row_z,col_z].plot(xbins_bf, N_bf, linestyle='none', marker='D', color=ps.grey, label=label_bf, alpha=0.5)
+		ax1[row_z,col_z].errorbar(xbins_bf, N_bf, fmt='none', yerr=(eN_bf_lo,eN_bf_hi), ecolor=ps.grey, elinewidth=2., alpha=0.5)
 		if plot_cumulative:
-			ax3[row_c,col_c].plot(xbins_cumbf, cumN_bf, linestyle='none', marker='D', color=ps.grey, label=label_bf, alpha=0.5)
-			ax3[row_c,col_c].errorbar(xbins_cumbf, cumN_bf, fmt='none', yerr=(ecumN_bf_lo,ecumN_bf_hi), ecolor=ps.grey, elinewidth=2., alpha=0.5)
+			ax3[row_z,col_z].plot(xbins_cumbf, cumN_bf, linestyle='none', marker='D', color=ps.grey, label=label_bf, alpha=0.5)
+			ax3[row_z,col_z].errorbar(xbins_cumbf, cumN_bf, fmt='none', yerr=(ecumN_bf_lo,ecumN_bf_hi), ecolor=ps.grey, elinewidth=2., alpha=0.5)
 
 	#cycle through the RL galaxies in this redshift bin
 	for j in range(len(rl_zbin)):
@@ -492,15 +517,15 @@ for i in range(len(zbin_centres)):
 				RA_rq = coord_central[0].ra.value
 				DEC_rq = coord_central[0].dec.value
 				#plot this position on the current axes
-				ax2[row_c,col_c].plot(RA_rq, DEC_rq, linestyle='none', marker=mkr_now, c=c_now, label=ID, alpha=0.7)
+				ax2[row_z,col_z].plot(RA_rq, DEC_rq, linestyle='none', marker=mkr_now, c=c_now, label=ID, alpha=0.7)
 				#add circles with radius 4' and 6' centred on the RQ galaxy
 				d_circle1 = 8. / 60.
 				d_circle2 = 12. / 60.
 				f_cosdec = np.cos(DEC_rq * np.pi / 180.)
 				ellipse1 = mpl.patches.Ellipse((RA_rq, DEC_rq), width=d_circle1/f_cosdec, height=d_circle1, color=c_now, fill=False, alpha=0.7)
 				ellipse2 = mpl.patches.Ellipse((RA_rq, DEC_rq), width=d_circle2/f_cosdec, height=d_circle2, color=c_now, fill=False, linestyle='--', alpha=0.7)
-				ax2[row_c,col_c].add_patch(ellipse1)
-				ax2[row_c,col_c].add_patch(ellipse2)
+				ax2[row_z,col_z].add_patch(ellipse1)
+				ax2[row_z,col_z].add_patch(ellipse2)
 
 			#search for submm sources within R_arcmin of the galaxy
 			idx_coords_submm_matched, *_ = coord_central.search_around_sky(coords_submm, R_arcmin * u.arcmin)
@@ -554,10 +579,10 @@ for i in range(len(zbin_centres)):
 		#x_bins += offset
 		
 		#plot the bin heights at the bin centres
-		ax1[row_c,col_c].plot(x_bins, N_rl, marker=mkr_now, color=c_now, label=ID, ms=9., alpha=0.7, linestyle='none')
+		ax1[row_z,col_z].plot(x_bins, N_rl, marker=mkr_now, color=c_now, label=ID, ms=9., alpha=0.7, linestyle='none')
 		#add errorbars
 		eN_rl_lo[eN_rl_lo == N_rl] *= 0.999		#prevents errors when logging plot
-		ax1[row_c,col_c].errorbar(x_bins, N_rl, fmt='none', yerr=(eN_rl_lo,eN_rl_hi), ecolor=c_now, alpha=0.7)
+		ax1[row_z,col_z].errorbar(x_bins, N_rl, fmt='none', yerr=(eN_rl_lo,eN_rl_hi), ecolor=c_now, alpha=0.7)
 
 		#construct the cumulative number counts if told to do so
 		if plot_cumulative:
@@ -570,10 +595,10 @@ for i in range(len(zbin_centres)):
 
 			#plot the bin heights at the left bin edges
 			x_bins = 10. ** (np.log10(S850_bin_edges[:-1]) + 0.004 * ((-1.) ** ((j+1) % 2.)) * np.floor((j + 2.) / 2.))
-			ax3[row_c,col_c].plot(x_bins, cumN_rl, marker=mkr_now, color=c_now, label=ID, ms=9., alpha=0.7, linestyle='none')
+			ax3[row_z,col_z].plot(x_bins, cumN_rl, marker=mkr_now, color=c_now, label=ID, ms=9., alpha=0.7, linestyle='none')
 			#add errorbars
 			ecumN_rl_lo[ecumN_rl_lo == cumN_rl] *= 0.999		#prevents errors when logging plot
-			ax3[row_c,col_c].errorbar(x_bins, cumN_rl, fmt='none', yerr=(ecumN_rl_lo,ecumN_rl_hi), ecolor=c_now, alpha=0.7)
+			ax3[row_z,col_z].errorbar(x_bins, cumN_rl, fmt='none', yerr=(ecumN_rl_lo,ecumN_rl_hi), ecolor=c_now, alpha=0.7)
 
 	#concatenate the arrays of indices of matched submm sources for this z bin
 	idx_matched_zbin = np.concatenate(idx_matched_zbin)
@@ -612,36 +637,36 @@ for i in range(len(zbin_centres)):
 	N_zbin = N_zbin[has_sources]
 
 	#plot the bin heights at the bin centres
-	ax1[row_c,col_c].plot(x_bins, N_zbin, marker='o', color='k', label='All', ms=14., linestyle='none')
+	ax1[row_z,col_z].plot(x_bins, N_zbin, marker='o', color='k', label='All', ms=14., linestyle='none')
 	#add errorbars
 	eN_zbin_lo[eN_zbin_lo == N_zbin] *= 0.999		#prevents errors when logging plot
-	ax1[row_c,col_c].errorbar(x_bins, N_zbin, fmt='none', yerr=(eN_zbin_lo,eN_zbin_hi), ecolor='k', elinewidth=2.4)
+	ax1[row_z,col_z].errorbar(x_bins, N_zbin, fmt='none', yerr=(eN_zbin_lo,eN_zbin_hi), ecolor='k', elinewidth=2.4)
 
 	#set the axes to log scale
-	ax1[row_c,col_c].set_xscale('log')
-	ax1[row_c,col_c].set_yscale('log')
+	ax1[row_z,col_z].set_xscale('log')
+	ax1[row_z,col_z].set_yscale('log')
 
 	#add text to the top right corner displaying the redshift bin
-	ax1[row_c,col_c].text(0.95, 0.95, r'$%.1f \leq z < %.1f$'%(z-dz/2.,z+dz/2.), transform=ax1[row_c,col_c].transAxes, ha='right', va='top')
+	ax1[row_z,col_z].text(0.95, 0.95, r'$%.1f \leq z < %.1f$'%(z-dz/2.,z+dz/2.), transform=ax1[row_z,col_z].transAxes, ha='right', va='top')
 
 	#set the minor tick locations on the x-axis
-	ax1[row_c,col_c].set_xticks(xtick_min_locs, labels=xtick_min_labels, minor=True)
+	ax1[row_z,col_z].set_xticks(xtick_min_locs, labels=xtick_min_labels, minor=True)
 
 	#set the axes limits
-	ax1[row_c,col_c].set_xlim(1.5, 20.)
-	ax1[row_c,col_c].set_ylim(0.1, 1000.)
+	ax1[row_z,col_z].set_xlim(1.5, 20.)
+	ax1[row_z,col_z].set_ylim(0.1, 1000.)
 	#force matplotlib to label with the actual numbers
-	#ax1[row_c,col_c].get_xaxis().set_major_formatter(mpl.ticker.ScalarFormatter())
-	#ax1[row_c,col_c].get_yaxis().set_major_formatter(mpl.ticker.ScalarFormatter())
-	ax1[row_c,col_c].get_xaxis().set_major_formatter(mpl.ticker.StrMethodFormatter('{x:.0f}'))
-	ax1[row_c,col_c].get_yaxis().set_major_formatter(mpl.ticker.StrMethodFormatter('{x:g}'))
+	#ax1[row_z,col_z].get_xaxis().set_major_formatter(mpl.ticker.ScalarFormatter())
+	#ax1[row_z,col_z].get_yaxis().set_major_formatter(mpl.ticker.ScalarFormatter())
+	ax1[row_z,col_z].get_xaxis().set_major_formatter(mpl.ticker.StrMethodFormatter('{x:.0f}'))
+	ax1[row_z,col_z].get_yaxis().set_major_formatter(mpl.ticker.StrMethodFormatter('{x:g}'))
 
 	labels_ord.insert(0, 'All')
 	#add a legend in the bottom left corner, removing duplicate labels
-	handles, labels = ax1[row_c,col_c].get_legend_handles_labels()
+	handles, labels = ax1[row_z,col_z].get_legend_handles_labels()
 	labels_ord = [s for s in labels_ord if s in labels]
 	by_label = dict(zip(labels, handles))
-	ax1[row_c,col_c].legend([by_label[i] for i in labels_ord], [i for i in labels_ord], loc=3)
+	ax1[row_z,col_z].legend([by_label[i] for i in labels_ord], [i for i in labels_ord], loc=3)
 
 
 	if plot_cumulative:
@@ -655,47 +680,47 @@ for i in range(len(zbin_centres)):
 
 		#plot the bin heights at the left bin edges
 		x_bins = S850_bin_edges[:-1]
-		ax3[row_c,col_c].plot(x_bins, cumN_zbin, marker='o', color='k', label='All', ms=14., linestyle='none')
+		ax3[row_z,col_z].plot(x_bins, cumN_zbin, marker='o', color='k', label='All', ms=14., linestyle='none')
 		#add errorbars
 		ecumN_zbin_lo[ecumN_zbin_lo == cumN_zbin] *= 0.999		#prevents errors when logging plot
-		ax3[row_c,col_c].errorbar(x_bins, cumN_zbin, fmt='none', yerr=(ecumN_zbin_lo,ecumN_zbin_hi), ecolor='k', elinewidth=2.4)
+		ax3[row_z,col_z].errorbar(x_bins, cumN_zbin, fmt='none', yerr=(ecumN_zbin_lo,ecumN_zbin_hi), ecolor='k', elinewidth=2.4)
 
 		#set the axes to log scale
-		ax3[row_c,col_c].set_xscale('log')
-		ax3[row_c,col_c].set_yscale('log')
+		ax3[row_z,col_z].set_xscale('log')
+		ax3[row_z,col_z].set_yscale('log')
 
 		#add text to the top right corner displaying the redshift bin
-		ax3[row_c,col_c].text(0.95, 0.95, r'$%.1f \leq z < %.1f$'%(z-dz/2.,z+dz/2.), transform=ax3[row_c,col_c].transAxes, ha='right', va='top')
+		ax3[row_z,col_z].text(0.95, 0.95, r'$%.1f \leq z < %.1f$'%(z-dz/2.,z+dz/2.), transform=ax3[row_z,col_z].transAxes, ha='right', va='top')
 
 		#set the minor tick locations on the x-axis
-		ax3[row_c,col_c].set_xticks(xtick_min_locs, labels=xtick_min_labels, minor=True)
+		ax3[row_z,col_z].set_xticks(xtick_min_locs, labels=xtick_min_labels, minor=True)
 
 		#set the axes limits
-		ax3[row_c,col_c].set_xlim(0.8, 20.)
-		ax3[row_c,col_c].set_ylim(0.1, 4000.)
+		ax3[row_z,col_z].set_xlim(0.8, 20.)
+		ax3[row_z,col_z].set_ylim(0.1, 4000.)
 		#force matplotlib to label with the actual numbers
-		#ax3[row_c,col_c].get_xaxis().set_major_formatter(mpl.ticker.ScalarFormatter())
-		#ax3[row_c,col_c].get_yaxis().set_major_formatter(mpl.ticker.ScalarFormatter())
-		ax3[row_c,col_c].get_xaxis().set_major_formatter(mpl.ticker.StrMethodFormatter('{x:.0f}'))
-		ax3[row_c,col_c].get_yaxis().set_major_formatter(mpl.ticker.StrMethodFormatter('{x:g}'))
+		#ax3[row_z,col_z].get_xaxis().set_major_formatter(mpl.ticker.ScalarFormatter())
+		#ax3[row_z,col_z].get_yaxis().set_major_formatter(mpl.ticker.ScalarFormatter())
+		ax3[row_z,col_z].get_xaxis().set_major_formatter(mpl.ticker.StrMethodFormatter('{x:.0f}'))
+		ax3[row_z,col_z].get_yaxis().set_major_formatter(mpl.ticker.StrMethodFormatter('{x:g}'))
 
 		#add a legend in the bottom left corner, removing duplicate labels
-		handles, labels = ax3[row_c,col_c].get_legend_handles_labels()
+		handles, labels = ax3[row_z,col_z].get_legend_handles_labels()
 		labels_ord = [s for s in labels_ord if s in labels]
 		by_label = dict(zip(labels, handles))
-		ax3[row_c,col_c].legend([by_label[i] for i in labels_ord], [i for i in labels_ord], loc=3)
+		ax3[row_z,col_z].legend([by_label[i] for i in labels_ord], [i for i in labels_ord], loc=3)
 
 	#perform whichever steps from above are relevant for the positions plot if created
 	if plot_positions:
 		#add text to the top right corner displaying the redshift bin
-		ax2[row_c,col_c].text(0.95, 0.95, r'$%.1f \leq z < %.1f$'%(z-dz/2.,z+dz/2.), transform=ax2[row_c,col_c].transAxes, ha='right', va='top')
+		ax2[row_z,col_z].text(0.95, 0.95, r'$%.1f \leq z < %.1f$'%(z-dz/2.,z+dz/2.), transform=ax2[row_z,col_z].transAxes, ha='right', va='top')
 		#set the axes limits
-		ax2[row_c,col_c].set_xlim(150.9, 149.3)
-		ax2[row_c,col_c].set_ylim(1.5, 3.)
+		ax2[row_z,col_z].set_xlim(150.9, 149.3)
+		ax2[row_z,col_z].set_ylim(1.5, 3.)
 		#add a legend in the bottom left corner, removing duplicate labels
-		handles, labels = ax2[row_c,col_c].get_legend_handles_labels()
+		handles, labels = ax2[row_z,col_z].get_legend_handles_labels()
 		by_label = dict(zip(labels, handles))
-		ax2[row_c,col_c].legend(by_label.values(), by_label.keys(), loc=3)
+		ax2[row_z,col_z].legend(by_label.values(), by_label.keys(), loc=3)
 
 if combined_plot:
 	#concatenate the arrays of indices of matched submm sources for this z bin
@@ -804,6 +829,261 @@ if combined_plot:
 		by_label = dict(zip(labels, handles))
 		ax5.legend([by_label[i] for i in labels_ord_combined], [i for i in labels_ord_combined], loc=3)
 
+
+#####################################
+#### BINNING RL GALAXIES BY MASS ####
+#####################################
+
+if bin_by_mass:
+	#create redshift bins for the RL galaxies
+	Mbin_edges = np.array([11., 11.2, 11.4, 11.7])
+	Mbin_centres = (Mbin_edges[:-1] + Mbin_edges[1:]) / 2.
+	Mbin_widths = np.diff(Mbin_edges)
+
+	print_str = 'Constructing number counts (mass-binned)...'
+	print(gen.colour_string(print_str, 'purple'))
+
+	#cycle through the redshift bins
+	for i in range(len(Mbin_centres)):
+		#get the current redshift bin and print its bounds
+		logM = Mbin_centres[i]
+		dlogM = Mbin_widths[i]
+		print(f'{logM-dlogM/2:.2f} < log(M/Msun) < {logM+dlogM/2.:.2f}')
+
+		#get the IDs of all RAGERS sources in the current bin
+		mass_mask = (RAGERS_Ms >= (logM - dlogM / 2.)) * (RAGERS_Ms < (logM + dlogM / 2.))
+		rl_Mbin = RAGERS_IDs[mass_mask]
+
+		##############################
+		#### RQ GALAXIES PER ZBIN ####
+		##############################
+
+		#get the corresponding radio-quiet source data
+		mass_mask_rq = (data_rq_sub['RAGERS_logMstar'] >= (logM - dlogM / 2.)) * (data_rq_sub['RAGERS_logMstar'] < (logM + dlogM / 2.))
+		data_rq_Mbin = data_rq_sub[mass_mask_rq]
+		#get the corresponding SkyCoords
+		coords_rq_Mbin = coords_rq_sub[mass_mask_rq]
+
+		#create an empty list to which indices of matched submm sources will be appended for each RQ galaxy in this zbin
+		idx_matched_Mbin = []
+
+		###################################
+		#### RQ GALAXIES PER RL GALAXY ####
+		###################################
+
+		#list to which the legend labels will be appended in the desired order
+		labels_ord = []
+		#blank field  results
+		if bf_results:
+			labels_ord.append(label_bf)
+			ax6[i].plot(xbins_bf, N_bf, linestyle='none', marker='D', color=ps.grey, label=label_bf, alpha=0.5)
+			ax6[i].errorbar(xbins_bf, N_bf, fmt='none', yerr=(eN_bf_lo,eN_bf_hi), ecolor=ps.grey, elinewidth=2., alpha=0.5)
+			if plot_cumulative:
+				ax7[i].plot(xbins_cumbf, cumN_bf, linestyle='none', marker='D', color=ps.grey, label=label_bf, alpha=0.5)
+				ax7[i].errorbar(xbins_cumbf, cumN_bf, fmt='none', yerr=(ecumN_bf_lo,ecumN_bf_hi), ecolor=ps.grey, elinewidth=2., alpha=0.5)
+
+		#cycle through the RL galaxies in this redshift bin
+		for j in range(len(rl_Mbin)):
+			#get the RL ID
+			ID = rl_Mbin[j]
+			labels_ord.insert(-1, ID)
+			#select the colour and marker to use for this dataset
+			c_now = gen.scale_RGB_colour(cmap((j+1.)/len(rl_Mbin))[:-1], scale_l=0.8)
+			mkr_now = markers[j]
+
+			#select the RQ galaxies corresponding to this RL source
+			mask_rq_rl = data_rq_Mbin['RAGERS_ID'] == ID
+			data_rq_rl = data_rq_Mbin[mask_rq_rl]
+			#get the SkyCoords for these objects
+			coords_rq_rl = coords_rq_Mbin[mask_rq_rl]
+
+			#create an empty list to which indices of matched submm sources will be appended for each RQ galaxy corresponding to the current RL galaxy
+			idx_matched_rl = []
+
+			################################
+			#### INDIVIDUAL RQ GALAXIES ####
+			################################
+
+			#cycle through the RQ galaxies matched to this RL galaxy
+			for k in range(len(data_rq_rl)):
+				#get the coordinates for the current RQ galaxy
+				coord_central = coords_rq_rl[k:k+1]
+
+				#search for submm sources within R_arcmin of the galaxy
+				idx_coords_submm_matched, *_ = coord_central.search_around_sky(coords_submm, R_arcmin * u.arcmin)
+				#append these indices to lists for (a) each RL galaxy, (b) each mass bin
+				idx_matched_rl.append(idx_coords_submm_matched)
+				idx_matched_Mbin.append(idx_coords_submm_matched)
+
+
+			#concatenate the arrays of indices of matched submm sources for this RL galaxy
+			idx_matched_rl = np.concatenate(idx_matched_rl)
+
+			#if each aperture is independent, the area is simply the sum of their areas
+			if independent_rq:
+				#calculate the total area surveyed for this RL galaxy
+				A_rl = A_sqdeg * len(data_rq_rl)
+			#if not treating each aperture as independent, remove duplicate matches from the list for this RL galaxy
+			if not independent_rq:
+				idx_matched_rl = np.unique(idx_matched_rl)
+				#calculate the area covered, accounting for overlap between apertures
+				A_rl = ast.apertures_area(coords_rq_rl, r=R_deg)
+
+			#retrieve the flux densities and completenesses for the matched sources
+			if ndim == 2:
+				S850_matched_rl = S850_rand[:,idx_matched_rl]
+				comp_matched_rl = comp_submm[:,idx_matched_rl]
+			else:
+				S850_matched_rl = S850_rand[idx_matched_rl]
+				comp_matched_rl = comp_submm[idx_matched_rl]
+
+			#construct the differential number counts
+			N_rl, eN_rl_lo, eN_rl_hi, counts_rl, weights_rl = nc.differential_numcounts(
+				S850_matched_rl,
+				S850_bin_edges,
+				A_rl,
+				comp=comp_matched_rl,
+				incl_poisson=True)
+
+			#remove any bins with 0 sources
+			has_sources = N_rl > 0.
+			x_bins = S850_bin_centres[has_sources]
+			eN_rl_lo = eN_rl_lo[has_sources]
+			eN_rl_hi = eN_rl_hi[has_sources]
+			N_rl = N_rl[has_sources]
+
+			#offset at which the points will be plotted relative to the bin centre (to avoid overlapping error bars)
+			x_bins = 10. ** (np.log10(x_bins) + 0.004 * ((-1.) ** ((j+1) % 2.)) * np.floor((j + 2.) / 2.))
+			#x_bins += offset
+			
+			#plot the bin heights at the bin centres
+			ax6[i].plot(x_bins, N_rl, marker=mkr_now, color=c_now, label=ID, ms=9., alpha=0.7, linestyle='none')
+			#add errorbars
+			eN_rl_lo[eN_rl_lo == N_rl] *= 0.999		#prevents errors when logging plot
+			ax6[i].errorbar(x_bins, N_rl, fmt='none', yerr=(eN_rl_lo,eN_rl_hi), ecolor=c_now, alpha=0.7)
+
+			#construct the cumulative number counts if told to do so
+			if plot_cumulative:
+				cumN_rl, ecumN_rl_lo, ecumN_rl_hi, cumcounts_rl = nc.cumulative_numcounts(
+					counts=counts_rl,
+					A=A_rl,
+					)
+
+				#plot the bin heights at the left bin edges
+				x_bins = 10. ** (np.log10(S850_bin_edges[:-1]) + 0.004 * ((-1.) ** ((j+1) % 2.)) * np.floor((j + 2.) / 2.))
+				ax7[i].plot(x_bins, cumN_rl, marker=mkr_now, color=c_now, label=ID, ms=9., alpha=0.7, linestyle='none')
+				#add errorbars
+				ecumN_rl_lo[ecumN_rl_lo == cumN_rl] *= 0.999		#prevents errors when logging plot
+				ax7[i].errorbar(x_bins, cumN_rl, fmt='none', yerr=(ecumN_rl_lo,ecumN_rl_hi), ecolor=c_now, alpha=0.7)
+
+		#concatenate the arrays of indices of matched submm sources for this z bin
+		idx_matched_Mbin = np.concatenate(idx_matched_Mbin)
+		
+		#if each aperture is independent, the area is simply the sum of their areas
+		if independent_rq:
+			#calculate the total area surveyed for this RL galaxy
+			A_Mbin = A_sqdeg * len(data_rq_Mbin)
+		#if not treating each aperture as independent, remove duplicate matches from the list for this RL galaxy
+		if not independent_rq:
+			idx_matched_Mbin = np.unique(idx_matched_Mbin)
+			#calculate the area covered, accounting for overlap between apertures
+			A_Mbin = ast.apertures_area(coords_rq_Mbin, r=R_deg, save_fig=True, figname=PATH_PLOTS+f'Aperture_positions_Mbin{i+1}.png')
+
+		#retrieve the flux densities and completenesses for the matched sources
+		if ndim == 2:
+			S850_matched_Mbin = S850_rand[:,idx_matched_Mbin]
+			comp_matched_Mbin = comp_submm[:,idx_matched_Mbin]
+		else:
+			S850_matched_Mbin = S850_rand[idx_matched_Mbin]
+			comp_matched_Mbin = comp_submm[idx_matched_Mbin]
+
+		#construct the differential number counts
+		N_Mbin, eN_Mbin_lo, eN_Mbin_hi, counts_Mbin, weights_Mbin = nc.differential_numcounts(
+			S850_matched_Mbin,
+			S850_bin_edges,
+			A_Mbin,
+			comp=comp_matched_Mbin,
+			incl_poisson=True)
+
+		#remove any bins with 0 sources
+		has_sources = N_Mbin > 0.
+		x_bins = S850_bin_centres[has_sources]
+		eN_Mbin_lo = eN_Mbin_lo[has_sources]
+		eN_Mbin_hi = eN_Mbin_hi[has_sources]
+		N_Mbin = N_Mbin[has_sources]
+
+		#plot the bin heights at the bin centres
+		ax6[i].plot(x_bins, N_Mbin, marker='o', color='k', label='All', ms=14., linestyle='none')
+		#add errorbars
+		eN_Mbin_lo[eN_Mbin_lo == N_Mbin] *= 0.999		#prevents errors when logging plot
+		ax6[i].errorbar(x_bins, N_Mbin, fmt='none', yerr=(eN_Mbin_lo,eN_Mbin_hi), ecolor='k', elinewidth=2.4)
+
+		#set the axes to log scale
+		ax6[i].set_xscale('log')
+		ax6[i].set_yscale('log')
+
+		#add text to the top right corner displaying the redshift bin
+		bin_text = f'{logM-dlogM/2:.1f}' + r' $< \log({\rm M}/M_{\odot}) <$ ' + f'{logM+dlogM/2.:.1f}'
+		ax6[i].text(0.95, 0.95, bin_text, transform=ax6[i].transAxes, ha='right', va='top')
+
+		#set the minor tick locations on the x-axis
+		ax6[i].set_xticks(xtick_min_locs, labels=xtick_min_labels, minor=True)
+
+		#set the axes limits
+		ax6[i].set_xlim(1.5, 20.)
+		ax6[i].set_ylim(0.1, 1000.)
+		#force matplotlib to label with the actual numbers
+		#ax6[i].get_xaxis().set_major_formatter(mpl.ticker.ScalarFormatter())
+		#ax6[i].get_yaxis().set_major_formatter(mpl.ticker.ScalarFormatter())
+		ax6[i].get_xaxis().set_major_formatter(mpl.ticker.StrMethodFormatter('{x:.0f}'))
+		ax6[i].get_yaxis().set_major_formatter(mpl.ticker.StrMethodFormatter('{x:g}'))
+
+		labels_ord.insert(0, 'All')
+		#add a legend in the bottom left corner, removing duplicate labels
+		handles, labels = ax6[i].get_legend_handles_labels()
+		labels_ord = [s for s in labels_ord if s in labels]
+		by_label = dict(zip(labels, handles))
+		ax6[i].legend([by_label[i] for i in labels_ord], [i for i in labels_ord], loc=3)
+
+
+		if plot_cumulative:
+			#construct the cumulative number counts
+			cumN_Mbin, ecumN_Mbin_lo, ecumN_Mbin_hi, cumcounts_Mbin = nc.cumulative_numcounts(
+				counts=counts_Mbin,
+				A=A_Mbin,
+				)
+			#plot the bin heights at the left bin edges
+			x_bins = S850_bin_edges[:-1]
+			ax7[i].plot(x_bins, cumN_Mbin, marker='o', color='k', label='All', ms=14., linestyle='none')
+			#add errorbars
+			ecumN_Mbin_lo[ecumN_Mbin_lo == cumN_Mbin] *= 0.999		#prevents errors when logging plot
+			ax7[i].errorbar(x_bins, cumN_Mbin, fmt='none', yerr=(ecumN_Mbin_lo,ecumN_Mbin_hi), ecolor='k', elinewidth=2.4)
+
+			#set the axes to log scale
+			ax7[i].set_xscale('log')
+			ax7[i].set_yscale('log')
+
+			#add text to the top right corner displaying the redshift bin
+			ax7[i].text(0.95, 0.95, r'$%.1f \leq z < %.1f$'%(z-dz/2.,z+dz/2.), transform=ax7[i].transAxes, ha='right', va='top')
+
+			#set the minor tick locations on the x-axis
+			ax7[i].set_xticks(xtick_min_locs, labels=xtick_min_labels, minor=True)
+
+			#set the axes limits
+			ax7[i].set_xlim(0.8, 20.)
+			ax7[i].set_ylim(0.1, 4000.)
+			#force matplotlib to label with the actual numbers
+			#ax7[i].get_xaxis().set_major_formatter(mpl.ticker.ScalarFormatter())
+			#ax7[i].get_yaxis().set_major_formatter(mpl.ticker.ScalarFormatter())
+			ax7[i].get_xaxis().set_major_formatter(mpl.ticker.StrMethodFormatter('{x:.0f}'))
+			ax7[i].get_yaxis().set_major_formatter(mpl.ticker.StrMethodFormatter('{x:g}'))
+
+			#add a legend in the bottom left corner, removing duplicate labels
+			handles, labels = ax7[i].get_legend_handles_labels()
+			labels_ord = [s for s in labels_ord if s in labels]
+			by_label = dict(zip(labels, handles))
+			ax7[i].legend([by_label[i] for i in labels_ord], [i for i in labels_ord], loc=3)
+
 ########################
 #### SAVING FIGURES ####
 ########################
@@ -811,14 +1091,14 @@ if combined_plot:
 #suffix to use for figure based on the operations performed
 suffix = ''
 if not independent_rq:
-	suffix += '_no_overlap'
+	suffix += '_overlap'
 if randomise_fluxes:
-	suffix += '_randomised_fluxes'
+	suffix += '_randf'
 if comp_correct:
-	suffix += '_comp_corr'
+	suffix += '_cc'
 
 #add the search radius to the file name
-suffix += f'_{R_arcmin:.1f}arcmin'
+suffix += f'_{R_arcmin:.1f}am'
 
 #minimise unnecesary whitespace
 f1.tight_layout()
@@ -848,6 +1128,18 @@ if combined_plot:
 		f5.tight_layout()
 		figname = PATH_PLOTS + f'S850_cumulative_counts_ALL{suffix}.png'
 		f5.savefig(figname, bbox_inches='tight', dpi=300)
+
+if bin_by_mass:
+	#minimise unnecesary whitespace
+	f6.tight_layout()
+	figname = PATH_PLOTS + f'S850_number_counts_Mbinned{suffix}.png'
+	f6.savefig(figname, bbox_inches='tight', dpi=300)
+
+	if plot_cumulative:
+		#minimise unnecesary whitespace
+		f7.tight_layout()
+		figname = PATH_PLOTS + f'S850_cumulative_counts_Mbinned{suffix}.png'
+		f7.savefig(figname, bbox_inches='tight', dpi=300)
 
 print(gen.colour_string('Done!', 'purple'))
 
