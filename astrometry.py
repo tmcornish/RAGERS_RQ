@@ -8,6 +8,9 @@ from astropy import units as u
 from astropy.coordinates import SkyCoord
 from astropy import wcs
 from astropy.io import fits
+import general as gen
+from matplotlib import pyplot as plt
+
 
 def hms_to_deg(h, m, s):
 	'''
@@ -341,4 +344,240 @@ def cross_match_catalogues(
 	#if a string was entered but it isn't any of the available options, raise an error
 	else:
 		raise ValueError('join must be either "1and2", "1or2", "all1", or "all2"')
+
+
+def table_to_DS9_regions(T, RAcol, DECcol, convert_to_sexagesimal=True, output_name='targets.reg', labels=False, labelcol='ID', color='green', radius='1"', dashlist='8 3', width='1', font='helvetica 10 normal roman', select='1', highlite='1', dash='0', fixed='0', edit='1', move='1', delete='1', include='1', source='1', coords='fk5'):
+	'''
+	Takes a table of information about sources and converts the RAs and DECs into a generic file that can be used
+	as input by SAOImage DS9 (NOTE: this should not be used if the user wants specific settings for each 
+	region that is drawn by DS9; it is purely for drawing generic, uniform regions onto an image).
+		T: The table of data.
+		RAcol, DECcol: The column names containing the RAs and DECs of the sources in the table. 
+		convert_to_sexagesimal: Boolean; True if RA and Dec need to be converted from decimal degrees to sexagesimal.
+		output_name: The filename of the output to be used by DS9.
+		labels: A boolean for specifying whether or not each region should be labelled. Labels must be included in the table.
+		labelcol: The name of the column containing the source labels.
+		color: The desired colour of the regions.
+		radius: The desired radius of the regions (needs to include '' if wanted in arcseconds).
+		Everything else: Global settings to be applied to the regions drawn in DS9.
+	'''
+
+	#retrieve the RAs and Decs from the table
+	RAs = T[RAcol]
+	DECs = T[DECcol]
+	
+	#make a new file for the DS9 settings if it doesn't exist; if it does exist, then the global settings are not written to the file and everything else is appended to it
+	try:
+		with open(output_name, 'x') as f:
+			#write a header line to the file, containing all of the gloal settings
+			f.write('global dashlist=%s width=%s font="%s" select=%s highlite=%s dash=%s fixed=%s edit=%s move=%s delete=%s include=%s source=%s\n'%(dashlist,width,font,select,highlite,dash,fixed,edit,move,delete,include,source))
+			#specify the coordinate system in the next line
+			f.write('%s\n'%coords)
+	except FileExistsError:
+		pass
+
+	#open the text file in which the DS9 input will be written
+	with open(output_name, 'a+') as f:
+		#cycle through each coordinate
+		for i in range(len(RAs)):
+			#if the coordinates are given in decimal degrees, then they need to be converted to sexagesimal
+			if (convert_to_sexagesimal == True):
+				RA_hms = deg_to_hms(RAs[i])
+				DEC_dms = deg_to_dms(DECs[i])
+				#now convert to a usable string
+				RA = sexagesimal_to_string(RA_hms)
+				DEC = sexagesimal_to_string(DEC_dms)
+			#if the coordinates were already in sexagesimal format, then the coordinates can be kept as is
+			elif (convert_to_sexagesimal == False):
+				RA = RAs[i]
+				DEC = DECs[i]
+			#account for the possibility that convert_to_sexagesimal was entered as neither True nor False
+			else:
+				raise TypeError('table_to_DS9_regions argument \'convert_to_sexagesimal\' must be either True or False')
+
+			#now need to format the regions; first, the case where labels are to be added
+			if (labels == True):
+				#retrieve the labels from the table
+				LAB = T[labelcol][i]
+				#write the specifications to the output file
+				f.write('circle(%s, %s, %s) # color=%s text={%s}\n'%(RA, DEC, radius, color, LAB))
+
+			#now for the case where labels aren't being added
+			elif (labels == False):
+				#write the specifications to the output file (no label)
+				f.write('circle(%s, %s, %s) # color=%s \n'%(RA, DEC, radius, color))
+
+			#finally, account for the possibility that labels was entered as neither True nor False
+			else:
+				raise TypeError('table_to_DS9_regions argument \'labels\' must be either True or False')
+
+
+def aperture_mask(RA_c, DEC_c, r, RAgrid, DECgrid):
+	'''
+	Creates a circular aperture mask to be placed on a grid of (RA, Dec.) coordinates.
+
+	Parameters
+	----------
+	RA_c, DEC_c: floats
+		The central coordinates (in degrees) of the aperture.
+	
+	r: float
+		The radius of the aperture (in degrees).
+
+	RAgrid, DECgrid: 2D arrays
+		Grids containing the central RA and Dec. of each pixel in a grid. Can be created using
+		e.g. numpy.mgrid.
+
+
+	Returns
+	-------
+	MASK: 2D array (boolean)
+		Array with the same dimensions as RAgrid and DECgrid, equals True at pixels covered by the
+		aperture.
+	'''
+
+	#circular aperture is actually elliptical in RA-Dec. due to the celestial sphere; define ellipse
+	A = ((RAgrid - RA_c) * np.cos(DEC_c * np.pi / 180.)) ** 2.
+	B = (DECgrid-DEC_c) ** 2.
+	MASK = (A + B) <= (r ** 2.)
+
+	return MASK
+
+
+def apertures_area(coords, r, RAstep=0.001, DECstep=0.001, use_nsteps=False, nsteps=1000, save_fig=False, **plot_kwargs):
+	'''
+	Estimates the area covered by circular apertures by placing them on a grid of RA-Dec.
+	coordinates.
+	
+	Parameters
+	----------
+	coords: array-like or SkyCoord
+		List/array or a SkyCoord object of RA-Dec. coordinate pairs for	each aperture.
+
+	r: float or array-like
+		Radius of the apertures in degrees.
+
+	RAstep, DECstep: floats
+		Dimensions of each pixel in the grid (in degrees).
+
+	use_nsteps: bool
+		Whether to define the dimensions of each pixel as a fraction of the dimensions of the grid.
+
+	nsteps: int or tuple
+		Number of pixels to use along each dimension.
+
+	save_fig: bool
+		Whether to save a figure showing the positions of the apertures.
+
+	**plot_kwargs
+		Any remaining keyword arguments will be used to format the plot (if generated).
+
+	Returns
+	-------
+	A: float
+		Area covered by the apertures (in deg^2).
+	'''
+
+	#see if coordinates have been provided as SkyCoord objects
+	if type(coords) == SkyCoord:
+		#convert to a numpy array
+		coords = np.array([coords.ra.value, coords.dec.value]).T
+
+	#check to see if only one coordinate pair was provided
+	if gen.get_ndim(coords) == 1:
+		#convert to a 2D array, containing the coordinate pair as a single entry
+		coords = np.array([coords])
+
+	#see if only one radius was provided (in which case all apertures will have the same radius)
+	if gen.get_ndim(r) == 0:
+		r = np.full(len(coords), r)
+	else:
+		if type(r) == list:
+			r = np.array(r)
+
+	#define boundaries of the RA-Dec grid using the aperture coordinates, including padding
+	padding = r.max() * 1.2
+	RAmin = coords[:,0].min() - padding
+	RAmax = coords[:,0].max() + padding
+	DECmin = coords[:,1].min() - padding
+	DECmax = coords[:,1].max() + padding
+
+	#see if dimensions of each pixel are to be a fraction of the total grid dimensions
+	if use_nsteps:
+		#define the dimensions of each pixel
+		if gen.get_ndim(nsteps) == 0:
+			RAstep = (RAmax - RAmin) / nsteps
+			DECstep = (DECmax - DECmin) / nsteps
+		else:
+			RAstep = (RAmax - RAmin) / nsteps[0]
+			DECstep = (DECmax - DECmin) / nsteps[1]
+	#else:
+	RA_axis = np.arange(RAmin, RAmax+RAstep, RAstep)
+	DEC_axis = np.arange(DECmin, DECmax+DECstep, DECstep)
+
+	#create a grid of RA and Dec. coordinates
+	RAgrid, DECgrid = np.mgrid[RAmin:RAmax+RAstep:RAstep, DECmin:DECmax+DECstep:DECstep]
+
+	#create an array of zeros with the same dimensions as the grid
+	covered = np.zeros(RAgrid.shape)
+
+	#create a grid containing the areas of each pixel
+	areas = DECstep * RAstep * np.cos(DEC_axis * np.pi / 180.)
+	areas = np.tile(areas, (len(RA_axis), 1))
+
+	#cycle through the apertures
+	for i in range(len(coords)):
+		#for the pixels covered by the aperture, replace the zeros with the area of the pixel
+		apermask = aperture_mask(coords[i][0], coords[i][1], r[i], RAgrid, DECgrid)
+		covered[apermask] = areas[apermask]
+
+	#calculate the total area covered by the apertures
+	A = covered.sum()
+
+	#see if told to save a figure
+	if save_fig:
+		#see if a colourmap was provided in kwargs
+		if 'cmap' in plot_kwargs:
+			cmap = plot_kwargs['cmap']
+		else:
+			cmap = plt.cm.viridis
+
+		#see if a set of axes has already been provided for the plot
+		if 'ax' in plot_kwargs:
+			ax = plot_kwargs['ax']
+			#plot the positions of the apertures on the existing axes
+			ax.imshow(covered.T, extent=[RAmin,RAmax,DECmin,DECmax], origin='lower', cmap=cmap)
+		#otherwise, make a fresh one
+		else:
+			#see if a plotstyle dictionary or file has been provided
+			if 'plotstyle' in plot_kwargs:
+				plt.style.use(plot_kwargs['plotstyle'])
+
+			#make the figure
+			f, ax = plt.subplots()
+			#label the axes
+			ax.set_xlabel('RA (deg.)')
+			ax.set_ylabel('Dec. (deg.)')
+
+			#plot the positions of the apertures
+			ax.imshow(covered.T, extent=[RAmin,RAmax,DECmin,DECmax], origin='lower', cmap=cmap)
+			ax.invert_xaxis()
+
+			#minimise unnecessary whitespace
+			f.tight_layout()
+
+			#see if a figure filename was provided
+			if 'figname' in plot_kwargs:
+				figname = plot_kwargs['figname']
+			else:
+				figname = 'Aperture_positions.png'
+			f.savefig(figname, bbox_inches='tight', dpi=300)
+
+
+	return A
+
+
+
+
+
 

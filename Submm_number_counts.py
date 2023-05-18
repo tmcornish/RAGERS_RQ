@@ -24,6 +24,7 @@ import general as gen
 import plotstyle as ps
 import numcounts as nc
 import stats
+import astrometry as ast
 
 #######################################################################################
 ########### FORMATTING FOR GRAPHS #####################################################
@@ -39,14 +40,14 @@ plt.style.use(ps.styledict)
 #toggle `switches' for additional functionality
 use_cat_from_paper = True		#use the unedited catalogue downloaded from the Simpson+19 paper website
 plot_positions = True			#plot positions of selected RQ galaxies with their search areas
-independent_rq = True			#treat the RQ galaxies as independent (i.e. do not account for overlap between search areas)
+independent_rq = False			#treat the RQ galaxies as independent (i.e. do not account for overlap between search areas)
 comp_correct = True				#apply completeness corrections
 plot_cumulative = True			#plot cumulative number counts as well as differential
 combined_plot = True			#create plot(s) summarising the results from all targets
 bf_results = True				#adds the results obtained from the whole S2COSMOS catalogue
-main_only = True				#use only sources from the MAIN region of S2COSMOS for blank-field results
-randomise_fluxes = False			#randomly draw flux densities from possible values
-repeat_sel = False				#perform the random RQ selection several times 
+main_only = gen.main_only		#use only sources from the MAIN region of S2COSMOS for blank-field results
+randomise_fluxes = True			#randomly draw flux densities from possible values
+repeat_sel = True				#perform the random RQ selection several times 
 settings = [
 	use_cat_from_paper,
 	plot_positions, 
@@ -82,7 +83,7 @@ for i in range(len(settings_print)):
 R_arcmin = gen.r_search
 settings_print.append(f'Radius used to search for RQ companions (arcmin): {R_arcmin}')
 
-nsim = 10000		#number of iterations to use if randomising the flux densities/completeness
+nsim = gen.nsim		#number of iterations to use if randomising the flux densities/completeness
 if randomise_fluxes:
 	settings_print.append(f'Number of iterations for randomisation: {nsim}')
 
@@ -121,10 +122,10 @@ PATH_PLOTS = gen.PATH_PLOTS
 RQ_CAT = PATH_CATS + 'RAGERS_COSMOS2020_matches_Mstar_z.fits'
 data_rq = Table.read(RQ_CAT, format='fits')
 #get the RAs and DECs
-RA_rq_all = data_rq['ALPHA_J2000']
-DEC_rq_all = data_rq['DELTA_J2000']
+RA_rq = data_rq['ALPHA_J2000']
+DEC_rq = data_rq['DELTA_J2000']
 #convert these into SkyCoord objects
-coords_rq_all = SkyCoord(RA_rq_all, DEC_rq_all, unit='deg')
+coords_rq = SkyCoord(RA_rq, DEC_rq, unit='deg')
 
 if use_cat_from_paper:
 	#catalogue containing submm data for S2COSMOS sources
@@ -174,6 +175,8 @@ if randomise_fluxes:
 		dict_rand = {'S850_rand':S850_rand}
 else:
 	S850_rand = S850[:]
+#make a note of the dimensions of S850_rand
+ndim = gen.get_ndim(S850_rand)
 
 ######################
 #### FIGURE SETUP ####
@@ -407,25 +410,8 @@ if plot_positions:
 print_str += '...'
 print(gen.colour_string(print_str, 'purple'))
 
-#set up a float to which the total overlapping area of annuli placed around ALL RQ galaxies will be added
-A_overlap_ALL = 0.
-#identify all submm sources within the defined search radius from the RQ galaxy
-idx_submm_ALL, *_ = coords_rq_sub.search_around_sky(coords_submm, R_arcmin * u.arcmin)
-#remove duplicates
-idx_submm_ALL = np.unique(idx_submm_ALL)
-#create a Table containing this subset of submm sources
-data_submm_ALL = data_submm[idx_submm_ALL]
-comp_submm_ALL = comp_submm[idx_submm_ALL]
-#create an empty list to which Tables of matched submm sources will be appended for each RQ galaxy
-t_submm_ALL = []
-if independent_rq:
-	#create an array to which the total counts will be added from all RQ galaxies in the current z bin
-	counts_ALL = np.zeros(len(S850_bin_centres))
-	#set up an array for recording if a source is multiply-counted in the same redshift bin
-	repeated_ALL = np.zeros(len(data_submm), dtype=bool)
-else:
-	#bin these sources by their 850 micron flux density
-	counts_ALL, _ = np.histogram(data_submm_ALL['S_deboost'], bins=S850_bin_edges, weights=1./comp_submm_ALL)
+#create an empty list to which indices of matched submm sources will be appended for all RQ galaxies
+idx_matched_ALL = []
 
 #cycle through the redshift bins
 for i in range(len(zbin_centres)):
@@ -441,9 +427,6 @@ for i in range(len(zbin_centres)):
 		row_c = int((i-1)/2)		#the row in which the current subplot lies
 		col_c = 1					#the column in which the current subplot lies
 
-	#set up a float to which the total overlapping area of annuli placed around RQ galaxies in this redshift bin will be added
-	A_overlap_zbin = 0.
-
 	#get the IDs of all RAGERS sources in the current bin
 	zmask = (RAGERS_zs >= (z - dz / 2.)) * (RAGERS_zs < (z + dz / 2.))
 	rl_zbin = RAGERS_IDs[zmask]
@@ -458,24 +441,8 @@ for i in range(len(zbin_centres)):
 	#get the corresponding SkyCoords
 	coords_rq_zbin = coords_rq_sub[zmask_rq]
 
-	#identify all submm sources within the defined search radius from the RQ galaxy
-	idx_submm_zbin, *_ = coords_rq_zbin.search_around_sky(coords_submm, R_arcmin * u.arcmin)
-	#remove duplicates
-	idx_submm_zbin = np.unique(idx_submm_zbin)
-	#create a Table containing this subset of submm sources
-	data_submm_zbin = data_submm[idx_submm_zbin]
-	comp_submm_zbin = comp_submm[idx_submm_zbin]
-	#create an empty list to which Tables of matched submm sources will be appended for each RQ galaxy in this zbin
-	t_submm_zbin = []
-	if independent_rq:
-		#create an array to which the total counts will be added from all RQ galaxies in the current z bin
-		counts_zbin = np.zeros(len(S850_bin_centres))
-		#set up an array for recording if a source is multiply-counted in the same redshift bin
-		repeated_zbin = np.zeros(len(data_submm), dtype=bool)
-	else:
-		#bin these sources by their 850 micron flux density
-		counts_zbin, _ = np.histogram(data_submm_zbin['S_deboost'], bins=S850_bin_edges, weights=1./comp_submm_zbin)
-	
+	#create an empty list to which indices of matched submm sources will be appended for each RQ galaxy in this zbin
+	idx_matched_zbin = []
 
 	###################################
 	#### RQ GALAXIES PER RL GALAXY ####
@@ -501,34 +468,15 @@ for i in range(len(zbin_centres)):
 		c_now = gen.scale_RGB_colour(cmap((j+1.)/len(rl_zbin))[:-1], scale_l=0.8)
 		mkr_now = markers[j]
 
-		#set up a float to which the total overlapping area of annuli placed around RQ galaxies matched to this RL galaxy will be added
-		A_overlap_rl = 0.
-
 		#select the RQ galaxies corresponding to this RL source
 		mask_rq_rl = data_rq_zbin['RAGERS_ID'] == ID
 		data_rq_rl = data_rq_zbin[mask_rq_rl]
 		#get the SkyCoords for these objects
 		coords_rq_rl = coords_rq_zbin[mask_rq_rl]
 
-		#identify all submm sources within the defined search radius from the RQ galaxies
-		idx_submm_rl, *_ = coords_rq_rl.search_around_sky(coords_submm, R_arcmin * u.arcmin)
-		#remove duplicates
-		idx_submm_rl = np.unique(idx_submm_rl)
-		#create a Table containing this subset of submm sources
-		data_submm_rl = data_submm[idx_submm_rl]
-		comp_submm_rl = comp_submm[idx_submm_rl]
-		#create an empty list to which Tables of matched submm sources will be appended for each RQ galaxy corresponding to the current RL galaxy
-		t_submm_rl = []
-		if independent_rq:
-			#set up array for the total counts in each bin for all N_sel RQ galaxies
-			counts_rl = np.zeros(len(S850_bin_centres))
-			#set up an array for recording if a source is multiply-counted for the current RL galaxy
-			repeated_rl = np.zeros(len(data_submm), dtype=bool)
-		else:
-			#bin these sources by their 850 micron flux density
-			counts_rl, _ = np.histogram(data_submm_rl[S850_col], bins=S850_bin_edges, weights=1./comp_submm_rl)
-			
-		
+		#create an empty list to which indices of matched submm sources will be appended for each RQ galaxy corresponding to the current RL galaxy
+		idx_matched_rl = []
+
 		################################
 		#### INDIVIDUAL RQ GALAXIES ####
 		################################
@@ -546,87 +494,56 @@ for i in range(len(zbin_centres)):
 				#plot this position on the current axes
 				ax2[row_c,col_c].plot(RA_rq, DEC_rq, linestyle='none', marker=mkr_now, c=c_now, label=ID, alpha=0.7)
 				#add circles with radius 4' and 6' centred on the RQ galaxy
-				r_circle1 = 4. / 60.
-				r_circle2 = 6. / 60.
+				d_circle1 = 8. / 60.
+				d_circle2 = 12. / 60.
 				f_cosdec = np.cos(DEC_rq * np.pi / 180.)
-				ellipse1 = mpl.patches.Ellipse((RA_rq, DEC_rq), width=r_circle1/f_cosdec, height=r_circle1, color=c_now, fill=False, alpha=0.7)
-				ellipse2 = mpl.patches.Ellipse((RA_rq, DEC_rq), width=r_circle2/f_cosdec, height=r_circle2, color=c_now, fill=False, linestyle='--', alpha=0.7)
+				ellipse1 = mpl.patches.Ellipse((RA_rq, DEC_rq), width=d_circle1/f_cosdec, height=d_circle1, color=c_now, fill=False, alpha=0.7)
+				ellipse2 = mpl.patches.Ellipse((RA_rq, DEC_rq), width=d_circle2/f_cosdec, height=d_circle2, color=c_now, fill=False, linestyle='--', alpha=0.7)
 				ax2[row_c,col_c].add_patch(ellipse1)
 				ax2[row_c,col_c].add_patch(ellipse2)
 
-			if independent_rq:
-				#search for submm sources within 4' of the galaxy
-				idx_coords_submm_matched, *_ = coord_central.search_around_sky(coords_submm, R_arcmin * u.arcmin)
+			#search for submm sources within R_arcmin of the galaxy
+			idx_coords_submm_matched, *_ = coord_central.search_around_sky(coords_submm, R_arcmin * u.arcmin)
+			#append these indices to lists for (a) each RL galaxy, (b) each z bin, (c) all RL galaxies
+			idx_matched_rl.append(idx_coords_submm_matched)
+			idx_matched_zbin.append(idx_coords_submm_matched)
+			idx_matched_ALL.append(idx_coords_submm_matched)
 
-				#get the (deboosted) flux densities of the matched sources, ensuring no repeated sources
-				matched_mask = np.zeros(len(data_submm), dtype=bool)
-				matched_mask[idx_coords_submm_matched] = True
-				S850_matched_rl = data_submm[S850_col][matched_mask]
-				comp_matched_rl = comp_submm[matched_mask]
-				#bin the sources by their flux densities
-				counts_now, _ = np.histogram(S850_matched_rl, bins=S850_bin_edges, weights=1./comp_matched_rl)
-				#add these to the array of counts for all matched RQ galaxies
-				counts_rl += counts_now
 
-				#add these to the array of counts for all matched RQ galaxies
-				counts_zbin += counts_now
+		#concatenate the arrays of indices of matched submm sources for this RL galaxy
+		idx_matched_rl = np.concatenate(idx_matched_rl)
 
-				#add these to the array of counts for ALL RQ galaxies
-				counts_ALL += counts_now
-			else:
-				#get the coordinates of the other RQ galaxies in this subsample
-				coords_other_rl = np.delete(coords_rq_rl, k)
-				#calculate the separation from the current R1 galaxy in deg
-				sep = coord_central.separation(coords_other_rl).value
-				#calculate the area of intersection (if any) between this galaxy's search radius and others
-				A_inter = [gen.area_of_intersection(R_deg, R_deg, s) for s in sep]
-				#sum the intersection areas and divide by two to account for fact that the overlapping area is calculated
-				#twice for each pair of intersecting circles
-				A_inter = 0.5 * np.sum(A_inter)
-				#add this to the total overlapping area for all RQ galaxies matched to this RL galaxy
-				A_overlap_rl += A_inter
+		#if each aperture is independent, the area is simply the sum of their areas
+		if independent_rq:
+			#calculate the total area surveyed for this RL galaxy
+			A_rl = A_sqdeg * len(data_rq_rl)
+		#if not treating each aperture as independent, remove duplicate matches from the list for this RL galaxy
+		if not independent_rq:
+			idx_matched_rl = np.unique(idx_matched_rl)
+			#calculate the area covered, accounting for overlap between apertures
+			A_rl = ast.apertures_area(coords_rq_rl, r=R_deg)
 
-				#get the coordinates of the other RQ galaxies in this redshift bin
-				idx_now = np.where(coords_rq_zbin == coord_central[0])
-				coords_other_zbin = np.delete(coords_rq_zbin, idx_now)
-				#calculate the separation from the current R1 galaxy in deg
-				sep = coord_central.separation(coords_other_zbin).value
-				#calculate the area of intersection (if any) between this galaxy's search radius and others
-				A_inter = [gen.area_of_intersection(R_deg, R_deg, s) for s in sep]
-				#sum the intersection areas and divide by two to account for fact that the overlapping area is calculated
-				#twice for each pair of intersecting circles
-				A_inter = 0.5 * np.sum(A_inter)
-				#add this to the total overlapping area for all RQ galaxies in this z bin
-				A_overlap_zbin += A_inter
+		#retrieve the flux densities and completenesses for the matched sources
+		if ndim == 2:
+			S850_matched_rl = S850_rand[:,idx_matched_rl]
+			comp_matched_rl = comp_submm[:,idx_matched_rl]
+		else:
+			S850_matched_rl = S850_rand[idx_matched_rl]
+			comp_matched_rl = comp_submm[idx_matched_rl]
 
-				#get the coordinates of the other RQ galaxies in this redshift bin
-				idx_now = np.where(coords_rq_ALL == coord_central[0])
-				coords_other_ALL = np.delete(coords_rq_ALL, idx_now)
-				#calculate the separation from the current R1 galaxy in deg
-				sep = coord_central.separation(coords_other_ALL).value
-				#calculate the area of intersection (if any) between this galaxy's search radius and others
-				A_inter = [gen.area_of_intersection(R_deg, R_deg, s) for s in sep]
-				#sum the intersection areas and divide by two to account for fact that the overlapping area is calculated
-				#twice for each pair of intersecting circles
-				A_inter = 0.5 * np.sum(A_inter)
-				#add this to the total overlapping area for all RQ galaxies in this z bin
-				A_overlap_ALL += A_inter
-
-		#calculate the total area surveyed for this RL galaxy
-		A_rl = A_sqdeg * len(data_rq_rl) - A_overlap_rl
-
-		#calculate the Poissonian uncertainties
-		ecounts_rl = np.sqrt(counts_rl)
-
-		#divide the counts (and uncertainties) by the area times the width of the bin
-		weights = 1. / (A_rl * dS)
-		N_rl = counts_rl * weights
-		eN_rl = ecounts_rl * weights
+		#construct the differential number counts
+		N_rl, eN_rl_lo, eN_rl_hi, counts_rl, weights_rl = nc.differential_numcounts(
+			S850_matched_rl,
+			S850_bin_edges,
+			A_rl,
+			comp=comp_matched_rl,
+			incl_poisson=True)
 
 		#remove any bins with 0 sources
 		has_sources = N_rl > 0.
 		x_bins = S850_bin_centres[has_sources]
-		eN_rl = eN_rl[has_sources]
+		eN_rl_lo = eN_rl_lo[has_sources]
+		eN_rl_hi = eN_rl_hi[has_sources]
 		N_rl = N_rl[has_sources]
 
 		if combined_plot:
@@ -639,20 +556,15 @@ for i in range(len(zbin_centres)):
 		#plot the bin heights at the bin centres
 		ax1[row_c,col_c].plot(x_bins, N_rl, marker=mkr_now, color=c_now, label=ID, ms=9., alpha=0.7, linestyle='none')
 		#add errorbars
-		eN_rl[eN_rl == N_rl] *= 0.999		#prevents errors when logging plot
-		ax1[row_c,col_c].errorbar(x_bins, N_rl, fmt='none', yerr=eN_rl, ecolor=c_now, alpha=0.7)
+		eN_rl_lo[eN_rl_lo == N_rl] *= 0.999		#prevents errors when logging plot
+		ax1[row_c,col_c].errorbar(x_bins, N_rl, fmt='none', yerr=(eN_rl_lo,eN_rl_hi), ecolor=c_now, alpha=0.7)
 
-
+		#construct the cumulative number counts if told to do so
 		if plot_cumulative:
-			#calculate the cumulative counts
-			cumcounts_rl = np.nancumsum(counts_rl[::-1])[::-1]
-			#calculate the Poissonian uncertainties
-			ecumcounts_rl = np.sqrt(cumcounts_rl)
-
-			#divide the counts (and uncertainties) by the area
-			cumN_rl = cumcounts_rl / A_rl
-			ecumN_rl = ecumcounts_rl / A_rl
-
+			cumN_rl, ecumN_rl_lo, ecumN_rl_hi, cumcounts_rl = nc.cumulative_numcounts(
+				counts=counts_rl,
+				A=A_rl,
+				)
 			if combined_plot:
 				ax5.plot(S850_bin_edges[:-1], cumN_rl, color=ps.grey, alpha=0.2)
 
@@ -660,32 +572,50 @@ for i in range(len(zbin_centres)):
 			x_bins = 10. ** (np.log10(S850_bin_edges[:-1]) + 0.004 * ((-1.) ** ((j+1) % 2.)) * np.floor((j + 2.) / 2.))
 			ax3[row_c,col_c].plot(x_bins, cumN_rl, marker=mkr_now, color=c_now, label=ID, ms=9., alpha=0.7, linestyle='none')
 			#add errorbars
-			ecumN_rl[ecumN_rl == cumN_rl] *= 0.999		#prevents errors when logging plot
-			ax3[row_c,col_c].errorbar(x_bins, cumN_rl, fmt='none', yerr=ecumN_rl, ecolor=c_now, alpha=0.7)
+			ecumN_rl_lo[ecumN_rl_lo == cumN_rl] *= 0.999		#prevents errors when logging plot
+			ax3[row_c,col_c].errorbar(x_bins, cumN_rl, fmt='none', yerr=(ecumN_rl_lo,ecumN_rl_hi), ecolor=c_now, alpha=0.7)
 
-	#calculate the total area surveyed for this RL galaxy
-	A_zbin = A_sqdeg * len(data_rq_zbin) - A_overlap_zbin
+	#concatenate the arrays of indices of matched submm sources for this z bin
+	idx_matched_zbin = np.concatenate(idx_matched_zbin)
+	
+	#if each aperture is independent, the area is simply the sum of their areas
+	if independent_rq:
+		#calculate the total area surveyed for this RL galaxy
+		A_zbin = A_sqdeg * len(data_rq_zbin)
+	#if not treating each aperture as independent, remove duplicate matches from the list for this RL galaxy
+	if not independent_rq:
+		idx_matched_zbin = np.unique(idx_matched_zbin)
+		#calculate the area covered, accounting for overlap between apertures
+		A_zbin = ast.apertures_area(coords_rq_zbin, r=R_deg, save_fig=True, figname=PATH_PLOTS+f'Aperture_positions_zbin{i+1}.png')
 
+	#retrieve the flux densities and completenesses for the matched sources
+	if ndim == 2:
+		S850_matched_zbin = S850_rand[:,idx_matched_zbin]
+		comp_matched_zbin = comp_submm[:,idx_matched_zbin]
+	else:
+		S850_matched_zbin = S850_rand[idx_matched_zbin]
+		comp_matched_zbin = comp_submm[idx_matched_zbin]
 
-	### differential counts ###
-	#calculate the Poissonian uncertainties in the bins
-	ecounts_zbin = np.sqrt(counts_zbin)
+	#construct the differential number counts
+	N_zbin, eN_zbin_lo, eN_zbin_hi, counts_zbin, weights_zbin = nc.differential_numcounts(
+		S850_matched_zbin,
+		S850_bin_edges,
+		A_zbin,
+		comp=comp_matched_zbin,
+		incl_poisson=True)
 
-	#divide the counts (and uncertainties) by the area times the width of the bin
-	weights = 1. / (A_zbin * dS)
-	N_zbin = counts_zbin * weights
-	eN_zbin = ecounts_zbin * weights
 	#remove any bins with 0 sources
 	has_sources = N_zbin > 0.
 	x_bins = S850_bin_centres[has_sources]
-	eN_zbin = eN_zbin[has_sources]
+	eN_zbin_lo = eN_zbin_lo[has_sources]
+	eN_zbin_hi = eN_zbin_hi[has_sources]
 	N_zbin = N_zbin[has_sources]
 
 	#plot the bin heights at the bin centres
 	ax1[row_c,col_c].plot(x_bins, N_zbin, marker='o', color='k', label='All', ms=14., linestyle='none')
 	#add errorbars
-	eN_zbin[eN_zbin == N_zbin] *= 0.999		#prevents errors when logging plot
-	ax1[row_c,col_c].errorbar(x_bins, N_zbin, fmt='none', yerr=eN_zbin, ecolor='k', elinewidth=2.4)
+	eN_zbin_lo[eN_zbin_lo == N_zbin] *= 0.999		#prevents errors when logging plot
+	ax1[row_c,col_c].errorbar(x_bins, N_zbin, fmt='none', yerr=(eN_zbin_lo,eN_zbin_hi), ecolor='k', elinewidth=2.4)
 
 	#set the axes to log scale
 	ax1[row_c,col_c].set_xscale('log')
@@ -715,21 +645,20 @@ for i in range(len(zbin_centres)):
 
 
 	if plot_cumulative:
-		#calculate the cumulative counts in each bin
-		cumcounts_zbin = np.nancumsum(counts_zbin[::-1])[::-1]
-		#calculate the Poissonian uncertainties
-		ecumcounts_zbin = np.sqrt(cumcounts_zbin)
-
-		#divide the counts (and uncertainties) by the area
-		cumN_zbin = cumcounts_zbin / A_zbin
-		ecumN_zbin = ecumcounts_zbin / A_zbin
+		#construct the cumulative number counts
+		cumN_zbin, ecumN_zbin_lo, ecumN_zbin_hi, cumcounts_zbin = nc.cumulative_numcounts(
+			counts=counts_zbin,
+			A=A_zbin,
+			)
+		if combined_plot:
+			ax5.plot(S850_bin_edges[:-1], cumN_zbin, color=ps.grey, alpha=0.2)
 
 		#plot the bin heights at the left bin edges
 		x_bins = S850_bin_edges[:-1]
 		ax3[row_c,col_c].plot(x_bins, cumN_zbin, marker='o', color='k', label='All', ms=14., linestyle='none')
 		#add errorbars
-		ecumN_zbin[ecumN_zbin == cumN_zbin] *= 0.999		#prevents errors when logging plot
-		ax3[row_c,col_c].errorbar(x_bins, cumN_zbin, fmt='none', yerr=ecumN_zbin, ecolor='k', elinewidth=2.4)
+		ecumN_zbin_lo[ecumN_zbin_lo == cumN_zbin] *= 0.999		#prevents errors when logging plot
+		ax3[row_c,col_c].errorbar(x_bins, cumN_zbin, fmt='none', yerr=(ecumN_zbin_lo,ecumN_zbin_hi), ecolor='k', elinewidth=2.4)
 
 		#set the axes to log scale
 		ax3[row_c,col_c].set_xscale('log')
@@ -769,28 +698,47 @@ for i in range(len(zbin_centres)):
 		ax2[row_c,col_c].legend(by_label.values(), by_label.keys(), loc=3)
 
 if combined_plot:
-	### differential number counts
-	#calculate the Poissonian uncertainties in the bins
-	ecounts_ALL = np.sqrt(counts_ALL)
+	#concatenate the arrays of indices of matched submm sources for this z bin
+	idx_matched_ALL = np.concatenate(idx_matched_ALL)
+	
+	#if each aperture is independent, the area is simply the sum of their areas
+	if independent_rq:
+		#calculate the total area surveyed for this RL galaxy
+		A_ALL = A_sqdeg * len(data_rq_sub)
+	#if not treating each aperture as independent, remove duplicate matches from the list for this RL galaxy
+	if not independent_rq:
+		idx_matched_ALL = np.unique(idx_matched_ALL)
+		#calculate the area covered, accounting for overlap between apertures
+		A_ALL = ast.apertures_area(coords_rq_sub, r=R_deg, save_fig=True, figname=PATH_PLOTS+'Aperture_positions_all_RQ_galaxies.png')
 
-	#calculate the total area surveyed for all targets
-	A_ALL = A_sqdeg * len(data_rq_sub) - A_overlap_ALL
+	#retrieve the flux densities and completenesses for the matched sources
+	if ndim == 2:
+		S850_matched_ALL = S850_rand[:,idx_matched_ALL]
+		comp_matched_ALL = comp_submm[:,idx_matched_ALL]
+	else:
+		S850_matched_ALL = S850_rand[idx_matched_ALL]
+		comp_matched_ALL = comp_submm[idx_matched_ALL]
 
-	#divide the counts (and uncertainties) by the area times the width of the bin
-	weights = 1. / (A_ALL * dS)
-	N_ALL = counts_ALL * weights
-	eN_ALL = ecounts_ALL * weights
+	#construct the differential number counts
+	N_ALL, eN_ALL_lo, eN_ALL_hi, counts_ALL, weights_ALL = nc.differential_numcounts(
+		S850_matched_ALL,
+		S850_bin_edges,
+		A_ALL,
+		comp=comp_matched_ALL,
+		incl_poisson=True)
+
 	#remove any bins with 0 sources
 	has_sources = N_ALL > 0.
 	x_bins = S850_bin_centres[has_sources]
-	eN_ALL = eN_ALL[has_sources]
+	eN_ALL_lo = eN_ALL_lo[has_sources]
+	eN_ALL_hi = eN_ALL_hi[has_sources]
 	N_ALL = N_ALL[has_sources]
 
 	#plot the bin heights at the bin centres
 	ax4.plot(x_bins, N_ALL, marker='o', color='k', label=label_combined, ms=11., linestyle='none')
 	#add errorbars
-	eN_ALL[eN_ALL == N_ALL] *= 0.999		#prevents errors when logging plot
-	ax4.errorbar(x_bins, N_ALL, fmt='none', yerr=eN_ALL, ecolor='k', elinewidth=2.4)
+	eN_ALL_lo[eN_ALL_lo == N_ALL] *= 0.999		#prevents errors when logging plot
+	ax4.errorbar(x_bins, N_ALL, fmt='none', yerr=(eN_ALL_lo,eN_ALL_hi), ecolor='k', elinewidth=2.4)
 
 	#set the axes to log scale
 	ax4.set_xscale('log')
@@ -815,26 +763,24 @@ if combined_plot:
 	ax4.legend([by_label[i] for i in labels_ord_combined], [i for i in labels_ord_combined], loc=3)
 
 	if plot_cumulative:
-		#calculate the cumulative counts in each bin
-		cumcounts_ALL = np.nancumsum(counts_ALL[::-1])[::-1]
-		#calculate the Poissonian uncertainties
-		ecumcounts_ALL = np.sqrt(cumcounts_ALL)
-
-		#divide the counts (and uncertainties) by the area
-		cumN_ALL = cumcounts_ALL / A_ALL
-		ecumN_ALL = ecumcounts_ALL / A_ALL
+		#construct the cumulative number counts
+		cumN_ALL, ecumN_ALL_lo, ecumN_ALL_hi, cumcounts_ALL = nc.cumulative_numcounts(
+			counts=counts_ALL,
+			A=A_ALL,
+			)
 
 		#remove any bins with 0 sources
 		has_sources = cumN_ALL > 0.
 		x_bins = S850_bin_edges[:-1][has_sources]
-		ecumN_ALL = ecumN_ALL[has_sources]
+		ecumN_ALL_lo = ecumN_ALL_lo[has_sources]
+		ecumN_ALL_hi = ecumN_ALL_hi[has_sources]
 		cumN_ALL = cumN_ALL[has_sources]
 
 		#plot the bin heights at the bin centres
 		ax5.plot(x_bins, cumN_ALL, marker='o', color='k', label=label_combined, ms=11., linestyle='none')
 		#add errorbars
-		eN_ALL[eN_ALL == N_ALL] *= 0.999		#prevents errors when logging plot
-		ax5.errorbar(x_bins, cumN_ALL, fmt='none', yerr=ecumN_ALL, ecolor='k', elinewidth=2.4)
+		eN_ALL_lo[eN_ALL_lo == N_ALL] *= 0.999		#prevents errors when logging plot
+		ax5.errorbar(x_bins, cumN_ALL, fmt='none', yerr=(ecumN_ALL_lo,ecumN_ALL_hi), ecolor='k', elinewidth=2.4)
 
 		#set the axes to log scale
 		ax5.set_xscale('log')
@@ -866,8 +812,11 @@ if combined_plot:
 suffix = ''
 if not independent_rq:
 	suffix += '_no_overlap'
+if randomise_fluxes:
+	suffix += '_randomised_fluxes'
 if comp_correct:
 	suffix += '_comp_corr'
+
 #add the search radius to the file name
 suffix += f'_{R_arcmin:.1f}arcmin'
 

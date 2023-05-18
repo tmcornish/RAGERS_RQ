@@ -421,6 +421,7 @@ def differential_numcounts(S, bin_edges, A, comp=None, incl_poisson=False):
 		eN_lo, eN_hi = np.array(stats.poisson_errs_1sig(counts)) * weights
 
 
+
 	return N, eN_lo, eN_hi, counts, weights
 
 
@@ -452,6 +453,9 @@ def cumulative_numcounts(counts=None, S=None, bin_edges=None, A=1., comp=None, i
 	comp: array-like or None
 		Completeness of each source. If None, will simply create an array of 1s with the same shape
 		as counts or S (whichever is provided).
+
+	incl_poisson: bool
+		Whether to include Poissonian uncertainties in the errorbars. 
 
 	Returns
 	----------
@@ -516,6 +520,7 @@ def cumulative_numcounts(counts=None, S=None, bin_edges=None, A=1., comp=None, i
 		cumcounts = np.cumsum(counts[::-1])[::-1]
 		N = cumcounts / A
 		eN_lo, eN_hi = np.array(stats.poisson_errs_1sig(cumcounts)) / A
+
 
 	return N, eN_lo, eN_hi, cumcounts
 

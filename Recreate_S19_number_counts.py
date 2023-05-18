@@ -34,7 +34,7 @@ plot_data_on_comp = True	#plot the positions of each source in RMS-S850 space on
 fit_schechter = True		#fits Schechter functions to the results
 exclude_faint = True		#exclude faintest bins from Schechter fitting
 compare_errors = True		#compare the uncertainties from S19 with the reconstruction performed here
-main_only = True			#use only sources from the MAIN region of S2COSMOS
+main_only = gen.main_only	#use only sources from the MAIN region of S2COSMOS
 settings = [
 	use_cat_from_paper,
 	plot_cumulative,

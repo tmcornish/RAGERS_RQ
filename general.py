@@ -3,7 +3,6 @@
 # radio-quiet massive galaxies for RAGERS.
 ############################################################################################################
 
-import astrometry as astrom
 import colorsys
 import matplotlib as mpl
 from astropy.io import fits
@@ -27,6 +26,12 @@ r_search = 6.
 
 #minimum number of RQ counterparts required per RL galaxy
 n_rq = 10
+
+#whether or not to only use the MAIN S2COSMOS catalogue for blank-field calculations
+main_only = True
+
+#number of simulated datasets to generate when constructing number counts
+nsim = 10000
 
 ###################
 #### FUNCTIONS ####
@@ -181,73 +186,6 @@ def round_sigfigs(num, sf):
 	else:
 		num_rounded = 0.
 	return num_rounded
-
-
-
-def table_to_DS9_regions(T, RAcol, DECcol, convert_to_sexagesimal=True, output_name='targets.reg', labels=False, labelcol='ID', color='green', radius='1"', dashlist='8 3', width='1', font='helvetica 10 normal roman', select='1', highlite='1', dash='0', fixed='0', edit='1', move='1', delete='1', include='1', source='1', coords='fk5'):
-	'''
-	Takes a table of information about sources and converts the RAs and DECs into a generic file that can be used
-	as input by SAOImage DS9 (NOTE: this should not be used if the user wants specific settings for each 
-	region that is drawn by DS9; it is purely for drawing generic, uniform regions onto an image).
-		T: The table of data.
-		RAcol, DECcol: The column names containing the RAs and DECs of the sources in the table. 
-		convert_to_sexagesimal: Boolean; True if RA and Dec need to be converted from decimal degrees to sexagesimal.
-		output_name: The filename of the output to be used by DS9.
-		labels: A boolean for specifying whether or not each region should be labelled. Labels must be included in the table.
-		labelcol: The name of the column containing the source labels.
-		color: The desired colour of the regions.
-		radius: The desired radius of the regions (needs to include '' if wanted in arcseconds).
-		Everything else: Global settings to be applied to the regions drawn in DS9.
-	'''
-
-	#retrieve the RAs and Decs from the table
-	RAs = T[RAcol]
-	DECs = T[DECcol]
-	
-	#make a new file for the DS9 settings if it doesn't exist; if it does exist, then the global settings are not written to the file and everything else is appended to it
-	try:
-		with open(output_name, 'x') as f:
-			#write a header line to the file, containing all of the gloal settings
-			f.write('global dashlist=%s width=%s font="%s" select=%s highlite=%s dash=%s fixed=%s edit=%s move=%s delete=%s include=%s source=%s\n'%(dashlist,width,font,select,highlite,dash,fixed,edit,move,delete,include,source))
-			#specify the coordinate system in the next line
-			f.write('%s\n'%coords)
-	except FileExistsError:
-		pass
-
-	#open the text file in which the DS9 input will be written
-	with open(output_name, 'a+') as f:
-		#cycle through each coordinate
-		for i in range(len(RAs)):
-			#if the coordinates are given in decimal degrees, then they need to be converted to sexagesimal
-			if (convert_to_sexagesimal == True):
-				RA_hms = astrom.deg_to_hms(RAs[i])
-				DEC_dms = astrom.deg_to_dms(DECs[i])
-				#now convert to a usable string
-				RA = astrom.sexagesimal_to_string(RA_hms)
-				DEC = astrom.sexagesimal_to_string(DEC_dms)
-			#if the coordinates were already in sexagesimal format, then the coordinates can be kept as is
-			elif (convert_to_sexagesimal == False):
-				RA = RAs[i]
-				DEC = DECs[i]
-			#account for the possibility that convert_to_sexagesimal was entered as neither True nor False
-			else:
-				raise TypeError('table_to_DS9_regions argument \'convert_to_sexagesimal\' must be either True or False')
-
-			#now need to format the regions; first, the case where labels are to be added
-			if (labels == True):
-				#retrieve the labels from the table
-				LAB = T[labelcol][i]
-				#write the specifications to the output file
-				f.write('circle(%s, %s, %s) # color=%s text={%s}\n'%(RA, DEC, radius, color, LAB))
-
-			#now for the case where labels aren't being added
-			elif (labels == False):
-				#write the specifications to the output file (no label)
-				f.write('circle(%s, %s, %s) # color=%s \n'%(RA, DEC, radius, color))
-
-			#finally, account for the possibility that labels was entered as neither True nor False
-			else:
-				raise TypeError('table_to_DS9_regions argument \'labels\' must be either True or False')
 
 
 def array_to_fits(data, filename, CTYPE1='RA', CTYPE2='DEC', CRPIX=[1,1], CRVAL=[0,0], CDELT=[1,1]):

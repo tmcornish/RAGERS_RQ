@@ -49,7 +49,7 @@ dz_sel = 0.1
 dm_sel = 0.05
 sel_str = u'Selection criteria:\n  dz = \u00B1'+f'{dz_sel}\n  '+u'dlog(M/Msun) = \u00B1'+f'{dm_sel}'
 #search radius (arcmin) to be used later when looking for submm companions 
-r_search = 6.
+r_search = gen.r_search
 search_str = f'SMG search radius: {r_search} arcmin'
 settings_print.extend([sel_str, search_str])
 
