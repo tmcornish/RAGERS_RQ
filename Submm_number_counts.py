@@ -439,7 +439,12 @@ if bf_results:
 		A_bf = 2.6
 
 	#construct the differential number counts
-	N_bf, eN_bf_lo, eN_bf_hi, counts_bf, weights = nc.differential_numcounts(S850_rand, S850_bin_edges, A_bf, comp=comp_submm, incl_poisson=True)
+	N_bf, eN_bf_lo, eN_bf_hi, counts_bf, weights = nc.differential_numcounts(
+		S850_rand,
+		S850_bin_edges,
+		A_bf,
+		comp=comp_submm,
+		incl_poisson=True)
 	xbins_bf = S850_bin_centres * 10. ** (0.004)
 	if combined_plot:
 		labels_ord_combined.append(label_bf)
@@ -560,13 +565,10 @@ for i in range(len(zbin_centres)):
 				#plot this position on the current axes
 				ax2[row_z,col_z].plot(RA_rq, DEC_rq, linestyle='none', marker=mkr_now, c=c_now, label=ID, alpha=0.7)
 				#add circles with radius 4' and 6' centred on the RQ galaxy
-				d_circle1 = 8. / 60.
-				d_circle2 = 12. / 60.
+				d_circle = 2. * R_deg
 				f_cosdec = np.cos(DEC_rq * np.pi / 180.)
-				ellipse1 = mpl.patches.Ellipse((RA_rq, DEC_rq), width=d_circle1/f_cosdec, height=d_circle1, color=c_now, fill=False, alpha=0.7)
-				ellipse2 = mpl.patches.Ellipse((RA_rq, DEC_rq), width=d_circle2/f_cosdec, height=d_circle2, color=c_now, fill=False, linestyle='--', alpha=0.7)
-				ax2[row_z,col_z].add_patch(ellipse1)
-				ax2[row_z,col_z].add_patch(ellipse2)
+				ellipse = mpl.patches.Ellipse((RA_rq, DEC_rq), width=d_circle/f_cosdec, height=d_circle, color=c_now, fill=False, alpha=0.7)
+				ax2[row_z,col_z].add_patch(ellipse)
 
 			#search for submm sources within R_arcmin of the galaxy
 			idx_coords_submm_matched, *_ = coord_central.search_around_sky(coords_submm, R_arcmin * u.arcmin)
@@ -697,17 +699,20 @@ for i in range(len(zbin_centres)):
 	
 	if fit_schechter:
 		#use MCMC to fit a Schechter function to the combined data for this redshift bin
-		popt_zbin, epopt_lo_zbin, epopt_hi_zbin = nc.fit_schechter_mcmc(x_bins, N_zbin, (eN_zbin_lo+eN_zbin_hi)/2., nwalkers, niter, p0, offsets=offsets_init)
-		#plot the line of best fit
-		ax1[row_z,col_z].plot(x_range_fit, nc.schechter_model(x_range_fit, popt_zbin), color='k')
-		#add text to show the best-fit parameters
-		best_fit_str = [
-			r'$N_{0} = %.0f^{+%.0f}_{-%.0f}$'%(popt_zbin[0],epopt_lo_zbin[0],epopt_hi_zbin[0]),
-			r'$S_{0} = %.1f^{+%.1f}_{-%.1f}$'%(popt_zbin[1],epopt_lo_zbin[1],epopt_hi_zbin[1]),
-			r'$\gamma = %.1f^{+%.1f}_{-%.1f}$'%(popt_zbin[2],epopt_lo_zbin[2],epopt_hi_zbin[2])
-			]
-		best_fit_str = '\n'.join(best_fit_str)
-		ax1[row_z,col_z].text(2., 40., best_fit_str, color='k', ha='left', va='top', fontsize=18.)
+		popt_zbin, epopt_lo_zbin, epopt_hi_zbin = nc.fit_schechter_mcmc(
+			x_bins,
+			N_zbin,
+			(eN_zbin_lo+eN_zbin_hi)/2.,
+			nwalkers,
+			niter,
+			p0,
+			offsets=offsets_init,
+			plot_on_axes=True,
+			ax=ax1[row_z,col_z],
+			x_range=x_range_fit,
+			add_text=True,
+			xyfont=(2., 40.),
+			fs=18.)
 		#add the line of best fit to the legend
 		by_label['All'] = Line2D([0], [0], color='k', marker='o', ms=14.)
 
@@ -749,17 +754,20 @@ for i in range(len(zbin_centres)):
 
 		if fit_schechter:
 			#use MCMC to fit a Schechter function to the combined data for this redshift bin
-			popt_zbin_c, epopt_lo_zbin_c, epopt_hi_zbin_c = nc.fit_schechter_mcmc(x_bins, cumN_zbin, (ecumN_zbin_lo+ecumN_zbin_hi)/2., nwalkers, niter, p0, offsets=offsets_init)
-			#plot the line of best fit
-			ax3[row_z,col_z].plot(x_range_fit, nc.schechter_model(x_range_fit, popt_zbin_c), color='k')
-			#add text to show the best-fit parameters
-			best_fit_str = [
-				r'$N_{0} = %.0f^{+%.0f}_{-%.0f}$'%(popt_zbin_c[0],epopt_lo_zbin_c[0],epopt_hi_zbin_c[0]),
-				r'$S_{0} = %.1f^{+%.1f}_{-%.1f}$'%(popt_zbin_c[1],epopt_lo_zbin_c[1],epopt_hi_zbin_c[1]),
-				r'$\gamma = %.1f^{+%.1f}_{-%.1f}$'%(popt_zbin_c[2],epopt_lo_zbin_c[2],epopt_hi_zbin_c[2])
-			]
-			best_fit_str = '\n'.join(best_fit_str)
-			ax3[row_z,col_z].text(2., 40., best_fit_str, color='k', ha='left', va='top', fontsize=18.)
+			popt_zbin_c, epopt_lo_zbin_c, epopt_hi_zbin_c = nc.fit_schechter_mcmc(
+				x_bins,
+				cumN_zbin,
+				(ecumN_zbin_lo+ecumN_zbin_hi)/2.,
+				nwalkers,
+				niter,
+				p0,
+				offsets=offsets_init,
+				plot_on_axes=True,
+				ax=ax3[row_z,col_z],
+				x_range=x_range_fit,
+				add_text=True,
+				xyfont=(2., 80.),
+				fs=18.)
 			#add the line of best fit to the legend
 			by_label['All'] = Line2D([0], [0], color='k', marker='o', ms=14.)
 
@@ -824,17 +832,20 @@ if combined_plot:
 
 	if fit_schechter:
 		#use MCMC to fit a Schechter function to the combined data for this redshift bin
-		popt_ALL, epopt_lo_ALL, epopt_hi_ALL = nc.fit_schechter_mcmc(x_bins, N_ALL, (eN_ALL_lo+eN_ALL_hi)/2., nwalkers, niter, p0, offsets=offsets_init)
-		#plot the line of best fit
-		ax4.plot(x_range_fit, nc.schechter_model(x_range_fit, popt_ALL), color='k')
-		#add text to show the best-fit parameters
-		best_fit_str = [
-			r'$N_{0} = %.0f^{+%.0f}_{-%.0f}$'%(popt_ALL[0],epopt_lo_ALL[0],epopt_hi_ALL[0]),
-			r'$S_{0} = %.1f^{+%.1f}_{-%.1f}$'%(popt_ALL[1],epopt_lo_ALL[1],epopt_hi_ALL[1]),
-			r'$\gamma = %.1f^{+%.1f}_{-%.1f}$'%(popt_ALL[2],epopt_lo_ALL[2],epopt_hi_ALL[2])
-			]
-		best_fit_str = '\n'.join(best_fit_str)
-		ax4.text(2., 40., best_fit_str, color='k', ha='left', va='top', fontsize=18.)
+		popt_ALL, epopt_lo_ALL, epopt_hi_ALL = nc.fit_schechter_mcmc(
+			x_bins,
+			N_ALL,
+			(eN_ALL_lo+eN_ALL_hi)/2.,
+			nwalkers,
+			niter,
+			p0,
+			offsets=offsets_init,
+			plot_on_axes=True,
+			ax=ax4,
+			x_range=x_range_fit,
+			add_text=True,
+			xyfont=(2., 40.),
+			fs=18.)
 		#add the line of best fit to the legend
 		by_label['All'] = Line2D([0], [0], color='k', marker='o', ms=14.)
 
@@ -869,17 +880,20 @@ if combined_plot:
 
 		if fit_schechter:
 			#use MCMC to fit a Schechter function to the combined data for this redshift bin
-			popt_ALL_c, epopt_lo_ALL_c, epopt_hi_ALL_c = nc.fit_schechter_mcmc(x_bins, cumN_ALL, (ecumN_ALL_lo+ecumN_ALL_hi)/2., nwalkers, niter, p0, offsets=offsets_init)
-			#plot the line of best fit
-			ax5.plot(x_range_fit, nc.schechter_model(x_range_fit, popt_ALL_c), color='k')
-			#add text to show the best-fit parameters
-			best_fit_str = [
-				r'$N_{0} = %.0f^{+%.0f}_{-%.0f}$'%(popt_ALL_c[0],epopt_lo_ALL_c[0],epopt_hi_ALL_c[0]),
-				r'$S_{0} = %.1f^{+%.1f}_{-%.1f}$'%(popt_ALL_c[1],epopt_lo_ALL_c[1],epopt_hi_ALL_c[1]),
-				r'$\gamma = %.1f^{+%.1f}_{-%.1f}$'%(popt_ALL_c[2],epopt_lo_ALL_c[2],epopt_hi_ALL_c[2])
-			]
-			best_fit_str = '\n'.join(best_fit_str)
-			ax5.text(2., 40., best_fit_str, color='k', ha='left', va='top', fontsize=18.)
+			popt_ALL_c, epopt_lo_ALL_c, epopt_hi_ALL_c = nc.fit_schechter_mcmc(
+				x_bins,
+				cumN_ALL,
+				(ecumN_ALL_lo+ecumN_ALL_hi)/2.,
+				nwalkers,
+				niter,
+				p0,
+				offsets=offsets_init,
+				plot_on_axes=True,
+				ax=ax4,
+				x_range=x_range_fit,
+				add_text=True,
+				xyfont=(2., 80.),
+				fs=18.)
 			#add the line of best fit to the legend
 			by_label['All'] = Line2D([0], [0], color='k', marker='o', ms=14.)
 
@@ -1078,7 +1092,7 @@ if bin_by_mass:
 		ax6[i].errorbar(x_bins, N_Mbin, fmt='none', yerr=(eN_Mbin_lo,eN_Mbin_hi), ecolor='k', elinewidth=2.4)
 
 		#add text to the top right corner displaying the redshift bin
-		bin_text = f'{logM-dlogM/2:.1f}' + r' $< \log({\rm M}/M_{\odot}) <$ ' + f'{logM+dlogM/2.:.1f}'
+		bin_text = f'{logM-dlogM/2:.1f}' + r' $< \log(M_{\star}/{\rm M}_{\odot}) <$ ' + f'{logM+dlogM/2.:.1f}'
 		ax6[i].text(0.95, 0.95, bin_text, transform=ax6[i].transAxes, ha='right', va='top')
 
 		labels_ord.insert(0, 'All')
@@ -1089,17 +1103,20 @@ if bin_by_mass:
 
 		if fit_schechter:
 			#use MCMC to fit a Schechter function to the combined data for this redshift bin
-			popt_Mbin, epopt_lo_Mbin, epopt_hi_Mbin = nc.fit_schechter_mcmc(x_bins, N_Mbin, (eN_Mbin_lo+eN_Mbin_hi)/2., nwalkers, niter, p0, offsets=offsets_init)
-			#plot the line of best fit
-			ax6[i].plot(x_range_fit, nc.schechter_model(x_range_fit, popt_Mbin), color='k')
-			#add text to show the best-fit parameters
-			best_fit_str = [
-				r'$N_{0} = %.0f^{+%.0f}_{-%.0f}$'%(popt_Mbin[0],epopt_lo_Mbin[0],epopt_hi_Mbin[0]),
-				r'$S_{0} = %.1f^{+%.1f}_{-%.1f}$'%(popt_Mbin[1],epopt_lo_Mbin[1],epopt_hi_Mbin[1]),
-				r'$\gamma = %.1f^{+%.1f}_{-%.1f}$'%(popt_Mbin[2],epopt_lo_Mbin[2],epopt_hi_Mbin[2])
-				]
-			best_fit_str = '\n'.join(best_fit_str)
-			ax6[i].text(2., 40., best_fit_str, color='k', ha='left', va='top', fontsize=18.)
+			popt_Mbin, epopt_lo_Mbin, epopt_hi_Mbin = nc.fit_schechter_mcmc(
+				x_bins,
+				N_Mbin,
+				(eN_Mbin_lo+eN_Mbin_hi)/2.,
+				nwalkers,
+				niter,
+				p0,
+				offsets=offsets_init,
+				plot_on_axes=True,
+				ax=ax6[i],
+				x_range=x_range_fit,
+				add_text=True,
+				xyfont=(2., 40.),
+				fs=18.)
 			#add the line of best fit to the legend
 			by_label['All'] = Line2D([0], [0], color='k', marker='o', ms=14.)
 
@@ -1137,17 +1154,20 @@ if bin_by_mass:
 
 			if fit_schechter:
 				#use MCMC to fit a Schechter function to the combined data for this redshift bin
-				popt_Mbin_c, epopt_lo_Mbin_c, epopt_hi_Mbin_c = nc.fit_schechter_mcmc(x_bins, cumN_Mbin, (ecumN_Mbin_lo+ecumN_Mbin_hi)/2., nwalkers, niter, p0, offsets=offsets_init)
-				#plot the line of best fit
-				ax7[i].plot(x_range_fit, nc.schechter_model(x_range_fit, popt_Mbin_c), color='k')
-				#add text to show the best-fit parameters
-				best_fit_str = [
-					r'$N_{0} = %.0f^{+%.0f}_{-%.0f}$'%(popt_Mbin_c[0],epopt_lo_Mbin_c[0],epopt_hi_Mbin_c[0]),
-					r'$S_{0} = %.1f^{+%.1f}_{-%.1f}$'%(popt_Mbin_c[1],epopt_lo_Mbin_c[1],epopt_hi_Mbin_c[1]),
-					r'$\gamma = %.1f^{+%.1f}_{-%.1f}$'%(popt_Mbin_c[2],epopt_lo_Mbin_c[2],epopt_hi_Mbin_c[2])
-				]
-				best_fit_str = '\n'.join(best_fit_str)
-				ax7[i].text(2., 40., best_fit_str, color='k', ha='left', va='top', fontsize=18.)
+				popt_Mbin_c, epopt_lo_Mbin_c, epopt_hi_Mbin_c = nc.fit_schechter_mcmc(
+					x_bins,
+					cumN_Mbin,
+					(ecumN_Mbin_lo+ecumN_Mbin_hi)/2.,
+					nwalkers,
+					niter,
+					p0,
+					offsets=offsets_init,
+					plot_on_axes=True,
+					ax=ax7[i],
+					x_range=x_range_fit,
+					add_text=True,
+					xyfont=(2., 200.),
+					fs=18.)
 				#add the line of best fit to the legend
 				by_label['All'] = Line2D([0], [0], color='k', marker='o', ms=14.)
 

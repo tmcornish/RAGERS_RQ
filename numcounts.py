@@ -526,7 +526,7 @@ def cumulative_numcounts(counts=None, S=None, bin_edges=None, A=1., comp=None, i
 
 
 
-def fit_schechter_mcmc(x, y, yerr, nwalkers, niter, initial, offsets=0.01):
+def fit_schechter_mcmc(x, y, yerr, nwalkers, niter, initial, offsets=0.01, plot_on_axes=True, **plot_kwargs):
 	'''
 	Uses MCMC to fit a Schechter function to data.
 
@@ -554,8 +554,22 @@ def fit_schechter_mcmc(x, y, yerr, nwalkers, niter, initial, offsets=0.01):
 		Offsets in each dimension of the parameter space from an initial fit, used to determine
 		the starting positions of each walker.
 
+	plot_on_axes: bool
+		Plot the line of best fit on a provided set of axes.
+
+	**plot_kwargs
+		Any remaining keyword arguments will be used to format the plot (if generated).
+
 	Returns
 	----------
+	best: array
+			Best-fit parameters.
+
+	e_lo: array
+		Lower uncertainties on the best-fit parameters.
+
+	e_hi: array
+		Upper uncertainties on the best-fit parameters.
 
 	'''
 
@@ -689,16 +703,6 @@ def fit_schechter_mcmc(x, y, yerr, nwalkers, niter, initial, offsets=0.01):
 			Contains (as three separate entries) the x values, the y values, and the uncertainties
 			in y.
 
-		Returns
-		----------
-		best: array
-			Best-fit parameters.
-
-		e_lo: array
-			Lower uncertainties on the best-fit parameters.
-
-		e_hi: array
-			Upper uncertainties on the best-fit parameters.
 		'''
 
 		sampler = emcee.EnsembleSampler(nwalkers, ndim, lnprob, args=data)
@@ -735,6 +739,72 @@ def fit_schechter_mcmc(x, y, yerr, nwalkers, niter, initial, offsets=0.01):
 	uncert = np.diff(q, axis=0)
 	e_lo = uncert[0]
 	e_hi = uncert[1]
+
+	if plot_on_axes:
+		#see if a set of axes has been provided - if not, give error message
+		if 'ax' in plot_kwargs:
+			#see if linestyle, linewidth, colour, alpha and label were provided as kwargs
+			ls_key = [s for s in ['linestyle', 'ls'] if s in plot_kwargs]
+			lw_key = [s for s in ['linewidth', 'lw'] if s in plot_kwargs]
+			c_key = [s for s in ['colour', 'color' 'c'] if s in plot_kwargs]
+			if len(ls_key) > 0:
+				ls = plot_kwargs[ls_key[0]]
+			else:
+				ls = '-'
+			if len(lw_key) > 0:
+				lw = plot_kwargs[lw_key[0]]
+			else:
+				lw = 1.
+			if len(c_key) > 0:
+				c = plot_kwargs[c_key[0]]
+			else:
+				c = 'k'
+			if 'alpha' in plot_kwargs:
+				alpha = plot_kwargs['alpha']
+			else:
+				alpha = 1.
+			if 'label' in plot_kwargs:
+				label = plot_kwargs['label']
+			else:
+				label = ''
+
+			#see if a range of x-values has been provided
+			if 'x_range' in plot_kwargs:
+				x_range = plot_kwargs['x_range']
+			else:
+				x_range = np.linspace(2., 20., 100)
+			
+			#plot the line
+			plot_kwargs['ax'].plot(x_range, schechter_model(x_range, best), c=c, linestyle=ls, linewidth=lw, label=label)
+
+			#see if told to also add text to the axes showing the best-fit values
+			if 'add_text' in plot_kwargs:
+				if plot_kwargs['add_text']:
+					#see if the fontsize and position of the text have been provided
+					fs_key = [s for s in ['fontsize', 'fs'] if s in plot_kwargs]
+					pos_key = [s for s in ['fontposition', 'fp', 'xyfont'] if s in plot_kwargs]
+					if len(fs_key) > 0:
+						fs = plot_kwargs[fs_key[0]]
+					else:
+						ls = '-'
+					if len(pos_key) > 0:
+						xtext, ytext = plot_kwargs[pos_key[0]]
+						if 'transform' in plot_kwargs:
+							if plot_kwargs['transform'] == 'axes':
+								transform = plot_kwargs['ax'].transAxes
+						else:
+							transform = plot_kwargs['ax'].transData
+					else:
+						xtext, ytext = 0.05, 0.5
+						transform = plot_kwargs['ax'].transAxes
+
+					best_fit_str = [
+						r'$N_{0} = %.0f^{+%.0f}_{-%.0f}$'%(best[0],e_hi[0],e_lo[0]),
+						r'$S_{0} = %.1f^{+%.1f}_{-%.1f}$'%(best[1],e_hi[1],e_lo[1]),
+						r'$\gamma = %.1f^{+%.1f}_{-%.1f}$'%(best[2],e_hi[2],e_lo[2])
+						]
+					best_fit_str = '\n'.join(best_fit_str)
+					plot_kwargs['ax'].text(xtext, ytext, best_fit_str, color='k', ha='left', va='top', fontsize=fs, transform=transform)
 
 	return best, e_lo, e_hi
 
