@@ -16,6 +16,7 @@ from matplotlib import pyplot as plt
 import matplotlib as mpl
 import matplotlib.patches as patches
 from matplotlib.colors import LinearSegmentedColormap
+from matplotlib.lines import Line2D
 import colorsys
 import glob
 from scipy.interpolate import LinearNDInterpolator
@@ -25,6 +26,7 @@ import plotstyle as ps
 import numcounts as nc
 import stats
 import astrometry as ast
+import emcee
 
 #######################################################################################
 ########### FORMATTING FOR GRAPHS #####################################################
@@ -50,7 +52,7 @@ main_only = gen.main_only		#use only sources from the MAIN region of S2COSMOS fo
 randomise_fluxes = True			#randomly draw flux densities from possible values
 bin_by_mass = True				#bin galaxies by stellar mass as well as redshift
 fit_schechter = True			#fit Schechter finctions to the number counts
-repeat_sel = True				#perform the random RQ selection several times 
+repeat_sel = False				#perform the random RQ selection several times 
 settings = [
 	use_cat_from_paper,
 	use_S19_bins,
@@ -103,10 +105,14 @@ nsamples = 100		#number of times to reselect RQ subsamples
 if repeat_sel:
 	settings_print.append(f'Number of times to select RQ samples: {nsamples}')
 
-#number of walkers and iterations to use in MCMC fitting
-nwalkers = 100
-niter = 1000
 if fit_schechter:
+	#number of walkers and iterations to use in MCMC fitting
+	nwalkers = 100
+	niter = 1000
+	#initial guesses for the fit parameters N0, S0, gamma
+	p0 = [5000., 3., 1.6]
+	#offsets for the initial walker positions from the initial guess values
+	offsets_init = [10., 0.01, 0.01]
 	settings_print.append(f'Number of walkers to use for MCMC: {nwalkers}')
 	settings_print.append(f'Number of iterations to use for MCMC: {niter}')
 
@@ -146,6 +152,9 @@ else:
 	S850_bin_centres = np.arange(2.5, 22.5, dS)
 	S850_bin_edges = np.append(S850_bin_centres-(dS/2.), S850_bin_centres[-1]+(dS/2.))
 
+if fit_schechter:
+	#values at which the best-fit Schechter functions will be plotted
+	x_range_fit = np.linspace(S850_bin_edges.min(), S850_bin_edges.max(), 100)
 
 
 #######################################################
@@ -676,32 +685,33 @@ for i in range(len(zbin_centres)):
 	eN_zbin_lo[eN_zbin_lo == N_zbin] *= 0.999		#prevents errors when logging plot
 	ax1[row_z,col_z].errorbar(x_bins, N_zbin, fmt='none', yerr=(eN_zbin_lo,eN_zbin_hi), ecolor='k', elinewidth=2.4)
 
-	#set the axes to log scale
-	ax1[row_z,col_z].set_xscale('log')
-	ax1[row_z,col_z].set_yscale('log')
-
 	#add text to the top right corner displaying the redshift bin
 	bin_text = r'$%.1f \leq z < %.1f$'%(z-dz/2.,z+dz/2.)
 	ax1[row_z,col_z].text(0.95, 0.95, bin_text, transform=ax1[row_z,col_z].transAxes, ha='right', va='top')
-
-	#set the minor tick locations on the x-axis
-	ax1[row_z,col_z].set_xticks(xtick_min_locs, labels=xtick_min_labels, minor=True)
-
-	#set the axes limits
-	ax1[row_z,col_z].set_xlim(1.5, 20.)
-	ax1[row_z,col_z].set_ylim(0.1, 1300.)
-	#force matplotlib to label with the actual numbers
-	#ax1[row_z,col_z].get_xaxis().set_major_formatter(mpl.ticker.ScalarFormatter())
-	#ax1[row_z,col_z].get_yaxis().set_major_formatter(mpl.ticker.ScalarFormatter())
-	ax1[row_z,col_z].get_xaxis().set_major_formatter(mpl.ticker.StrMethodFormatter('{x:.0f}'))
-	ax1[row_z,col_z].get_yaxis().set_major_formatter(mpl.ticker.StrMethodFormatter('{x:g}'))
 
 	labels_ord.insert(0, 'All')
 	#add a legend in the bottom left corner, removing duplicate labels
 	handles, labels = ax1[row_z,col_z].get_legend_handles_labels()
 	labels_ord = [s for s in labels_ord if s in labels]
 	by_label = dict(zip(labels, handles))
-	ax1[row_z,col_z].legend([by_label[i] for i in labels_ord], [i for i in labels_ord], loc=3)
+	
+	if fit_schechter:
+		#use MCMC to fit a Schechter function to the combined data for this redshift bin
+		popt_zbin, epopt_lo_zbin, epopt_hi_zbin = nc.fit_schechter_mcmc(x_bins, N_zbin, (eN_zbin_lo+eN_zbin_hi)/2., nwalkers, niter, p0, offsets=offsets_init)
+		#plot the line of best fit
+		ax1[row_z,col_z].plot(x_range_fit, nc.schechter_model(x_range_fit, popt_zbin), color='k')
+		#add text to show the best-fit parameters
+		best_fit_str = [
+			r'$N_{0} = %.0f^{+%.0f}_{-%.0f}$'%(popt_zbin[0],epopt_lo_zbin[0],epopt_hi_zbin[0]),
+			r'$S_{0} = %.1f^{+%.1f}_{-%.1f}$'%(popt_zbin[1],epopt_lo_zbin[1],epopt_hi_zbin[1]),
+			r'$\gamma = %.1f^{+%.1f}_{-%.1f}$'%(popt_zbin[2],epopt_lo_zbin[2],epopt_hi_zbin[2])
+			]
+		best_fit_str = '\n'.join(best_fit_str)
+		ax1[row_z,col_z].text(2., 40., best_fit_str, color='k', ha='left', va='top', fontsize=18.)
+		#add the line of best fit to the legend
+		by_label['All'] = Line2D([0], [0], color='k', marker='o', ms=14.)
+
+	ax1[row_z,col_z].legend([by_label[l] for l in labels_ord], [l for l in labels_ord], loc=3)
 
 
 	if plot_cumulative:
@@ -710,48 +720,53 @@ for i in range(len(zbin_centres)):
 			counts=counts_zbin,
 			A=A_zbin,
 			)
+
+		#remove any bins with 0 sources
+		has_sources = cumN_zbin > 0.
+		#has_sources = np.full(len(S850_bin_centres), True)
+		x_bins = S850_bin_edges[:-1][has_sources]
+		ecumN_zbin_lo = ecumN_zbin_lo[has_sources]
+		ecumN_zbin_hi = ecumN_zbin_hi[has_sources]
+		cumN_zbin = cumN_zbin[has_sources]
+
 		if combined_plot:
-			ax5.plot(S850_bin_edges[:-1], cumN_zbin, color=ps.grey, alpha=0.2)
+			ax5.plot(x_bins, cumN_zbin, color=ps.grey, alpha=0.2)
 
 		#plot the bin heights at the left bin edges
-		x_bins = S850_bin_edges[:-1]
 		ax3[row_z,col_z].plot(x_bins, cumN_zbin, marker='o', color='k', label='All', ms=14., linestyle='none')
 		#add errorbars
 		ecumN_zbin_lo[ecumN_zbin_lo == cumN_zbin] *= 0.999		#prevents errors when logging plot
 		ax3[row_z,col_z].errorbar(x_bins, cumN_zbin, fmt='none', yerr=(ecumN_zbin_lo,ecumN_zbin_hi), ecolor='k', elinewidth=2.4)
 
-		#set the axes to log scale
-		ax3[row_z,col_z].set_xscale('log')
-		ax3[row_z,col_z].set_yscale('log')
-
 		#add text to the top right corner displaying the redshift bin
 		ax3[row_z,col_z].text(0.95, 0.95, bin_text, transform=ax3[row_z,col_z].transAxes, ha='right', va='top')
-
-		#set the minor tick locations on the x-axis
-		ax3[row_z,col_z].set_xticks(xtick_min_locs, labels=xtick_min_labels, minor=True)
-
-		#set the axes limits
-		ax3[row_z,col_z].set_xlim(1.5, 20.)
-		ax3[row_z,col_z].set_ylim(0.1, 4000.)
-		#force matplotlib to label with the actual numbers
-		#ax3[row_z,col_z].get_xaxis().set_major_formatter(mpl.ticker.ScalarFormatter())
-		#ax3[row_z,col_z].get_yaxis().set_major_formatter(mpl.ticker.ScalarFormatter())
-		ax3[row_z,col_z].get_xaxis().set_major_formatter(mpl.ticker.StrMethodFormatter('{x:.0f}'))
-		ax3[row_z,col_z].get_yaxis().set_major_formatter(mpl.ticker.StrMethodFormatter('{x:g}'))
 
 		#add a legend in the bottom left corner, removing duplicate labels
 		handles, labels = ax3[row_z,col_z].get_legend_handles_labels()
 		labels_ord = [s for s in labels_ord if s in labels]
 		by_label = dict(zip(labels, handles))
-		ax3[row_z,col_z].legend([by_label[i] for i in labels_ord], [i for i in labels_ord], loc=3)
+		ax3[row_z,col_z].legend([by_label[l] for l in labels_ord], [l for l in labels_ord], loc=3)
+
+		if fit_schechter:
+			#use MCMC to fit a Schechter function to the combined data for this redshift bin
+			popt_zbin_c, epopt_lo_zbin_c, epopt_hi_zbin_c = nc.fit_schechter_mcmc(x_bins, cumN_zbin, (ecumN_zbin_lo+ecumN_zbin_hi)/2., nwalkers, niter, p0, offsets=offsets_init)
+			#plot the line of best fit
+			ax3[row_z,col_z].plot(x_range_fit, nc.schechter_model(x_range_fit, popt_zbin_c), color='k')
+			#add text to show the best-fit parameters
+			best_fit_str = [
+				r'$N_{0} = %.0f^{+%.0f}_{-%.0f}$'%(popt_zbin_c[0],epopt_lo_zbin_c[0],epopt_hi_zbin_c[0]),
+				r'$S_{0} = %.1f^{+%.1f}_{-%.1f}$'%(popt_zbin_c[1],epopt_lo_zbin_c[1],epopt_hi_zbin_c[1]),
+				r'$\gamma = %.1f^{+%.1f}_{-%.1f}$'%(popt_zbin_c[2],epopt_lo_zbin_c[2],epopt_hi_zbin_c[2])
+			]
+			best_fit_str = '\n'.join(best_fit_str)
+			ax3[row_z,col_z].text(2., 40., best_fit_str, color='k', ha='left', va='top', fontsize=18.)
+			#add the line of best fit to the legend
+			by_label['All'] = Line2D([0], [0], color='k', marker='o', ms=14.)
 
 	#perform whichever steps from above are relevant for the positions plot if created
 	if plot_positions:
 		#add text to the top right corner displaying the redshift bin
 		ax2[row_z,col_z].text(0.95, 0.95, bin_text, transform=ax2[row_z,col_z].transAxes, ha='right', va='top')
-		#set the axes limits
-		ax2[row_z,col_z].set_xlim(150.9, 149.3)
-		ax2[row_z,col_z].set_ylim(1.5, 3.)
 		#add a legend in the bottom left corner, removing duplicate labels
 		handles, labels = ax2[row_z,col_z].get_legend_handles_labels()
 		by_label = dict(zip(labels, handles))
@@ -801,27 +816,30 @@ if combined_plot:
 	eN_ALL_lo[eN_ALL_lo == N_ALL] *= 0.999		#prevents errors when logging plot
 	ax4.errorbar(x_bins, N_ALL, fmt='none', yerr=(eN_ALL_lo,eN_ALL_hi), ecolor='k', elinewidth=2.4)
 
-	#set the axes to log scale
-	ax4.set_xscale('log')
-	ax4.set_yscale('log')
-
-	#set the minor tick locations on the x-axis
-	ax4.set_xticks(xtick_min_locs, labels=xtick_min_labels, minor=True)
-
-	#set the axes limits
-	ax4.set_xlim(1.5, 20.)
-	ax4.set_ylim(0.1, 1300.)
-	#force matplotlib to label with the actual numbers
-	#ax4.get_xaxis().set_major_formatter(mpl.ticker.ScalarFormatter())
-	#ax4.get_yaxis().set_major_formatter(mpl.ticker.ScalarFormatter())
-	ax4.get_xaxis().set_major_formatter(mpl.ticker.StrMethodFormatter('{x:.0f}'))
-	ax4.get_yaxis().set_major_formatter(mpl.ticker.StrMethodFormatter('{x:g}'))
 
 	#add a legend in the bottom left corner, removing duplicate labels
 	handles, labels = ax4.get_legend_handles_labels()
 	labels_ord = [s for s in labels_ord_combined if s in labels]
 	by_label = dict(zip(labels, handles))
-	ax4.legend([by_label[i] for i in labels_ord_combined], [i for i in labels_ord_combined], loc=3)
+
+	if fit_schechter:
+		#use MCMC to fit a Schechter function to the combined data for this redshift bin
+		popt_ALL, epopt_lo_ALL, epopt_hi_ALL = nc.fit_schechter_mcmc(x_bins, N_ALL, (eN_ALL_lo+eN_ALL_hi)/2., nwalkers, niter, p0, offsets=offsets_init)
+		#plot the line of best fit
+		ax4.plot(x_range_fit, nc.schechter_model(x_range_fit, popt_ALL), color='k')
+		#add text to show the best-fit parameters
+		best_fit_str = [
+			r'$N_{0} = %.0f^{+%.0f}_{-%.0f}$'%(popt_ALL[0],epopt_lo_ALL[0],epopt_hi_ALL[0]),
+			r'$S_{0} = %.1f^{+%.1f}_{-%.1f}$'%(popt_ALL[1],epopt_lo_ALL[1],epopt_hi_ALL[1]),
+			r'$\gamma = %.1f^{+%.1f}_{-%.1f}$'%(popt_ALL[2],epopt_lo_ALL[2],epopt_hi_ALL[2])
+			]
+		best_fit_str = '\n'.join(best_fit_str)
+		ax4.text(2., 40., best_fit_str, color='k', ha='left', va='top', fontsize=18.)
+		#add the line of best fit to the legend
+		by_label['All'] = Line2D([0], [0], color='k', marker='o', ms=14.)
+
+
+	ax4.legend([by_label[l] for l in labels_ord_combined], [l for l in labels_ord_combined], loc=3)
 
 	if plot_cumulative:
 		#construct the cumulative number counts
@@ -844,27 +862,28 @@ if combined_plot:
 		eN_ALL_lo[eN_ALL_lo == N_ALL] *= 0.999		#prevents errors when logging plot
 		ax5.errorbar(x_bins, cumN_ALL, fmt='none', yerr=(ecumN_ALL_lo,ecumN_ALL_hi), ecolor='k', elinewidth=2.4)
 
-		#set the axes to log scale
-		ax5.set_xscale('log')
-		ax5.set_yscale('log')
-
-		#set the minor tick locations on the x-axis
-		ax5.set_xticks(xtick_min_locs, labels=xtick_min_labels, minor=True)
-
-		#set the axes limits
-		ax5.set_xlim(1.5, 20.)
-		ax5.set_ylim(0.1, 4000.)
-		#force matplotlib to label with the actual numbers
-		#ax5.get_xaxis().set_major_formatter(mpl.ticker.ScalarFormatter())
-		#ax5.get_yaxis().set_major_formatter(mpl.ticker.ScalarFormatter())
-		ax5.get_xaxis().set_major_formatter(mpl.ticker.StrMethodFormatter('{x:.0f}'))
-		ax5.get_yaxis().set_major_formatter(mpl.ticker.StrMethodFormatter('{x:g}'))
-
 		#add a legend in the bottom left corner, removing duplicate labels
 		handles, labels = ax5.get_legend_handles_labels()
 		labels_ord = [s for s in labels_ord_combined if s in labels]
 		by_label = dict(zip(labels, handles))
-		ax5.legend([by_label[i] for i in labels_ord_combined], [i for i in labels_ord_combined], loc=3)
+
+		if fit_schechter:
+			#use MCMC to fit a Schechter function to the combined data for this redshift bin
+			popt_ALL_c, epopt_lo_ALL_c, epopt_hi_ALL_c = nc.fit_schechter_mcmc(x_bins, cumN_ALL, (ecumN_ALL_lo+ecumN_ALL_hi)/2., nwalkers, niter, p0, offsets=offsets_init)
+			#plot the line of best fit
+			ax5.plot(x_range_fit, nc.schechter_model(x_range_fit, popt_ALL_c), color='k')
+			#add text to show the best-fit parameters
+			best_fit_str = [
+				r'$N_{0} = %.0f^{+%.0f}_{-%.0f}$'%(popt_ALL_c[0],epopt_lo_ALL_c[0],epopt_hi_ALL_c[0]),
+				r'$S_{0} = %.1f^{+%.1f}_{-%.1f}$'%(popt_ALL_c[1],epopt_lo_ALL_c[1],epopt_hi_ALL_c[1]),
+				r'$\gamma = %.1f^{+%.1f}_{-%.1f}$'%(popt_ALL_c[2],epopt_lo_ALL_c[2],epopt_hi_ALL_c[2])
+			]
+			best_fit_str = '\n'.join(best_fit_str)
+			ax5.text(2., 40., best_fit_str, color='k', ha='left', va='top', fontsize=18.)
+			#add the line of best fit to the legend
+			by_label['All'] = Line2D([0], [0], color='k', marker='o', ms=14.)
+
+		ax5.legend([by_label[l] for l in labels_ord_combined], [l for l in labels_ord_combined], loc=3)
 
 print(gen.colour_string('Done!', 'purple'))
 
@@ -893,7 +912,7 @@ if bin_by_mass:
 		rl_Mbin = RAGERS_IDs[mass_mask]
 
 		##############################
-		#### RQ GALAXIES PER ZBIN ####
+		#### RQ GALAXIES PER MBIN ####
 		##############################
 
 		#get the corresponding radio-quiet source data
@@ -1058,32 +1077,33 @@ if bin_by_mass:
 		eN_Mbin_lo[eN_Mbin_lo == N_Mbin] *= 0.999		#prevents errors when logging plot
 		ax6[i].errorbar(x_bins, N_Mbin, fmt='none', yerr=(eN_Mbin_lo,eN_Mbin_hi), ecolor='k', elinewidth=2.4)
 
-		#set the axes to log scale
-		ax6[i].set_xscale('log')
-		ax6[i].set_yscale('log')
-
 		#add text to the top right corner displaying the redshift bin
 		bin_text = f'{logM-dlogM/2:.1f}' + r' $< \log({\rm M}/M_{\odot}) <$ ' + f'{logM+dlogM/2.:.1f}'
 		ax6[i].text(0.95, 0.95, bin_text, transform=ax6[i].transAxes, ha='right', va='top')
-
-		#set the minor tick locations on the x-axis
-		ax6[i].set_xticks(xtick_min_locs, labels=xtick_min_labels, minor=True)
-
-		#set the axes limits
-		ax6[i].set_xlim(1.5, 20.)
-		ax6[i].set_ylim(0.1, 1300.)
-		#force matplotlib to label with the actual numbers
-		#ax6[i].get_xaxis().set_major_formatter(mpl.ticker.ScalarFormatter())
-		#ax6[i].get_yaxis().set_major_formatter(mpl.ticker.ScalarFormatter())
-		ax6[i].get_xaxis().set_major_formatter(mpl.ticker.StrMethodFormatter('{x:.0f}'))
-		ax6[i].get_yaxis().set_major_formatter(mpl.ticker.StrMethodFormatter('{x:g}'))
 
 		labels_ord.insert(0, 'All')
 		#add a legend in the bottom left corner, removing duplicate labels
 		handles, labels = ax6[i].get_legend_handles_labels()
 		labels_ord = [s for s in labels_ord if s in labels]
 		by_label = dict(zip(labels, handles))
-		ax6[i].legend([by_label[i] for i in labels_ord], [i for i in labels_ord], loc=3)
+
+		if fit_schechter:
+			#use MCMC to fit a Schechter function to the combined data for this redshift bin
+			popt_Mbin, epopt_lo_Mbin, epopt_hi_Mbin = nc.fit_schechter_mcmc(x_bins, N_Mbin, (eN_Mbin_lo+eN_Mbin_hi)/2., nwalkers, niter, p0, offsets=offsets_init)
+			#plot the line of best fit
+			ax6[i].plot(x_range_fit, nc.schechter_model(x_range_fit, popt_Mbin), color='k')
+			#add text to show the best-fit parameters
+			best_fit_str = [
+				r'$N_{0} = %.0f^{+%.0f}_{-%.0f}$'%(popt_Mbin[0],epopt_lo_Mbin[0],epopt_hi_Mbin[0]),
+				r'$S_{0} = %.1f^{+%.1f}_{-%.1f}$'%(popt_Mbin[1],epopt_lo_Mbin[1],epopt_hi_Mbin[1]),
+				r'$\gamma = %.1f^{+%.1f}_{-%.1f}$'%(popt_Mbin[2],epopt_lo_Mbin[2],epopt_hi_Mbin[2])
+				]
+			best_fit_str = '\n'.join(best_fit_str)
+			ax6[i].text(2., 40., best_fit_str, color='k', ha='left', va='top', fontsize=18.)
+			#add the line of best fit to the legend
+			by_label['All'] = Line2D([0], [0], color='k', marker='o', ms=14.)
+
+		ax6[i].legend([by_label[l] for l in labels_ord], [l for l in labels_ord], loc=3)
 
 
 		if plot_cumulative:
@@ -1092,41 +1112,54 @@ if bin_by_mass:
 				counts=counts_Mbin,
 				A=A_Mbin,
 				)
+
+			#remove any bins with 0 sources
+			has_sources = cumN_Mbin > 0.
+			#has_sources = np.full(len(S850_bin_centres), True)
+			x_bins = S850_bin_edges[:-1][has_sources]
+			ecumN_Mbin_lo = ecumN_Mbin_lo[has_sources]
+			ecumN_Mbin_hi = ecumN_Mbin_hi[has_sources]
+			cumN_Mbin = cumN_Mbin[has_sources]
+
 			#plot the bin heights at the left bin edges
-			x_bins = S850_bin_edges[:-1]
 			ax7[i].plot(x_bins, cumN_Mbin, marker='o', color='k', label='All', ms=14., linestyle='none')
 			#add errorbars
 			ecumN_Mbin_lo[ecumN_Mbin_lo == cumN_Mbin] *= 0.999		#prevents errors when logging plot
 			ax7[i].errorbar(x_bins, cumN_Mbin, fmt='none', yerr=(ecumN_Mbin_lo,ecumN_Mbin_hi), ecolor='k', elinewidth=2.4)
 
-			#set the axes to log scale
-			ax7[i].set_xscale('log')
-			ax7[i].set_yscale('log')
-
 			#add text to the top right corner displaying the redshift bin
 			ax7[i].text(0.95, 0.95, bin_text, transform=ax7[i].transAxes, ha='right', va='top')
-
-			#set the minor tick locations on the x-axis
-			ax7[i].set_xticks(xtick_min_locs, labels=xtick_min_labels, minor=True)
-
-			#set the axes limits
-			ax7[i].set_xlim(1.5, 20.)
-			ax7[i].set_ylim(0.1, 4000.)
-			#force matplotlib to label with the actual numbers
-			#ax7[i].get_xaxis().set_major_formatter(mpl.ticker.ScalarFormatter())
-			#ax7[i].get_yaxis().set_major_formatter(mpl.ticker.ScalarFormatter())
-			ax7[i].get_xaxis().set_major_formatter(mpl.ticker.StrMethodFormatter('{x:.0f}'))
-			ax7[i].get_yaxis().set_major_formatter(mpl.ticker.StrMethodFormatter('{x:g}'))
 
 			#add a legend in the bottom left corner, removing duplicate labels
 			handles, labels = ax7[i].get_legend_handles_labels()
 			labels_ord = [s for s in labels_ord if s in labels]
 			by_label = dict(zip(labels, handles))
-			ax7[i].legend([by_label[ii] for ii in labels_ord], [ii for ii in labels_ord], loc=3)
+
+			if fit_schechter:
+				#use MCMC to fit a Schechter function to the combined data for this redshift bin
+				popt_Mbin_c, epopt_lo_Mbin_c, epopt_hi_Mbin_c = nc.fit_schechter_mcmc(x_bins, cumN_Mbin, (ecumN_Mbin_lo+ecumN_Mbin_hi)/2., nwalkers, niter, p0, offsets=offsets_init)
+				#plot the line of best fit
+				ax7[i].plot(x_range_fit, nc.schechter_model(x_range_fit, popt_Mbin_c), color='k')
+				#add text to show the best-fit parameters
+				best_fit_str = [
+					r'$N_{0} = %.0f^{+%.0f}_{-%.0f}$'%(popt_Mbin_c[0],epopt_lo_Mbin_c[0],epopt_hi_Mbin_c[0]),
+					r'$S_{0} = %.1f^{+%.1f}_{-%.1f}$'%(popt_Mbin_c[1],epopt_lo_Mbin_c[1],epopt_hi_Mbin_c[1]),
+					r'$\gamma = %.1f^{+%.1f}_{-%.1f}$'%(popt_Mbin_c[2],epopt_lo_Mbin_c[2],epopt_hi_Mbin_c[2])
+				]
+				best_fit_str = '\n'.join(best_fit_str)
+				ax7[i].text(2., 40., best_fit_str, color='k', ha='left', va='top', fontsize=18.)
+				#add the line of best fit to the legend
+				by_label['All'] = Line2D([0], [0], color='k', marker='o', ms=14.)
+
+			ax7[i].legend([by_label[l] for l in labels_ord], [l for l in labels_ord], loc=3)
+
+print(gen.colour_string('Done!', 'purple'))
 
 ###########################################
 #### FINAL FORMATTING & SAVING FIGURES ####
 ###########################################
+
+print(gen.colour_string('Formatting and saving figures...', 'purple'))
 
 #suffix to use for figure based on the operations performed
 suffix = ''
@@ -1140,42 +1173,121 @@ if comp_correct:
 #add the search radius to the file name
 suffix += f'_{R_arcmin:.1f}am'
 
+for i in range(len(ax1)):
+	for j in range(len(ax1[0])):
+		#set the axes to log scale
+		ax1[i,j].set_xscale('log')
+		ax1[i,j].set_yscale('log')
+		#set the minor tick locations on the x-axis
+		ax1[i,j].set_xticks(xtick_min_locs, labels=xtick_min_labels, minor=True)
+		#set the axes limits
+		ax1[i,j].set_xlim(1.5, 20.)
+		ax1[i,j].set_ylim(0.1, 2500.)
+		#force matplotlib to label with the actual numbers
+		ax1[i,j].get_xaxis().set_major_formatter(mpl.ticker.StrMethodFormatter('{x:.0f}'))
+		ax1[i,j].get_yaxis().set_major_formatter(mpl.ticker.StrMethodFormatter('{x:g}'))
 #minimise unnecesary whitespace
 f1.tight_layout()
 figname = PATH_PLOTS + f'S850_number_counts_zbinned{suffix}.png'
 f1.savefig(figname, bbox_inches='tight', dpi=300)
 
+
 if plot_positions:
+	for i in range(len(ax2)):
+		for j in range(len(ax2[0])):
+			#set the axes limits
+			ax2[i,j].set_xlim(150.9, 149.3)
+			ax2[i,j].set_ylim(1.5, 3.)
 	#minimise unnecesary whitespace
 	f2.tight_layout()
 	figname = PATH_PLOTS + 'RQ_positions_with_search_areas.png'
 	f2.savefig(figname, bbox_inches='tight', dpi=300)
 
 if plot_cumulative:
+	for i in range(len(ax3)):
+		for j in range(len(ax3[0])):
+			#set the axes to log scale
+			ax3[i,j].set_xscale('log')
+			ax3[i,j].set_yscale('log')
+			#set the minor tick locations on the x-axis
+			ax3[i,j].set_xticks(xtick_min_locs, labels=xtick_min_labels, minor=True)
+			#set the axes limits
+			ax3[i,j].set_xlim(1.5, 20.)
+			ax3[i,j].set_ylim(0.1, 4000.)
+			#force matplotlib to label with the actual numbers
+			ax3[i,j].get_xaxis().set_major_formatter(mpl.ticker.StrMethodFormatter('{x:.0f}'))
+			ax3[i,j].get_yaxis().set_major_formatter(mpl.ticker.StrMethodFormatter('{x:g}'))
 	#minimise unnecesary whitespace
 	f3.tight_layout()
 	figname = PATH_PLOTS + f'S850_cumulative_counts_zbinned{suffix}.png'
 	f3.savefig(figname, bbox_inches='tight', dpi=300)
 
 if combined_plot:
+	#set the axes to log scale
+	ax4.set_xscale('log')
+	ax4.set_yscale('log')
+	#set the minor tick locations on the x-axis
+	ax4.set_xticks(xtick_min_locs, labels=xtick_min_labels, minor=True)
+	#set the axes limits
+	ax4.set_xlim(1.5, 20.)
+	ax4.set_ylim(0.1, 2500.)
+	#force matplotlib to label with the actual numbers
+	ax4.get_xaxis().set_major_formatter(mpl.ticker.StrMethodFormatter('{x:.0f}'))
+	ax4.get_yaxis().set_major_formatter(mpl.ticker.StrMethodFormatter('{x:g}'))
 	#minimise unnecesary whitespace
 	f4.tight_layout()
 	figname = PATH_PLOTS + f'S850_number_counts_ALL{suffix}.png'
 	f4.savefig(figname, bbox_inches='tight', dpi=300)
 
 	if plot_cumulative:
+		#set the axes to log scale
+		ax5.set_xscale('log')
+		ax5.set_yscale('log')
+		#set the minor tick locations on the x-axis
+		ax5.set_xticks(xtick_min_locs, labels=xtick_min_labels, minor=True)
+		#set the axes limits
+		ax5.set_xlim(1.5, 20.)
+		ax5.set_ylim(0.1, 4000.)
+		#force matplotlib to label with the actual numbers
+		ax5.get_xaxis().set_major_formatter(mpl.ticker.StrMethodFormatter('{x:.0f}'))
+		ax5.get_yaxis().set_major_formatter(mpl.ticker.StrMethodFormatter('{x:g}'))
 		#minimise unnecesary whitespace
 		f5.tight_layout()
 		figname = PATH_PLOTS + f'S850_cumulative_counts_ALL{suffix}.png'
 		f5.savefig(figname, bbox_inches='tight', dpi=300)
+		
 
 if bin_by_mass:
+	for i in range(len(ax6)):
+		#set the axes to log scale
+		ax6[i].set_xscale('log')
+		ax6[i].set_yscale('log')
+		#set the minor tick locations on the x-axis
+		ax6[i].set_xticks(xtick_min_locs, labels=xtick_min_labels, minor=True)
+		#set the axes limits
+		ax6[i].set_xlim(1.5, 20.)
+		ax6[i].set_ylim(0.1, 2500.)
+		#force matplotlib to label with the actual numbers
+		ax6[i].get_xaxis().set_major_formatter(mpl.ticker.StrMethodFormatter('{x:.0f}'))
+		ax6[i].get_yaxis().set_major_formatter(mpl.ticker.StrMethodFormatter('{x:g}'))
 	#minimise unnecesary whitespace
 	f6.tight_layout()
 	figname = PATH_PLOTS + f'S850_number_counts_Mbinned{suffix}.png'
 	f6.savefig(figname, bbox_inches='tight', dpi=300)
 
 	if plot_cumulative:
+		for i in range(len(ax7)):
+			#set the axes to log scale
+			ax7[i].set_xscale('log')
+			ax7[i].set_yscale('log')
+			#set the minor tick locations on the x-axis
+			ax7[i].set_xticks(xtick_min_locs, labels=xtick_min_labels, minor=True)
+			#set the axes limits
+			ax7[i].set_xlim(1.5, 20.)
+			ax7[i].set_ylim(0.1, 4000.)
+			#force matplotlib to label with the actual numbers
+			ax7[i].get_xaxis().set_major_formatter(mpl.ticker.StrMethodFormatter('{x:.0f}'))
+			ax7[i].get_yaxis().set_major_formatter(mpl.ticker.StrMethodFormatter('{x:g}'))
 		#minimise unnecesary whitespace
 		f7.tight_layout()
 		figname = PATH_PLOTS + f'S850_cumulative_counts_Mbinned{suffix}.png'

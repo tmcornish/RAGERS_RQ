@@ -329,7 +329,7 @@ def schechter_model(S, params):
 
 
 
-def differential_numcounts(S, bin_edges, A, comp=None, incl_poisson=False):
+def differential_numcounts(S, bin_edges, A, comp=None, incl_poisson=True):
 	'''
 	Constructs differential number counts for a given set of flux densities. Optionally also
 	randomises the flux densities according to their uncertainties to get an estimate of the
@@ -526,7 +526,7 @@ def cumulative_numcounts(counts=None, S=None, bin_edges=None, A=1., comp=None, i
 
 
 
-def fit_schechter_mcmc(x, y, yerr, nwalkers, niter, initial, offsets=0.01, pool=None):
+def fit_schechter_mcmc(x, y, yerr, nwalkers, niter, initial, offsets=0.01):
 	'''
 	Uses MCMC to fit a Schechter function to data.
 
@@ -553,9 +553,6 @@ def fit_schechter_mcmc(x, y, yerr, nwalkers, niter, initial, offsets=0.01, pool=
 	offsets: float or array-like
 		Offsets in each dimension of the parameter space from an initial fit, used to determine
 		the starting positions of each walker.
-	
-	pool: Pool or None
-		If provided, specifies the pool to use for parellilsation.
 
 	Returns
 	----------
@@ -666,7 +663,7 @@ def fit_schechter_mcmc(x, y, yerr, nwalkers, niter, initial, offsets=0.01, pool=
 			return lp + lnlike(theta, x, y, yerr)
 
 
-	def main(p0, nwalkers, niter, ndim, lnprob, data, pool=None):
+	def main(p0, nwalkers, niter, ndim, lnprob, data):
 		'''
 		Actually runs the MCMC to perform the fit.
 
@@ -692,11 +689,19 @@ def fit_schechter_mcmc(x, y, yerr, nwalkers, niter, initial, offsets=0.01, pool=
 			Contains (as three separate entries) the x values, the y values, and the uncertainties
 			in y.
 
-		pool: Pool or None
-			If provided, specifies the pool to use for parellilsation.
+		Returns
+		----------
+		best: array
+			Best-fit parameters.
+
+		e_lo: array
+			Lower uncertainties on the best-fit parameters.
+
+		e_hi: array
+			Upper uncertainties on the best-fit parameters.
 		'''
 
-		sampler = emcee.EnsembleSampler(nwalkers, ndim, lnprob, args=data, pool=pool)
+		sampler = emcee.EnsembleSampler(nwalkers, ndim, lnprob, args=data)
 
 		print("Running burn-in...")
 		p0, _, _ = sampler.run_mcmc(p0, 100)
@@ -720,7 +725,7 @@ def fit_schechter_mcmc(x, y, yerr, nwalkers, niter, initial, offsets=0.01, pool=
 	p0 = [np.array(initial) + offsets * np.random.randn(ndim) for i in range(nwalkers)]
 
 	data = (x, y, yerr)
-	sampler, pos, prob, state = main(p0,nwalkers,niter,ndim,lnprob,data,pool=pool)
+	sampler, pos, prob, state = main(p0,nwalkers,niter,ndim,lnprob,data)
 	samples = sampler.flatchain
 	#theta_max  = samples[np.argmax(sampler.flatlnprobability)]
 
