@@ -49,7 +49,7 @@ use_cat_from_paper = True		#use the unedited catalogue downloaded from the Simps
 use_S19_bins = True				#use the flux density bins from Simpson+19
 plot_positions = True			#plot positions of selected RQ galaxies with their search areas
 calc_coverage = True			#calculate the fractional coverage of all apertures placed
-independent_rq = False			#treat the RQ galaxies as independent (i.e. do not account for overlap between search areas)
+independent_rq = True			#treat the RQ galaxies as independent (i.e. do not account for overlap between search areas)
 comp_correct = True				#apply completeness corrections
 plot_cumulative = True			#plot cumulative number counts as well as differential
 combined_plot = True			#create plot(s) summarising the results from all targets
@@ -165,10 +165,15 @@ if use_S19_bins:
 	#bin widths
 	dS = S850_bin_edges[1:] - S850_bin_edges[:-1]
 else:
+	'''
 	#850 micron flux density bins to use for submm number counts
 	dS = 2.		#bin width (mJy)
 	S850_bin_centres = np.arange(2.5, 22.5, dS)
 	S850_bin_edges = np.append(S850_bin_centres-(dS/2.), S850_bin_centres[-1]+(dS/2.))
+	'''
+	S850_bin_edges = np.array([2., 3., 4., 6., 9., 13., 17., 22.])
+	S850_bin_centres = (S850_bin_edges[:-1] + S850_bin_edges[1:]) / 2.
+	dS = S850_bin_edges[1:] - S850_bin_edges[:-1]
 
 if fit_schechter:
 	#values at which the best-fit Schechter functions will be plotted
@@ -1490,13 +1495,17 @@ suffix = ''
 if not independent_rq:
 	suffix_overlap = '_overlap'
 	suffix += suffix_overlap
+else:
+	suffix_overlap = ''
 if randomise_fluxes:
 	suffix += '_randf'
 if comp_correct:
 	suffix += '_cc'
 
 #add the search radius to the file name
-suffix += f'_{R_arcmin:.1f}am'
+radius_text = f'_{R_arcmin:.1f}am'
+suffix += radius_text
+suffix_overlap += radius_text
 
 for i in range(len(ax1)):
 	for j in range(len(ax1[0])):
