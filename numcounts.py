@@ -13,6 +13,7 @@ from matplotlib.colors import LinearSegmentedColormap
 from astropy.table import Table
 from matplotlib.ticker import AutoMinorLocator
 import emcee
+import plotstyle as ps
 
 def FD_like(x, theta):
 	'''
@@ -807,6 +808,213 @@ def fit_schechter_mcmc(x, y, yerr, nwalkers, niter, initial, offsets=0.01, plot_
 					plot_kwargs['ax'].text(xtext, ytext, best_fit_str, color='k', ha='left', va='top', fontsize=fs, transform=transform)
 
 	return best, e_lo, e_hi
+
+
+def mask_numcounts(x, y, limits=True, exclude_all_zero=True, Smin=None):
+	'''
+	Creates masks for the number counts data to account for the various visualisation possibilities
+	- e.g. `normal' data points, data points excluded from subsequent analyses, limits. 
+
+	Parameters
+	----------
+	x: array-like
+		The x-values (flux density) for the number counts.
+
+	y: array-like
+		The y-values (dN/dS for differential or N(>S) for cumulative number counts).
+
+	limits: bool
+		Whether to replace with a limit the first zero bin outside the range of bins containing
+		data.
+
+	exclude_all_zero: bool
+		Whether to remove bins with zero sources even if they lie between two non-zero bins.
+
+	Smin: float or None
+		If provided, sets a flux density limit below which bins are to be excluded from subsequent
+		analyses.
+
+	Returns
+	-------
+	masks: tuple
+		Contains all the masks produced. By default this includes a mask for selecting `normal'
+		data points, and a mask for selecting bins below a flux limit (mask is all False if no
+		limit is provided, but optionally returns a mask for bins to be plotted as limits if told 
+		to do so.
+
+	'''
+
+	#make a boolean array initially filled with all True
+	true_array = np.full(len(x), True)
+
+	#indices of all bins containing sources
+	idx_data = np.where(y > 0)[0]
+
+	#make a copy for identifying `normal' data points
+	normal_data = true_array.copy()
+	
+	#remove sources according to the conditions provided
+	if exclude_all_zero:
+		zero_sources = y == 0.
+	else:
+		zero_sources = true_array.copy()
+		try:
+			zero_sources[idx_data.min():idx_data.max()+1] = False
+		except IndexError:
+			pass
+	normal_data *= ~zero_sources
+
+	if Smin is not None:
+		faint_bins = x < Smin
+	else:
+		faint_bins = ~true_array
+	normal_data *= ~faint_bins
+	
+	masks = (normal_data, faint_bins)
+	
+	if limits:
+		limits = ~true_array
+		try:
+			limits[idx_data.max()+1] = True
+		except IndexError:
+			pass
+		masks += (limits,)
+
+	return masks
+
+
+
+
+def plot_numcounts(x, y, xerr=None, yerr=None, ax=None, cumulative=False, masks=None, weights=None, offset=0., data_kwargs={}, ebar_kwargs={}, limit_kwargs={}, **plot_kwargs):
+	'''
+	Plots the number counts data, either on an existing set of axes or on a new figure.
+
+	Parameters
+	----------
+	x: array-like
+		The x-values (flux density) for the number counts.
+
+	y: array-like
+		The y-values (dN/dS for differential or N(>S) for cumulative number counts).
+
+	xerr: array-like or None
+		The x uncertainties on the data points.
+
+	yerr: array-like or None
+		The y uncertainties on the data points.
+
+	ax: Axes object or None
+		Axes on which the data should be plotted. If None will make a new figure and return it.
+	
+	cumulative: bool
+		Number counts are cumulative rather than differential
+
+	masks: array or tuple or None
+		Contains masks for different plotting conditions. If 1D, will only plot those bins as normal
+		data points. If 2D, the masks must follow the order of (1) normal data points, (2) faint bins,
+		and (3) limits.
+
+	weights: array-like or None
+		Weights used to convert from counts to bin heights - to be used when plotting limits.
+
+	offset: float
+		Offset to apply in the x-direction for all bins (used to avoid overlap between different
+		datasets).
+
+	data_kwargs: dict
+		Dictionary of kwargs for formatting the plotted data.
+
+	ebar_kwargs: dict
+		Dictionary of kwargs for formatting the plotted errorbars.
+
+	**plot_kwargs
+		Any remaining keyword arguments will be used to format the plot (if generated).
+
+	Returns
+	-------
+	f, ax: Figure and Axes
+		Returns the new figure and axes if produced.
+	'''
+
+	#see if a plotstyle has been provided
+	if 'plotstyle' in plot_kwargs:
+		plt.style.use(plot_kwargs['plotstyle'])
+	else:
+		plt.style.use(ps.styledict)
+
+	#see if a set of axes has been provided; if not, make a new figure
+	if ax is None:
+		f, ax = plt.subplots()
+		ax.set_xlabel(r'$S_{850~\mu{\rm m}}$ (mJy)')
+		if cumulative:
+			ax.set_ylabel(r'$N(>S)$ (deg$^{-2}$)')
+		else:
+			ax.set_ylabel(r'$dN/dS$ (deg$^{-2}$ mJy$^{-1}$)')
+		ax.set_xscale('log')
+		ax.set_yscale('log')
+
+	#if no errors provided in x and/or y, set them to zero
+	if xerr is None:
+		xerr = np.zeros((2,len(x)))
+	#if 1D array of uncertainties provided, broadcast to 2D for convenience
+	elif gen.get_ndim(xerr) == 1:
+		xerr = np.tile(xerr, (2,1))
+	if yerr is None:
+		yerr = np.zeros((2,len(x)))
+	#if 1D array of uncertainties provided, broadcast to 2D for convenience
+	elif gen.get_ndim(yerr) == 1:
+		yerr = np.tile(yerr, (2,1))
+
+	#apply the provided x-offset to the bins (accounting for log space)
+	x *= 10. ** offset
+
+	#see if any masks were provided
+	if masks is not None:
+		#find out if more than one mask was provided
+		ndim_masks = gen.get_ndim(masks)
+		#if only one provided, plot only these sources as normal data points
+		if ndim_masks == 1:
+			#plot these bins
+			ax.plot(x[masks], y[masks], **data_kwargs)
+			ax.errorbar(x[masks], y[masks], xerr=(xerr[0][masks], xerr[1][masks]), yerr=(yerr[0][masks], yerr[1][masks]), fmt='none', **ebar_kwargs)
+		#otherwise, use the first mask to plot the normal data points
+		else:
+			ax.plot(x[masks[0]], y[masks[0]], **data_kwargs)
+			ax.errorbar(x[masks[0]], y[masks[0]], xerr=(xerr[0][masks[0]], xerr[1][masks[0]]), yerr=(yerr[0][masks[0]], yerr[1][masks[0]]), fmt='none', **ebar_kwargs)
+			#see if a second mask has been provided
+			if len(masks) > 1:
+				#remove the 'label' keyword from data_kwargs if it exists
+				if 'label' in data_kwargs:
+					del data_kwargs['label']
+				#use the second mask to plot bins below a previously defined flux limit as open data points
+				ax.plot(x[masks[1]], y[masks[1]], mfc='none', **data_kwargs)
+				ax.errorbar(x[masks[1]], y[masks[1]], xerr=(xerr[0][masks[1]], xerr[1][masks[1]]), yerr=(yerr[0][masks[1]], yerr[1][masks[1]]), fmt='none', **ebar_kwargs)
+				#see if a third mask is provided
+				if len(masks) > 2:
+					#calculate the y-values at which these limits should be plotted
+					if weights is not None:
+						#use the third mask to plot bins as limits
+						lim_data, = ax.plot(x[masks[2]], weights[masks[2]], **data_kwargs)
+						#ensure the arrows have the same colour as the data points
+						limit_kwargs['color'] = lim_data.get_color()
+						ax.quiver(x[masks[2]], weights[masks[2]], 0., -1., **limit_kwargs)
+					#else:
+						#gen.error_message('numcounts.plot_numcounts', 'Need to provide weights in order to plot limits.')
+
+	#if no masks provided, just plot the data
+	else:
+		ax.plot(x, y, **data_kwargs)
+		ax.errorbar(x, y, xerr=xerr, yerr=yerr, fmt='none', **ebar_kwargs)
+
+
+	#if a new figure was made, return that and the axes
+	if 'f' in locals():
+		return f, ax
+	else:
+		return None
+
+
+
 
 
 

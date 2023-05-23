@@ -34,6 +34,11 @@ import emcee
 #formatting for graphs
 plt.style.use(ps.styledict)
 
+#formatting for arrows a la quiver
+arrow_settings = ps.arrow_settings
+#increase the arrow size from the default
+arrow_settings['scale'] /= 1.5
+arrow_settings['width'] *= 1.2
 
 ############################
 #### SETTINGS (GENERAL) ####
@@ -52,7 +57,8 @@ main_only = gen.main_only		#use only sources from the MAIN region of S2COSMOS fo
 randomise_fluxes = True			#randomly draw flux densities from possible values
 bin_by_mass = True				#bin galaxies by stellar mass as well as redshift
 fit_schechter = True			#fit Schechter finctions to the number counts
-repeat_sel = False				#perform the random RQ selection several times 
+exclude_faint = False			#exclude bins below a flux limit from Schechter fitting
+repeat_sel = False				#perform the random RQ selection several times
 settings = [
 	use_cat_from_paper,
 	use_S19_bins,
@@ -66,6 +72,7 @@ settings = [
 	randomise_fluxes,
 	bin_by_mass,
 	fit_schechter,
+	exclude_faint,
 	repeat_sel]
 
 #print the chosen settings to the Terminal
@@ -83,6 +90,7 @@ settings_print = [
 	'Randomise source flux densities for error analysis: ',
 	'Bin galaxies by stellar mass: ',
 	'Fit Schechter functions: ',
+	'Exclude faint bins from Schechter fits: ',
 	'Repeat the random selection of RQ galaxies several times: ']
 for i in range(len(settings_print)):
 	if settings[i]:
@@ -100,6 +108,13 @@ if randomise_fluxes:
 
 N_sel = gen.n_rq	#number of matched galaxies to use per RL galaxy when constructing the number counts
 settings_print.append(f'Number of RQ galaxies per RL galaxy: {N_sel}')
+
+#flux density limit below which bins will be excluded from Schechter fits
+if exclude_faint:
+	flux_lim = 3.	#mJy
+	settings_print.append(f'Flux density limit for bin inclusion: {flux_lim} mJy')
+else:
+	flux_lim = None
 
 nsamples = 100		#number of times to reselect RQ subsamples
 if repeat_sel:
@@ -209,9 +224,9 @@ coords_submm = SkyCoord(RA_submm, DEC_submm, unit='deg')
 
 if randomise_fluxes:
 	#see if file exists containing randomised flux densities already
-	npz_filename = PATH_CATS + 'S2COSMOS_randomised_S850.npz'
-	if os.path.exists(npz_filename):
-		rand_data = np.load(npz_filename)
+	S850_npz_filename = PATH_CATS + 'S2COSMOS_randomised_S850.npz'
+	if os.path.exists(S850_npz_filename):
+		rand_data = np.load(S850_npz_filename)
 		S850_rand = rand_data['S850_rand']
 	else:
 		S850_rand = np.array([stats.random_asymmetric_gaussian(S850[i], eS850_lo[i], eS850_hi[i], nsim) for i in range(len(S850))]).T
@@ -439,26 +454,67 @@ if bf_results:
 		A_bf = 2.6
 
 	#construct the differential number counts
-	N_bf, eN_bf_lo, eN_bf_hi, counts_bf, weights = nc.differential_numcounts(
+	N_bf, eN_bf_lo, eN_bf_hi, counts_bf, weights_bf = nc.differential_numcounts(
 		S850_rand,
 		S850_bin_edges,
 		A_bf,
 		comp=comp_submm,
 		incl_poisson=True)
-	xbins_bf = S850_bin_centres * 10. ** (0.004)
+
+	#create appropriate masks for plotting the data
+	plot_masks_bf = nc.mask_numcounts(S850_bin_centres, N_bf, limits=True, exclude_all_zero=True, Smin=flux_lim)
+
+	#xbins_bf = S850_bin_centres * 10. ** (0.004)
 	if combined_plot:
 		labels_ord_combined.append(label_bf)
-		ax4.plot(xbins_bf, N_bf, linestyle='none', marker='D', color=ps.crimson, label=label_bf)
-		ax4.errorbar(xbins_bf, N_bf, fmt='none', yerr=(eN_bf_lo,eN_bf_hi), ecolor=ps.crimson, elinewidth=2.)
+
+		#plot the number counts
+		nc.plot_numcounts(
+			S850_bin_centres,
+			N_bf,
+			yerr=(eN_bf_lo,eN_bf_hi),
+			ax=ax4,
+			offset=0.004,
+			masks=plot_masks_bf,
+			weights=weights_bf,
+			data_kwargs=dict(
+				color=ps.crimson,
+				label=label_bf,
+				linestyle='none',
+				marker='D'),
+			ebar_kwargs=dict(
+				ecolor=ps.crimson,
+				elinewidth=2.
+				),
+			limit_kwargs=arrow_settings
+			)
 
 	if plot_cumulative:
 		#calculate the cumulative counts
 		cumN_bf, ecumN_bf_lo, ecumN_bf_hi, cumcounts_bf = nc.cumulative_numcounts(counts=counts_bf, A=A_bf)
 		xbins_cumbf = S850_bin_edges[:-1] * 10. ** (0.004)
-
+		#create appropriate masks for plotting the data
+		plot_masks_bf_c = nc.mask_numcounts(S850_bin_edges[:-1], cumN_bf, limits=True, exclude_all_zero=True, Smin=flux_lim)
 		if combined_plot:
-			ax5.plot(xbins_cumbf, cumN_bf, linestyle='none', marker='D', color=ps.crimson, label=label_bf)
-			ax5.errorbar(xbins_cumbf, cumN_bf, fmt='none', yerr=(ecumN_bf_lo,ecumN_bf_hi), ecolor=ps.crimson, elinewidth=2.)
+			nc.plot_numcounts(
+				S850_bin_edges[:-1],
+				cumN_bf,
+				yerr=(ecumN_bf_lo,ecumN_bf_hi),
+				ax=ax5,
+				offset=0.004,
+				masks=plot_masks_bf_c,
+				weights=np.full(len(cumN_bf),A_bf),
+				data_kwargs=dict(
+					color=ps.crimson,
+					label=label_bf,
+					linestyle='none',
+					marker='D'),
+				ebar_kwargs=dict(
+					ecolor=ps.crimson,
+					elinewidth=2.
+					),
+				limit_kwargs=arrow_settings
+				)
 
 
 #########################################
@@ -524,11 +580,47 @@ for i in range(len(zbin_centres)):
 	#blank field  results
 	if bf_results:
 		labels_ord.append(label_bf)
-		ax1[row_z,col_z].plot(xbins_bf, N_bf, linestyle='none', marker='D', color=ps.grey, label=label_bf, alpha=0.5)
-		ax1[row_z,col_z].errorbar(xbins_bf, N_bf, fmt='none', yerr=(eN_bf_lo,eN_bf_hi), ecolor=ps.grey, elinewidth=2., alpha=0.5)
+		nc.plot_numcounts(
+			S850_bin_centres,
+			N_bf,
+			yerr=(eN_bf_lo,eN_bf_hi),
+			ax=ax1[row_z,col_z],
+			offset=0.004,
+			masks=plot_masks_bf,
+			weights=weights_bf,
+			data_kwargs=dict(
+				color=ps.grey,
+				label=label_bf,
+				linestyle='none',
+				marker='D',
+				alpha=0.5),
+			ebar_kwargs=dict(
+				ecolor=ps.grey,
+				alpha=0.5
+				),
+			limit_kwargs=arrow_settings
+			)
 		if plot_cumulative:
-			ax3[row_z,col_z].plot(xbins_cumbf, cumN_bf, linestyle='none', marker='D', color=ps.grey, label=label_bf, alpha=0.5)
-			ax3[row_z,col_z].errorbar(xbins_cumbf, cumN_bf, fmt='none', yerr=(ecumN_bf_lo,ecumN_bf_hi), ecolor=ps.grey, elinewidth=2., alpha=0.5)
+			nc.plot_numcounts(
+				S850_bin_edges[:-1],
+				cumN_bf,
+				yerr=(ecumN_bf_lo,ecumN_bf_hi),
+				ax=ax3[row_z,col_z],
+				offset=0.004,
+				masks=plot_masks_bf_c,
+				weights=np.full(len(cumN_bf),A_bf),
+				data_kwargs=dict(
+					color=ps.grey,
+					label=label_bf,
+					linestyle='none',
+					marker='D',
+					alpha=0.5),
+				ebar_kwargs=dict(
+					ecolor=ps.grey,
+					alpha=0.5
+					),
+				limit_kwargs=arrow_settings
+				)
 
 	#cycle through the RL galaxies in this redshift bin
 	for j in range(len(rl_zbin)):
@@ -607,6 +699,7 @@ for i in range(len(zbin_centres)):
 			comp=comp_matched_rl,
 			incl_poisson=True)
 
+		'''
 		#remove any bins with 0 sources
 		has_sources = N_rl > 0.
 		#has_sources = np.full(len(S850_bin_centres), True)
@@ -614,19 +707,62 @@ for i in range(len(zbin_centres)):
 		eN_rl_lo = eN_rl_lo[has_sources]
 		eN_rl_hi = eN_rl_hi[has_sources]
 		N_rl = N_rl[has_sources]
+		'''
+
+		#create masks for plotting
+		plot_masks_rl = nc.mask_numcounts(S850_bin_centres, N_rl, Smin=flux_lim)
 
 		if combined_plot:
-			ax4.plot(x_bins, N_rl, color=ps.grey, alpha=0.2)
+			nc.plot_numcounts(
+				S850_bin_centres,
+				N_rl,
+				ax=ax4,
+				offset=0.,
+				masks=plot_masks_rl,
+				data_kwargs=dict(
+					color=ps.grey,
+					alpha=0.2),
+				ebar_kwargs=dict(
+					ecolor=ps.grey,
+					alpha=0.2
+					),
+				limit_kwargs=arrow_settings
+				)
+			#ax4.plot(x_bins, N_rl, color=ps.grey, alpha=0.2)
 
 		#offset at which the points will be plotted relative to the bin centre (to avoid overlapping error bars)
-		x_bins = 10. ** (np.log10(x_bins) + 0.004 * ((-1.) ** ((j+1) % 2.)) * np.floor((j + 2.) / 2.))
+		#x_bins = 10. ** (np.log10(x_bins) + 0.004 * ((-1.) ** ((j+1) % 2.)) * np.floor((j + 2.) / 2.))
 		#x_bins += offset
-		
+		offset_rl = 0.004 * ((-1.) ** ((j+1) % 2.)) * np.floor((j + 2.) / 2.)
+
+		nc.plot_numcounts(
+			S850_bin_centres,
+			N_rl,
+			yerr=(eN_rl_lo,eN_rl_hi),
+			ax=ax1[row_z,col_z],
+			offset=offset_rl,
+			masks=plot_masks_rl,
+			weights=weights_rl,
+			data_kwargs=dict(
+				color=c_now,
+				label=ID,
+				linestyle='none',
+				marker=mkr_now,
+				ms=9.,
+				alpha=0.7),
+			ebar_kwargs=dict(
+				ecolor=c_now,
+				alpha=0.7
+				),
+			limit_kwargs=arrow_settings
+			)
+		'''
 		#plot the bin heights at the bin centres
 		ax1[row_z,col_z].plot(x_bins, N_rl, marker=mkr_now, color=c_now, label=ID, ms=9., alpha=0.7, linestyle='none')
 		#add errorbars
 		eN_rl_lo[eN_rl_lo == N_rl] *= 0.999		#prevents errors when logging plot
 		ax1[row_z,col_z].errorbar(x_bins, N_rl, fmt='none', yerr=(eN_rl_lo,eN_rl_hi), ecolor=c_now, alpha=0.7)
+		'''
 
 		#construct the cumulative number counts if told to do so
 		if plot_cumulative:
@@ -634,15 +770,59 @@ for i in range(len(zbin_centres)):
 				counts=counts_rl,
 				A=A_rl,
 				)
-			if combined_plot:
-				ax5.plot(S850_bin_edges[:-1], cumN_rl, color=ps.grey, alpha=0.2)
 
+			#create masks for plotting
+			plot_masks_rl_c = nc.mask_numcounts(S850_bin_edges[:-1], cumN_rl, Smin=flux_lim)
+
+			if combined_plot:
+				nc.plot_numcounts(
+					S850_bin_edges[:-1],
+					cumN_rl,
+					ax=ax5,
+					offset=0.,
+					masks=plot_masks_rl_c,
+					weights=np.full(len(cumN_rl),A_rl),
+					data_kwargs=dict(
+						color=ps.grey,
+						alpha=0.2),
+					ebar_kwargs=dict(
+						ecolor=ps.grey,
+						elinewidth=2.,
+						alpha=0.2
+						),
+					limit_kwargs=arrow_settings
+					)
+				#ax5.plot(S850_bin_edges[:-1], cumN_rl, color=ps.grey, alpha=0.2)
+
+			nc.plot_numcounts(
+				S850_bin_edges[:-1],
+				cumN_rl,
+				yerr=(ecumN_rl_lo,ecumN_rl_hi),
+				ax=ax3[row_z,col_z],
+				offset=offset_rl,
+				masks=plot_masks_rl_c,
+				weights=np.full(len(cumN_rl),A_rl),
+				data_kwargs=dict(
+					color=c_now,
+					label=ID,
+					linestyle='none',
+					marker=mkr_now,
+					ms=9.,
+					alpha=0.7),
+				ebar_kwargs=dict(
+					ecolor=c_now,
+					alpha=0.7
+					),
+				limit_kwargs=arrow_settings
+				)
+			'''
 			#plot the bin heights at the left bin edges
 			x_bins = 10. ** (np.log10(S850_bin_edges[:-1]) + 0.004 * ((-1.) ** ((j+1) % 2.)) * np.floor((j + 2.) / 2.))
 			ax3[row_z,col_z].plot(x_bins, cumN_rl, marker=mkr_now, color=c_now, label=ID, ms=9., alpha=0.7, linestyle='none')
 			#add errorbars
 			ecumN_rl_lo[ecumN_rl_lo == cumN_rl] *= 0.999		#prevents errors when logging plot
 			ax3[row_z,col_z].errorbar(x_bins, cumN_rl, fmt='none', yerr=(ecumN_rl_lo,ecumN_rl_hi), ecolor=c_now, alpha=0.7)
+			'''
 
 	#concatenate the arrays of indices of matched submm sources for this z bin
 	idx_matched_zbin = np.concatenate(idx_matched_zbin)
@@ -673,6 +853,7 @@ for i in range(len(zbin_centres)):
 		comp=comp_matched_zbin,
 		incl_poisson=True)
 
+	'''
 	#remove any bins with 0 sources
 	has_sources = N_zbin > 0.
 	#has_sources = np.full(len(S850_bin_centres), True)
@@ -680,12 +861,37 @@ for i in range(len(zbin_centres)):
 	eN_zbin_lo = eN_zbin_lo[has_sources]
 	eN_zbin_hi = eN_zbin_hi[has_sources]
 	N_zbin = N_zbin[has_sources]
+	'''
 
+	masks_zbin = nc.mask_numcounts(S850_bin_centres, N_zbin, Smin=flux_lim)
+	nc.plot_numcounts(
+		S850_bin_centres,
+		N_zbin,
+		yerr=(eN_zbin_lo,eN_zbin_hi),
+		ax=ax1[row_z,col_z],
+		offset=0.,
+		masks=masks_zbin,
+		weights=weights_zbin,
+		data_kwargs=dict(
+			color='k',
+			label='All',
+			linestyle='none',
+			marker='o',
+			ms=14.
+			),
+		ebar_kwargs=dict(
+			ecolor='k'
+			),
+		limit_kwargs=arrow_settings
+		)
+
+	'''
 	#plot the bin heights at the bin centres
 	ax1[row_z,col_z].plot(x_bins, N_zbin, marker='o', color='k', label='All', ms=14., linestyle='none')
 	#add errorbars
 	eN_zbin_lo[eN_zbin_lo == N_zbin] *= 0.999		#prevents errors when logging plot
 	ax1[row_z,col_z].errorbar(x_bins, N_zbin, fmt='none', yerr=(eN_zbin_lo,eN_zbin_hi), ecolor='k', elinewidth=2.4)
+	'''
 
 	#add text to the top right corner displaying the redshift bin
 	bin_text = r'$%.1f \leq z < %.1f$'%(z-dz/2.,z+dz/2.)
@@ -700,9 +906,9 @@ for i in range(len(zbin_centres)):
 	if fit_schechter:
 		#use MCMC to fit a Schechter function to the combined data for this redshift bin
 		popt_zbin, epopt_lo_zbin, epopt_hi_zbin = nc.fit_schechter_mcmc(
-			x_bins,
-			N_zbin,
-			(eN_zbin_lo+eN_zbin_hi)/2.,
+			S850_bin_centres[masks_zbin[0]],
+			N_zbin[masks_zbin[0]],
+			(eN_zbin_lo+eN_zbin_hi)[masks_zbin[0]]/2.,
 			nwalkers,
 			niter,
 			p0,
@@ -726,6 +932,7 @@ for i in range(len(zbin_centres)):
 			A=A_zbin,
 			)
 
+		'''
 		#remove any bins with 0 sources
 		has_sources = cumN_zbin > 0.
 		#has_sources = np.full(len(S850_bin_centres), True)
@@ -733,15 +940,40 @@ for i in range(len(zbin_centres)):
 		ecumN_zbin_lo = ecumN_zbin_lo[has_sources]
 		ecumN_zbin_hi = ecumN_zbin_hi[has_sources]
 		cumN_zbin = cumN_zbin[has_sources]
+		'''
 
+		masks_zbin_c = nc.mask_numcounts(S850_bin_edges[:-1], cumN_zbin, Smin=flux_lim)
+		nc.plot_numcounts(
+			S850_bin_edges[:-1],
+			cumN_zbin,
+			yerr=(ecumN_zbin_lo,ecumN_zbin_hi),
+			ax=ax3[row_z,col_z],
+			offset=0.,
+			masks=masks_zbin_c,
+			weights=np.full(len(cumN_zbin),A_zbin),
+			data_kwargs=dict(
+				color='k',
+				label='All',
+				linestyle='none',
+				marker='o',
+				ms=14.
+				),
+			ebar_kwargs=dict(
+				ecolor='k'
+				),
+			limit_kwargs=arrow_settings
+			)
+		
+		'''
 		if combined_plot:
 			ax5.plot(x_bins, cumN_zbin, color=ps.grey, alpha=0.2)
-
+		
 		#plot the bin heights at the left bin edges
 		ax3[row_z,col_z].plot(x_bins, cumN_zbin, marker='o', color='k', label='All', ms=14., linestyle='none')
 		#add errorbars
 		ecumN_zbin_lo[ecumN_zbin_lo == cumN_zbin] *= 0.999		#prevents errors when logging plot
 		ax3[row_z,col_z].errorbar(x_bins, cumN_zbin, fmt='none', yerr=(ecumN_zbin_lo,ecumN_zbin_hi), ecolor='k', elinewidth=2.4)
+		'''
 
 		#add text to the top right corner displaying the redshift bin
 		ax3[row_z,col_z].text(0.95, 0.95, bin_text, transform=ax3[row_z,col_z].transAxes, ha='right', va='top')
@@ -755,9 +987,9 @@ for i in range(len(zbin_centres)):
 		if fit_schechter:
 			#use MCMC to fit a Schechter function to the combined data for this redshift bin
 			popt_zbin_c, epopt_lo_zbin_c, epopt_hi_zbin_c = nc.fit_schechter_mcmc(
-				x_bins,
-				cumN_zbin,
-				(ecumN_zbin_lo+ecumN_zbin_hi)/2.,
+				S850_bin_edges[:-1][masks_zbin_c[0]],
+				cumN_zbin[masks_zbin_c[0]],
+				(ecumN_zbin_lo+ecumN_zbin_hi)[masks_zbin_c[0]]/2.,
 				nwalkers,
 				niter,
 				p0,
@@ -809,7 +1041,7 @@ if combined_plot:
 		A_ALL,
 		comp=comp_matched_ALL,
 		incl_poisson=True)
-
+	'''
 	#remove any bins with 0 sources
 	has_sources = N_ALL > 0.
 	#has_sources = np.full(len(S850_bin_centres), True)
@@ -823,7 +1055,29 @@ if combined_plot:
 	#add errorbars
 	eN_ALL_lo[eN_ALL_lo == N_ALL] *= 0.999		#prevents errors when logging plot
 	ax4.errorbar(x_bins, N_ALL, fmt='none', yerr=(eN_ALL_lo,eN_ALL_hi), ecolor='k', elinewidth=2.4)
+	'''
 
+	masks_ALL = nc.mask_numcounts(S850_bin_centres, N_ALL, Smin=flux_lim)
+	nc.plot_numcounts(
+		S850_bin_centres,
+		N_ALL,
+		yerr=(eN_ALL_lo,eN_ALL_hi),
+		ax=ax4,
+		offset=0.,
+		masks=masks_ALL,
+		weights=weights_ALL,
+		data_kwargs=dict(
+			color='k',
+			label=label_combined,
+			linestyle='none',
+			marker='o',
+			ms=11.
+			),
+		ebar_kwargs=dict(
+			ecolor='k'			
+			),
+		limit_kwargs=arrow_settings
+		)
 
 	#add a legend in the bottom left corner, removing duplicate labels
 	handles, labels = ax4.get_legend_handles_labels()
@@ -833,9 +1087,9 @@ if combined_plot:
 	if fit_schechter:
 		#use MCMC to fit a Schechter function to the combined data for this redshift bin
 		popt_ALL, epopt_lo_ALL, epopt_hi_ALL = nc.fit_schechter_mcmc(
-			x_bins,
-			N_ALL,
-			(eN_ALL_lo+eN_ALL_hi)/2.,
+			S850_bin_centres[masks_ALL[0]],
+			N_ALL[masks_ALL[0]],
+			(eN_ALL_lo+eN_ALL_hi)[masks_ALL[0]]/2.,
 			nwalkers,
 			niter,
 			p0,
@@ -847,7 +1101,7 @@ if combined_plot:
 			xyfont=(2., 40.),
 			fs=18.)
 		#add the line of best fit to the legend
-		by_label['All'] = Line2D([0], [0], color='k', marker='o', ms=14.)
+		by_label[label_combined] = Line2D([0], [0], color='k', marker='o', ms=14.)
 
 
 	ax4.legend([by_label[l] for l in labels_ord_combined], [l for l in labels_ord_combined], loc=3)
@@ -858,7 +1112,7 @@ if combined_plot:
 			counts=counts_ALL,
 			A=A_ALL,
 			)
-
+		'''
 		#remove any bins with 0 sources
 		has_sources = cumN_ALL > 0.
 		#has_sources = np.full(len(S850_bin_centres), True)
@@ -872,6 +1126,29 @@ if combined_plot:
 		#add errorbars
 		eN_ALL_lo[eN_ALL_lo == N_ALL] *= 0.999		#prevents errors when logging plot
 		ax5.errorbar(x_bins, cumN_ALL, fmt='none', yerr=(ecumN_ALL_lo,ecumN_ALL_hi), ecolor='k', elinewidth=2.4)
+		'''
+
+		masks_ALL_c = nc.mask_numcounts(S850_bin_edges[:-1], cumN_ALL, Smin=flux_lim)
+		nc.plot_numcounts(
+			S850_bin_edges[:-1],
+			cumN_ALL,
+			yerr=(ecumN_ALL_lo,ecumN_ALL_hi),
+			ax=ax5,
+			offset=0.,
+			masks=masks_ALL_c,
+			weights=np.full(len(cumN_ALL),A_ALL),
+			data_kwargs=dict(
+				color='k',
+				label=label_combined,
+				linestyle='none',
+				marker='o',
+				ms=11.
+				),
+			ebar_kwargs=dict(
+				ecolor='k'			
+				),
+			limit_kwargs=arrow_settings
+			)
 
 		#add a legend in the bottom left corner, removing duplicate labels
 		handles, labels = ax5.get_legend_handles_labels()
@@ -881,21 +1158,21 @@ if combined_plot:
 		if fit_schechter:
 			#use MCMC to fit a Schechter function to the combined data for this redshift bin
 			popt_ALL_c, epopt_lo_ALL_c, epopt_hi_ALL_c = nc.fit_schechter_mcmc(
-				x_bins,
-				cumN_ALL,
-				(ecumN_ALL_lo+ecumN_ALL_hi)/2.,
+				S850_bin_edges[:-1][masks_ALL_c[0]],
+				cumN_ALL[masks_ALL_c[0]],
+				(ecumN_ALL_lo+ecumN_ALL_hi)[masks_ALL_c[0]]/2.,
 				nwalkers,
 				niter,
 				p0,
 				offsets=offsets_init,
 				plot_on_axes=True,
-				ax=ax4,
+				ax=ax5,
 				x_range=x_range_fit,
 				add_text=True,
 				xyfont=(2., 80.),
 				fs=18.)
 			#add the line of best fit to the legend
-			by_label['All'] = Line2D([0], [0], color='k', marker='o', ms=14.)
+			by_label[label_combined] = Line2D([0], [0], color='k', marker='o', ms=14.)
 
 		ax5.legend([by_label[l] for l in labels_ord_combined], [l for l in labels_ord_combined], loc=3)
 
@@ -947,11 +1224,53 @@ if bin_by_mass:
 		#blank field  results
 		if bf_results:
 			labels_ord.append(label_bf)
-			ax6[i].plot(xbins_bf, N_bf, linestyle='none', marker='D', color=ps.grey, label=label_bf, alpha=0.5)
-			ax6[i].errorbar(xbins_bf, N_bf, fmt='none', yerr=(eN_bf_lo,eN_bf_hi), ecolor=ps.grey, elinewidth=2., alpha=0.5)
+			nc.plot_numcounts(
+				S850_bin_centres,
+				N_bf,
+				yerr=(eN_bf_lo,eN_bf_hi),
+				ax=ax6[i],
+				offset=0.004,
+				masks=plot_masks_bf,
+				weights=weights_bf,
+				data_kwargs=dict(
+					color=ps.grey,
+					label=label_bf,
+					linestyle='none',
+					marker='D',
+					alpha=0.5),
+				ebar_kwargs=dict(
+					ecolor=ps.grey,
+					elinewidth=2.,
+					alpha=0.5
+					),
+				limit_kwargs=arrow_settings
+				)
+			#ax6[i].plot(xbins_bf, N_bf, linestyle='none', marker='D', color=ps.grey, label=label_bf, alpha=0.5)
+			#ax6[i].errorbar(xbins_bf, N_bf, fmt='none', yerr=(eN_bf_lo,eN_bf_hi), ecolor=ps.grey, elinewidth=2., alpha=0.5)
 			if plot_cumulative:
-				ax7[i].plot(xbins_cumbf, cumN_bf, linestyle='none', marker='D', color=ps.grey, label=label_bf, alpha=0.5)
-				ax7[i].errorbar(xbins_cumbf, cumN_bf, fmt='none', yerr=(ecumN_bf_lo,ecumN_bf_hi), ecolor=ps.grey, elinewidth=2., alpha=0.5)
+					nc.plot_numcounts(
+						S850_bin_edges[:-1],
+						cumN_bf,
+						yerr=(ecumN_bf_lo,ecumN_bf_hi),
+						ax=ax7[i],
+						offset=0.004,
+						masks=plot_masks_bf_c,
+						weights=np.full(len(cumN_bf),A_bf),
+						data_kwargs=dict(
+							color=ps.grey,
+							label=label_bf,
+							linestyle='none',
+							marker='D',
+							alpha=0.5),
+						ebar_kwargs=dict(
+							ecolor=ps.grey,
+							elinewidth=2.,
+							alpha=0.5
+							),
+						limit_kwargs=arrow_settings
+						)
+				#ax7[i].plot(xbins_cumbf, cumN_bf, linestyle='none', marker='D', color=ps.grey, label=label_bf, alpha=0.5)
+				#ax7[i].errorbar(xbins_cumbf, cumN_bf, fmt='none', yerr=(ecumN_bf_lo,ecumN_bf_hi), ecolor=ps.grey, elinewidth=2., alpha=0.5)
 
 		#cycle through the RL galaxies in this redshift bin
 		for j in range(len(rl_Mbin)):
@@ -1015,7 +1334,7 @@ if bin_by_mass:
 				A_rl,
 				comp=comp_matched_rl,
 				incl_poisson=True)
-
+			'''
 			#remove any bins with 0 sources
 			has_sources = N_rl > 0.
 			#has_sources = np.full(len(S850_bin_centres), True)
@@ -1033,6 +1352,34 @@ if bin_by_mass:
 			#add errorbars
 			eN_rl_lo[eN_rl_lo == N_rl] *= 0.999		#prevents errors when logging plot
 			ax6[i].errorbar(x_bins, N_rl, fmt='none', yerr=(eN_rl_lo,eN_rl_hi), ecolor=c_now, alpha=0.7)
+			'''
+			
+			#create masks for plotting
+			plot_masks_rl = nc.mask_numcounts(S850_bin_centres, N_rl, Smin=flux_lim)
+			#x_bins += offset
+			offset_rl = 0.004 * ((-1.) ** ((j+1) % 2.)) * np.floor((j + 2.) / 2.)
+
+			nc.plot_numcounts(
+				S850_bin_centres,
+				N_rl,
+				yerr=(eN_rl_lo,eN_rl_hi),
+				ax=ax6[i],
+				offset=offset_rl,
+				masks=plot_masks_rl,
+				weights=weights_rl,
+				data_kwargs=dict(
+					color=c_now,
+					label=ID,
+					linestyle='none',
+					marker=mkr_now,
+					ms=9.,
+					alpha=0.7),
+				ebar_kwargs=dict(
+					ecolor=c_now,
+					alpha=0.7
+					),
+				limit_kwargs=arrow_settings
+				)
 
 			#construct the cumulative number counts if told to do so
 			if plot_cumulative:
@@ -1041,13 +1388,39 @@ if bin_by_mass:
 					A=A_rl,
 					)
 
+				#create masks for plotting
+				plot_masks_rl_c = nc.mask_numcounts(S850_bin_edges[:-1], cumN_rl, Smin=flux_lim)
+
+				nc.plot_numcounts(
+					S850_bin_edges[:-1],
+					cumN_rl,
+					yerr=(ecumN_rl_lo,ecumN_rl_hi),
+					ax=ax7[i],
+					offset=offset_rl,
+					masks=plot_masks_rl_c,
+					weights=np.full(len(cumN_rl),A_rl),
+					data_kwargs=dict(
+						color=c_now,
+						label=ID,
+						linestyle='none',
+						marker=mkr_now,
+						ms=9.,
+						alpha=0.7),
+					ebar_kwargs=dict(
+						ecolor=c_now,
+						alpha=0.7
+						),
+					limit_kwargs=arrow_settings
+					)
+
+				'''
 				#plot the bin heights at the left bin edges
 				x_bins = 10. ** (np.log10(S850_bin_edges[:-1]) + 0.004 * ((-1.) ** ((j+1) % 2.)) * np.floor((j + 2.) / 2.))
 				ax7[i].plot(x_bins, cumN_rl, marker=mkr_now, color=c_now, label=ID, ms=9., alpha=0.7, linestyle='none')
 				#add errorbars
 				ecumN_rl_lo[ecumN_rl_lo == cumN_rl] *= 0.999		#prevents errors when logging plot
 				ax7[i].errorbar(x_bins, cumN_rl, fmt='none', yerr=(ecumN_rl_lo,ecumN_rl_hi), ecolor=c_now, alpha=0.7)
-
+				'''
 		#concatenate the arrays of indices of matched submm sources for this z bin
 		idx_matched_Mbin = np.concatenate(idx_matched_Mbin)
 		
@@ -1076,7 +1449,7 @@ if bin_by_mass:
 			A_Mbin,
 			comp=comp_matched_Mbin,
 			incl_poisson=True)
-
+		'''
 		#remove any bins with 0 sources
 		has_sources = N_Mbin > 0.
 		#has_sources = np.full(len(S850_bin_centres), True)
@@ -1090,6 +1463,29 @@ if bin_by_mass:
 		#add errorbars
 		eN_Mbin_lo[eN_Mbin_lo == N_Mbin] *= 0.999		#prevents errors when logging plot
 		ax6[i].errorbar(x_bins, N_Mbin, fmt='none', yerr=(eN_Mbin_lo,eN_Mbin_hi), ecolor='k', elinewidth=2.4)
+		'''
+
+		plot_masks_Mbin = nc.mask_numcounts(S850_bin_centres, N_Mbin, Smin=flux_lim)
+		nc.plot_numcounts(
+			S850_bin_centres,
+			N_Mbin,
+			yerr=(eN_Mbin_lo,eN_Mbin_hi),
+			ax=ax6[i],
+			offset=0.,
+			masks=plot_masks_Mbin,
+			weights=weights_Mbin,
+			data_kwargs=dict(
+				color='k',
+				label='All',
+				linestyle='none',
+				marker='o',
+				ms=14.
+				),
+			ebar_kwargs=dict(
+				ecolor='k'
+				),
+			limit_kwargs=arrow_settings
+			)
 
 		#add text to the top right corner displaying the redshift bin
 		bin_text = f'{logM-dlogM/2:.1f}' + r' $< \log(M_{\star}/{\rm M}_{\odot}) <$ ' + f'{logM+dlogM/2.:.1f}'
@@ -1104,9 +1500,9 @@ if bin_by_mass:
 		if fit_schechter:
 			#use MCMC to fit a Schechter function to the combined data for this redshift bin
 			popt_Mbin, epopt_lo_Mbin, epopt_hi_Mbin = nc.fit_schechter_mcmc(
-				x_bins,
-				N_Mbin,
-				(eN_Mbin_lo+eN_Mbin_hi)/2.,
+				S850_bin_centres[plot_masks_Mbin[0]],
+				N_Mbin[plot_masks_Mbin[0]],
+				(eN_Mbin_lo+eN_Mbin_hi)[plot_masks_Mbin[0]]/2.,
 				nwalkers,
 				niter,
 				p0,
@@ -1115,7 +1511,7 @@ if bin_by_mass:
 				ax=ax6[i],
 				x_range=x_range_fit,
 				add_text=True,
-				xyfont=(2., 40.),
+				xyfont=(2., 100.),
 				fs=18.)
 			#add the line of best fit to the legend
 			by_label['All'] = Line2D([0], [0], color='k', marker='o', ms=14.)
@@ -1129,7 +1525,7 @@ if bin_by_mass:
 				counts=counts_Mbin,
 				A=A_Mbin,
 				)
-
+			'''
 			#remove any bins with 0 sources
 			has_sources = cumN_Mbin > 0.
 			#has_sources = np.full(len(S850_bin_centres), True)
@@ -1143,6 +1539,29 @@ if bin_by_mass:
 			#add errorbars
 			ecumN_Mbin_lo[ecumN_Mbin_lo == cumN_Mbin] *= 0.999		#prevents errors when logging plot
 			ax7[i].errorbar(x_bins, cumN_Mbin, fmt='none', yerr=(ecumN_Mbin_lo,ecumN_Mbin_hi), ecolor='k', elinewidth=2.4)
+			'''
+
+			plot_masks_Mbin_c = nc.mask_numcounts(S850_bin_edges[:-1], cumN_Mbin, Smin=flux_lim)
+			nc.plot_numcounts(
+				S850_bin_edges[:-1],
+				cumN_Mbin,
+				yerr=(ecumN_Mbin_lo,ecumN_Mbin_hi),
+				ax=ax7[i],
+				offset=0.,
+				masks=plot_masks_Mbin_c,
+				weights=np.full(len(cumN_Mbin),A_Mbin),
+				data_kwargs=dict(
+					color='k',
+					label='All',
+					linestyle='none',
+					marker='o',
+					ms=14.
+					),
+				ebar_kwargs=dict(
+					ecolor='k'
+					),
+				limit_kwargs=arrow_settings
+				)
 
 			#add text to the top right corner displaying the redshift bin
 			ax7[i].text(0.95, 0.95, bin_text, transform=ax7[i].transAxes, ha='right', va='top')
@@ -1155,9 +1574,9 @@ if bin_by_mass:
 			if fit_schechter:
 				#use MCMC to fit a Schechter function to the combined data for this redshift bin
 				popt_Mbin_c, epopt_lo_Mbin_c, epopt_hi_Mbin_c = nc.fit_schechter_mcmc(
-					x_bins,
-					cumN_Mbin,
-					(ecumN_Mbin_lo+ecumN_Mbin_hi)/2.,
+					S850_bin_edges[:-1][plot_masks_Mbin_c[0]],
+					cumN_Mbin[plot_masks_Mbin_c[0]],
+					(ecumN_Mbin_lo+ecumN_Mbin_hi)[plot_masks_Mbin_c[0]]/2.,
 					nwalkers,
 					niter,
 					p0,
@@ -1174,6 +1593,10 @@ if bin_by_mass:
 			ax7[i].legend([by_label[l] for l in labels_ord], [l for l in labels_ord], loc=3)
 
 print(gen.colour_string('Done!', 'purple'))
+
+
+
+
 
 ###########################################
 #### FINAL FORMATTING & SAVING FIGURES ####
@@ -1201,8 +1624,8 @@ for i in range(len(ax1)):
 		#set the minor tick locations on the x-axis
 		ax1[i,j].set_xticks(xtick_min_locs, labels=xtick_min_labels, minor=True)
 		#set the axes limits
-		ax1[i,j].set_xlim(1.5, 20.)
-		ax1[i,j].set_ylim(0.1, 2500.)
+		#ax1[i,j].set_xlim(1.5, 25.)
+		#ax1[i,j].set_ylim(0.1, 2500.)
 		#force matplotlib to label with the actual numbers
 		ax1[i,j].get_xaxis().set_major_formatter(mpl.ticker.StrMethodFormatter('{x:.0f}'))
 		ax1[i,j].get_yaxis().set_major_formatter(mpl.ticker.StrMethodFormatter('{x:g}'))
@@ -1232,8 +1655,8 @@ if plot_cumulative:
 			#set the minor tick locations on the x-axis
 			ax3[i,j].set_xticks(xtick_min_locs, labels=xtick_min_labels, minor=True)
 			#set the axes limits
-			ax3[i,j].set_xlim(1.5, 20.)
-			ax3[i,j].set_ylim(0.1, 4000.)
+			#ax3[i,j].set_xlim(1.5, 25.)
+			#ax3[i,j].set_ylim(0.1, 4000.)
 			#force matplotlib to label with the actual numbers
 			ax3[i,j].get_xaxis().set_major_formatter(mpl.ticker.StrMethodFormatter('{x:.0f}'))
 			ax3[i,j].get_yaxis().set_major_formatter(mpl.ticker.StrMethodFormatter('{x:g}'))
@@ -1249,8 +1672,8 @@ if combined_plot:
 	#set the minor tick locations on the x-axis
 	ax4.set_xticks(xtick_min_locs, labels=xtick_min_labels, minor=True)
 	#set the axes limits
-	ax4.set_xlim(1.5, 20.)
-	ax4.set_ylim(0.1, 2500.)
+	#ax4.set_xlim(1.5, 25.)
+	#ax4.set_ylim(0.1, 2500.)
 	#force matplotlib to label with the actual numbers
 	ax4.get_xaxis().set_major_formatter(mpl.ticker.StrMethodFormatter('{x:.0f}'))
 	ax4.get_yaxis().set_major_formatter(mpl.ticker.StrMethodFormatter('{x:g}'))
@@ -1266,8 +1689,8 @@ if combined_plot:
 		#set the minor tick locations on the x-axis
 		ax5.set_xticks(xtick_min_locs, labels=xtick_min_labels, minor=True)
 		#set the axes limits
-		ax5.set_xlim(1.5, 20.)
-		ax5.set_ylim(0.1, 4000.)
+		#ax5.set_xlim(1.5, 25.)
+		#ax5.set_ylim(0.1, 4000.)
 		#force matplotlib to label with the actual numbers
 		ax5.get_xaxis().set_major_formatter(mpl.ticker.StrMethodFormatter('{x:.0f}'))
 		ax5.get_yaxis().set_major_formatter(mpl.ticker.StrMethodFormatter('{x:g}'))
@@ -1285,8 +1708,8 @@ if bin_by_mass:
 		#set the minor tick locations on the x-axis
 		ax6[i].set_xticks(xtick_min_locs, labels=xtick_min_labels, minor=True)
 		#set the axes limits
-		ax6[i].set_xlim(1.5, 20.)
-		ax6[i].set_ylim(0.1, 2500.)
+		#ax6[i].set_xlim(1.5, 25.)
+		#ax6[i].set_ylim(0.1, 2500.)
 		#force matplotlib to label with the actual numbers
 		ax6[i].get_xaxis().set_major_formatter(mpl.ticker.StrMethodFormatter('{x:.0f}'))
 		ax6[i].get_yaxis().set_major_formatter(mpl.ticker.StrMethodFormatter('{x:g}'))
@@ -1303,8 +1726,8 @@ if bin_by_mass:
 			#set the minor tick locations on the x-axis
 			ax7[i].set_xticks(xtick_min_locs, labels=xtick_min_labels, minor=True)
 			#set the axes limits
-			ax7[i].set_xlim(1.5, 20.)
-			ax7[i].set_ylim(0.1, 4000.)
+			#ax7[i].set_xlim(1.5, 25.)
+			#ax7[i].set_ylim(0.1, 4000.)
 			#force matplotlib to label with the actual numbers
 			ax7[i].get_xaxis().set_major_formatter(mpl.ticker.StrMethodFormatter('{x:.0f}'))
 			ax7[i].get_yaxis().set_major_formatter(mpl.ticker.StrMethodFormatter('{x:g}'))

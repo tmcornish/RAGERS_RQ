@@ -62,12 +62,24 @@ grey = '#969696'
 
 #obtain the figure size in inches
 x_size, y_size = 8., 8.
+
 #formatting for any arrows to be added to the plot for representing upper/lower limits
 ax_frac = 1/40.				#the fraction of the y axis that the total length of a vertical arrow should occupy
 al = ax_frac * y_size		#the length of each arrow in inches (ew, but sadly metric isn't allowed)
 scale = 1./al				#'scale' parameter used for defining the length of each arrow in a quiver
-aw = 0.0175 * al				#the width of each arrow shaft in inches
+scale_units = 'inches'		#units of the scale parameter
+aw = 0.0175 * al			#the width of each arrow shaft in inches
 hw = 4.						#width of the arrowheads in units of shaft width
 hl = 3.						#length of the arrowheads in units of shaft width
 hal = 2.5					#length of the arrowheads at the point where they intersect the shaft 
 							#(e.g. hal = hl gives a triangular head, hal < hl gives a more pointed head)
+#put all of the above arrow settings into a dictionary
+arrow_settings = {
+	'scale' : scale,
+	'scale_units' : scale_units,
+	'width' : aw,
+	'headwidth' : hw,
+	'headlength' : hl,
+	'headaxislength' : hal
+}
+
