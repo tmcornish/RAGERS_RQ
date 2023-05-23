@@ -48,7 +48,8 @@ arrow_settings['width'] *= 1.2
 use_cat_from_paper = True		#use the unedited catalogue downloaded from the Simpson+19 paper website
 use_S19_bins = True				#use the flux density bins from Simpson+19
 plot_positions = True			#plot positions of selected RQ galaxies with their search areas
-independent_rq = True			#treat the RQ galaxies as independent (i.e. do not account for overlap between search areas)
+calc_coverage = True			#calculate the fractional coverage of all apertures placed
+independent_rq = False			#treat the RQ galaxies as independent (i.e. do not account for overlap between search areas)
 comp_correct = True				#apply completeness corrections
 plot_cumulative = True			#plot cumulative number counts as well as differential
 combined_plot = True			#create plot(s) summarising the results from all targets
@@ -62,7 +63,8 @@ repeat_sel = False				#perform the random RQ selection several times
 settings = [
 	use_cat_from_paper,
 	use_S19_bins,
-	plot_positions, 
+	plot_positions,
+	calc_coverage,
 	independent_rq, 
 	comp_correct,
 	plot_cumulative,
@@ -81,6 +83,7 @@ settings_print = [
 	'Use catalogue linked to Simpson+19 paper: ',
 	'Use flux density bins from Simpson+19: ', 
 	'Plot RQ galaxy positions: ',
+	'Calculate fractional coverage: ',
 	'Treat RQ galaxies independently: ',
 	'Apply completeness corrections: ',
 	'Plot cumulative number counts: ',
@@ -327,6 +330,18 @@ if bin_by_mass:
 		ax_big7.set_xlabel(r'$S_{850~\mu{\rm m}}$ (mJy)', labelpad=10.)
 		ax_big7.set_ylabel(r'$N(>S)$ (deg$^{-2}$)', labelpad=20.)
 
+
+#############################################
+#### SURVEY AREA BELOW SENSITIVITY LIMIT ####
+#############################################
+
+if calc_coverage:
+	#load the SCUBA-2 sensitivity map
+	SMAP_file = PATH_DATA + 'S2COSMOS_20180927_850_err_mf_crop.fits'
+	#calculate the area below the desired sensitivity limit and retrieve the coordinates of the map corners
+	A_survey, smap_sel, (RAmax_smap, RAmin_smap, DECmin_smap, DECmax_smap) = ast.area_within_sensitivity_limit(SMAP_file, gen.sens_lim, to_plot=True)
+
+
 ###########################################################
 #### RANDOMLY SELECTING RQ GALAXIES FOR EACH RL GALAXY ####
 ###########################################################
@@ -558,6 +573,10 @@ for i in range(len(zbin_centres)):
 	zmask = (RAGERS_zs >= (z - dz / 2.)) * (RAGERS_zs < (z + dz / 2.))
 	rl_zbin = RAGERS_IDs[zmask]
 
+	#if the survey area below the sensitivity limit has been calculated, display that area
+	if calc_coverage and plot_positions:
+		ax2[row_z,col_z].imshow(smap_sel, extent=(RAmax_smap, RAmin_smap, DECmin_smap, DECmax_smap), origin='lower', cmap='Greys', alpha=0.1, zorder=0)
+
 	##############################
 	#### RQ GALAXIES PER ZBIN ####
 	##############################
@@ -682,6 +701,11 @@ for i in range(len(zbin_centres)):
 			idx_matched_rl = np.unique(idx_matched_rl)
 			#calculate the area covered, accounting for overlap between apertures
 			A_rl = ast.apertures_area(coords_rq_rl, r=R_deg)
+			if calc_coverage and plot_positions:
+				#add text displaying the total fractional coverage
+				y_area = 0.02 + (len(rl_zbin) - j) * 0.04
+				A_frac = A_rl / A_survey
+				ax2[row_z,col_z].text(0.97, y_area, f'{A_frac:.4f}', color=c_now, transform=ax2[row_z,col_z].transAxes, ha='right', va='bottom', fontsize=14.)
 
 		#retrieve the flux densities and completenesses for the matched sources
 		if ndim == 2:
@@ -698,16 +722,6 @@ for i in range(len(zbin_centres)):
 			A_rl,
 			comp=comp_matched_rl,
 			incl_poisson=True)
-
-		'''
-		#remove any bins with 0 sources
-		has_sources = N_rl > 0.
-		#has_sources = np.full(len(S850_bin_centres), True)
-		x_bins = S850_bin_centres[has_sources]
-		eN_rl_lo = eN_rl_lo[has_sources]
-		eN_rl_hi = eN_rl_hi[has_sources]
-		N_rl = N_rl[has_sources]
-		'''
 
 		#create masks for plotting
 		plot_masks_rl = nc.mask_numcounts(S850_bin_centres, N_rl, Smin=flux_lim)
@@ -728,11 +742,8 @@ for i in range(len(zbin_centres)):
 					),
 				limit_kwargs=arrow_settings
 				)
-			#ax4.plot(x_bins, N_rl, color=ps.grey, alpha=0.2)
 
 		#offset at which the points will be plotted relative to the bin centre (to avoid overlapping error bars)
-		#x_bins = 10. ** (np.log10(x_bins) + 0.004 * ((-1.) ** ((j+1) % 2.)) * np.floor((j + 2.) / 2.))
-		#x_bins += offset
 		offset_rl = 0.004 * ((-1.) ** ((j+1) % 2.)) * np.floor((j + 2.) / 2.)
 
 		nc.plot_numcounts(
@@ -756,13 +767,6 @@ for i in range(len(zbin_centres)):
 				),
 			limit_kwargs=arrow_settings
 			)
-		'''
-		#plot the bin heights at the bin centres
-		ax1[row_z,col_z].plot(x_bins, N_rl, marker=mkr_now, color=c_now, label=ID, ms=9., alpha=0.7, linestyle='none')
-		#add errorbars
-		eN_rl_lo[eN_rl_lo == N_rl] *= 0.999		#prevents errors when logging plot
-		ax1[row_z,col_z].errorbar(x_bins, N_rl, fmt='none', yerr=(eN_rl_lo,eN_rl_hi), ecolor=c_now, alpha=0.7)
-		'''
 
 		#construct the cumulative number counts if told to do so
 		if plot_cumulative:
@@ -815,14 +819,7 @@ for i in range(len(zbin_centres)):
 					),
 				limit_kwargs=arrow_settings
 				)
-			'''
-			#plot the bin heights at the left bin edges
-			x_bins = 10. ** (np.log10(S850_bin_edges[:-1]) + 0.004 * ((-1.) ** ((j+1) % 2.)) * np.floor((j + 2.) / 2.))
-			ax3[row_z,col_z].plot(x_bins, cumN_rl, marker=mkr_now, color=c_now, label=ID, ms=9., alpha=0.7, linestyle='none')
-			#add errorbars
-			ecumN_rl_lo[ecumN_rl_lo == cumN_rl] *= 0.999		#prevents errors when logging plot
-			ax3[row_z,col_z].errorbar(x_bins, cumN_rl, fmt='none', yerr=(ecumN_rl_lo,ecumN_rl_hi), ecolor=c_now, alpha=0.7)
-			'''
+
 
 	#concatenate the arrays of indices of matched submm sources for this z bin
 	idx_matched_zbin = np.concatenate(idx_matched_zbin)
@@ -835,7 +832,13 @@ for i in range(len(zbin_centres)):
 	if not independent_rq:
 		idx_matched_zbin = np.unique(idx_matched_zbin)
 		#calculate the area covered, accounting for overlap between apertures
-		A_zbin = ast.apertures_area(coords_rq_zbin, r=R_deg, save_fig=True, figname=PATH_PLOTS+f'Aperture_positions_zbin{i+1}.png')
+		A_zbin = ast.apertures_area(coords_rq_zbin, r=R_deg, save_fig=True, figname=PATH_PLOTS+f'Aperture_positions_zbin{i+1}.png')	
+		if calc_coverage and plot_positions:
+			#add text displaying the total fractional coverage
+			y_header = 0.02 + (len(rl_zbin)+1) * 0.04
+			ax2[row_z,col_z].text(0.97, y_header, 'Fraction covered:', color='k', transform=ax2[row_z,col_z].transAxes, ha='right', va='bottom', fontsize=14.)
+			A_frac = A_zbin / A_survey
+			ax2[row_z,col_z].text(0.97, 0.02, f'{A_frac:.4f}', color='k', transform=ax2[row_z,col_z].transAxes, ha='right', va='bottom', fontsize=14.)
 
 	#retrieve the flux densities and completenesses for the matched sources
 	if ndim == 2:
@@ -853,15 +856,6 @@ for i in range(len(zbin_centres)):
 		comp=comp_matched_zbin,
 		incl_poisson=True)
 
-	'''
-	#remove any bins with 0 sources
-	has_sources = N_zbin > 0.
-	#has_sources = np.full(len(S850_bin_centres), True)
-	x_bins = S850_bin_centres[has_sources]
-	eN_zbin_lo = eN_zbin_lo[has_sources]
-	eN_zbin_hi = eN_zbin_hi[has_sources]
-	N_zbin = N_zbin[has_sources]
-	'''
 
 	masks_zbin = nc.mask_numcounts(S850_bin_centres, N_zbin, Smin=flux_lim)
 	nc.plot_numcounts(
@@ -885,13 +879,6 @@ for i in range(len(zbin_centres)):
 		limit_kwargs=arrow_settings
 		)
 
-	'''
-	#plot the bin heights at the bin centres
-	ax1[row_z,col_z].plot(x_bins, N_zbin, marker='o', color='k', label='All', ms=14., linestyle='none')
-	#add errorbars
-	eN_zbin_lo[eN_zbin_lo == N_zbin] *= 0.999		#prevents errors when logging plot
-	ax1[row_z,col_z].errorbar(x_bins, N_zbin, fmt='none', yerr=(eN_zbin_lo,eN_zbin_hi), ecolor='k', elinewidth=2.4)
-	'''
 
 	#add text to the top right corner displaying the redshift bin
 	bin_text = r'$%.1f \leq z < %.1f$'%(z-dz/2.,z+dz/2.)
@@ -932,16 +919,6 @@ for i in range(len(zbin_centres)):
 			A=A_zbin,
 			)
 
-		'''
-		#remove any bins with 0 sources
-		has_sources = cumN_zbin > 0.
-		#has_sources = np.full(len(S850_bin_centres), True)
-		x_bins = S850_bin_edges[:-1][has_sources]
-		ecumN_zbin_lo = ecumN_zbin_lo[has_sources]
-		ecumN_zbin_hi = ecumN_zbin_hi[has_sources]
-		cumN_zbin = cumN_zbin[has_sources]
-		'''
-
 		masks_zbin_c = nc.mask_numcounts(S850_bin_edges[:-1], cumN_zbin, Smin=flux_lim)
 		nc.plot_numcounts(
 			S850_bin_edges[:-1],
@@ -964,17 +941,6 @@ for i in range(len(zbin_centres)):
 			limit_kwargs=arrow_settings
 			)
 		
-		'''
-		if combined_plot:
-			ax5.plot(x_bins, cumN_zbin, color=ps.grey, alpha=0.2)
-		
-		#plot the bin heights at the left bin edges
-		ax3[row_z,col_z].plot(x_bins, cumN_zbin, marker='o', color='k', label='All', ms=14., linestyle='none')
-		#add errorbars
-		ecumN_zbin_lo[ecumN_zbin_lo == cumN_zbin] *= 0.999		#prevents errors when logging plot
-		ax3[row_z,col_z].errorbar(x_bins, cumN_zbin, fmt='none', yerr=(ecumN_zbin_lo,ecumN_zbin_hi), ecolor='k', elinewidth=2.4)
-		'''
-
 		#add text to the top right corner displaying the redshift bin
 		ax3[row_z,col_z].text(0.95, 0.95, bin_text, transform=ax3[row_z,col_z].transAxes, ha='right', va='top')
 
@@ -1041,21 +1007,6 @@ if combined_plot:
 		A_ALL,
 		comp=comp_matched_ALL,
 		incl_poisson=True)
-	'''
-	#remove any bins with 0 sources
-	has_sources = N_ALL > 0.
-	#has_sources = np.full(len(S850_bin_centres), True)
-	x_bins = S850_bin_centres[has_sources]
-	eN_ALL_lo = eN_ALL_lo[has_sources]
-	eN_ALL_hi = eN_ALL_hi[has_sources]
-	N_ALL = N_ALL[has_sources]
-
-	#plot the bin heights at the bin centres
-	ax4.plot(x_bins, N_ALL, marker='o', color='k', label=label_combined, ms=11., linestyle='none')
-	#add errorbars
-	eN_ALL_lo[eN_ALL_lo == N_ALL] *= 0.999		#prevents errors when logging plot
-	ax4.errorbar(x_bins, N_ALL, fmt='none', yerr=(eN_ALL_lo,eN_ALL_hi), ecolor='k', elinewidth=2.4)
-	'''
 
 	masks_ALL = nc.mask_numcounts(S850_bin_centres, N_ALL, Smin=flux_lim)
 	nc.plot_numcounts(
@@ -1112,21 +1063,6 @@ if combined_plot:
 			counts=counts_ALL,
 			A=A_ALL,
 			)
-		'''
-		#remove any bins with 0 sources
-		has_sources = cumN_ALL > 0.
-		#has_sources = np.full(len(S850_bin_centres), True)
-		x_bins = S850_bin_edges[:-1][has_sources]
-		ecumN_ALL_lo = ecumN_ALL_lo[has_sources]
-		ecumN_ALL_hi = ecumN_ALL_hi[has_sources]
-		cumN_ALL = cumN_ALL[has_sources]
-
-		#plot the bin heights at the bin centres
-		ax5.plot(x_bins, cumN_ALL, marker='o', color='k', label=label_combined, ms=11., linestyle='none')
-		#add errorbars
-		eN_ALL_lo[eN_ALL_lo == N_ALL] *= 0.999		#prevents errors when logging plot
-		ax5.errorbar(x_bins, cumN_ALL, fmt='none', yerr=(ecumN_ALL_lo,ecumN_ALL_hi), ecolor='k', elinewidth=2.4)
-		'''
 
 		masks_ALL_c = nc.mask_numcounts(S850_bin_edges[:-1], cumN_ALL, Smin=flux_lim)
 		nc.plot_numcounts(
@@ -1334,25 +1270,7 @@ if bin_by_mass:
 				A_rl,
 				comp=comp_matched_rl,
 				incl_poisson=True)
-			'''
-			#remove any bins with 0 sources
-			has_sources = N_rl > 0.
-			#has_sources = np.full(len(S850_bin_centres), True)
-			x_bins = S850_bin_centres[has_sources]
-			eN_rl_lo = eN_rl_lo[has_sources]
-			eN_rl_hi = eN_rl_hi[has_sources]
-			N_rl = N_rl[has_sources]
 
-			#offset at which the points will be plotted relative to the bin centre (to avoid overlapping error bars)
-			x_bins = 10. ** (np.log10(x_bins) + 0.004 * ((-1.) ** ((j+1) % 2.)) * np.floor((j + 2.) / 2.))
-			#x_bins += offset
-			
-			#plot the bin heights at the bin centres
-			ax6[i].plot(x_bins, N_rl, marker=mkr_now, color=c_now, label=ID, ms=9., alpha=0.7, linestyle='none')
-			#add errorbars
-			eN_rl_lo[eN_rl_lo == N_rl] *= 0.999		#prevents errors when logging plot
-			ax6[i].errorbar(x_bins, N_rl, fmt='none', yerr=(eN_rl_lo,eN_rl_hi), ecolor=c_now, alpha=0.7)
-			'''
 			
 			#create masks for plotting
 			plot_masks_rl = nc.mask_numcounts(S850_bin_centres, N_rl, Smin=flux_lim)
@@ -1413,14 +1331,7 @@ if bin_by_mass:
 					limit_kwargs=arrow_settings
 					)
 
-				'''
-				#plot the bin heights at the left bin edges
-				x_bins = 10. ** (np.log10(S850_bin_edges[:-1]) + 0.004 * ((-1.) ** ((j+1) % 2.)) * np.floor((j + 2.) / 2.))
-				ax7[i].plot(x_bins, cumN_rl, marker=mkr_now, color=c_now, label=ID, ms=9., alpha=0.7, linestyle='none')
-				#add errorbars
-				ecumN_rl_lo[ecumN_rl_lo == cumN_rl] *= 0.999		#prevents errors when logging plot
-				ax7[i].errorbar(x_bins, cumN_rl, fmt='none', yerr=(ecumN_rl_lo,ecumN_rl_hi), ecolor=c_now, alpha=0.7)
-				'''
+
 		#concatenate the arrays of indices of matched submm sources for this z bin
 		idx_matched_Mbin = np.concatenate(idx_matched_Mbin)
 		
@@ -1449,21 +1360,6 @@ if bin_by_mass:
 			A_Mbin,
 			comp=comp_matched_Mbin,
 			incl_poisson=True)
-		'''
-		#remove any bins with 0 sources
-		has_sources = N_Mbin > 0.
-		#has_sources = np.full(len(S850_bin_centres), True)
-		x_bins = S850_bin_centres[has_sources]
-		eN_Mbin_lo = eN_Mbin_lo[has_sources]
-		eN_Mbin_hi = eN_Mbin_hi[has_sources]
-		N_Mbin = N_Mbin[has_sources]
-
-		#plot the bin heights at the bin centres
-		ax6[i].plot(x_bins, N_Mbin, marker='o', color='k', label='All', ms=14., linestyle='none')
-		#add errorbars
-		eN_Mbin_lo[eN_Mbin_lo == N_Mbin] *= 0.999		#prevents errors when logging plot
-		ax6[i].errorbar(x_bins, N_Mbin, fmt='none', yerr=(eN_Mbin_lo,eN_Mbin_hi), ecolor='k', elinewidth=2.4)
-		'''
 
 		plot_masks_Mbin = nc.mask_numcounts(S850_bin_centres, N_Mbin, Smin=flux_lim)
 		nc.plot_numcounts(
@@ -1525,21 +1421,6 @@ if bin_by_mass:
 				counts=counts_Mbin,
 				A=A_Mbin,
 				)
-			'''
-			#remove any bins with 0 sources
-			has_sources = cumN_Mbin > 0.
-			#has_sources = np.full(len(S850_bin_centres), True)
-			x_bins = S850_bin_edges[:-1][has_sources]
-			ecumN_Mbin_lo = ecumN_Mbin_lo[has_sources]
-			ecumN_Mbin_hi = ecumN_Mbin_hi[has_sources]
-			cumN_Mbin = cumN_Mbin[has_sources]
-
-			#plot the bin heights at the left bin edges
-			ax7[i].plot(x_bins, cumN_Mbin, marker='o', color='k', label='All', ms=14., linestyle='none')
-			#add errorbars
-			ecumN_Mbin_lo[ecumN_Mbin_lo == cumN_Mbin] *= 0.999		#prevents errors when logging plot
-			ax7[i].errorbar(x_bins, cumN_Mbin, fmt='none', yerr=(ecumN_Mbin_lo,ecumN_Mbin_hi), ecolor='k', elinewidth=2.4)
-			'''
 
 			plot_masks_Mbin_c = nc.mask_numcounts(S850_bin_edges[:-1], cumN_Mbin, Smin=flux_lim)
 			nc.plot_numcounts(
@@ -1607,7 +1488,8 @@ print(gen.colour_string('Formatting and saving figures...', 'purple'))
 #suffix to use for figure based on the operations performed
 suffix = ''
 if not independent_rq:
-	suffix += '_overlap'
+	suffix_overlap = '_overlap'
+	suffix += suffix_overlap
 if randomise_fluxes:
 	suffix += '_randf'
 if comp_correct:
@@ -1624,8 +1506,8 @@ for i in range(len(ax1)):
 		#set the minor tick locations on the x-axis
 		ax1[i,j].set_xticks(xtick_min_locs, labels=xtick_min_labels, minor=True)
 		#set the axes limits
-		#ax1[i,j].set_xlim(1.5, 25.)
-		#ax1[i,j].set_ylim(0.1, 2500.)
+		ax1[i,j].set_xlim(1.5, 25.)
+		ax1[i,j].set_ylim(0.05, 2500.)
 		#force matplotlib to label with the actual numbers
 		ax1[i,j].get_xaxis().set_major_formatter(mpl.ticker.StrMethodFormatter('{x:.0f}'))
 		ax1[i,j].get_yaxis().set_major_formatter(mpl.ticker.StrMethodFormatter('{x:g}'))
@@ -1643,7 +1525,7 @@ if plot_positions:
 			ax2[i,j].set_ylim(1.5, 3.)
 	#minimise unnecesary whitespace
 	f2.tight_layout()
-	figname = PATH_PLOTS + 'RQ_positions_with_search_areas.png'
+	figname = PATH_PLOTS + f'RQ_positions_with_search_areas{suffix_overlap}.png'
 	f2.savefig(figname, bbox_inches='tight', dpi=300)
 
 if plot_cumulative:
@@ -1655,8 +1537,8 @@ if plot_cumulative:
 			#set the minor tick locations on the x-axis
 			ax3[i,j].set_xticks(xtick_min_locs, labels=xtick_min_labels, minor=True)
 			#set the axes limits
-			#ax3[i,j].set_xlim(1.5, 25.)
-			#ax3[i,j].set_ylim(0.1, 4000.)
+			ax3[i,j].set_xlim(1.5, 25.)
+			ax3[i,j].set_ylim(0.05, 4000.)
 			#force matplotlib to label with the actual numbers
 			ax3[i,j].get_xaxis().set_major_formatter(mpl.ticker.StrMethodFormatter('{x:.0f}'))
 			ax3[i,j].get_yaxis().set_major_formatter(mpl.ticker.StrMethodFormatter('{x:g}'))
@@ -1672,8 +1554,8 @@ if combined_plot:
 	#set the minor tick locations on the x-axis
 	ax4.set_xticks(xtick_min_locs, labels=xtick_min_labels, minor=True)
 	#set the axes limits
-	#ax4.set_xlim(1.5, 25.)
-	#ax4.set_ylim(0.1, 2500.)
+	ax4.set_xlim(1.5, 25.)
+	ax4.set_ylim(0.05, 2500.)
 	#force matplotlib to label with the actual numbers
 	ax4.get_xaxis().set_major_formatter(mpl.ticker.StrMethodFormatter('{x:.0f}'))
 	ax4.get_yaxis().set_major_formatter(mpl.ticker.StrMethodFormatter('{x:g}'))
@@ -1689,8 +1571,8 @@ if combined_plot:
 		#set the minor tick locations on the x-axis
 		ax5.set_xticks(xtick_min_locs, labels=xtick_min_labels, minor=True)
 		#set the axes limits
-		#ax5.set_xlim(1.5, 25.)
-		#ax5.set_ylim(0.1, 4000.)
+		ax5.set_xlim(1.5, 25.)
+		ax5.set_ylim(0.05, 4000.)
 		#force matplotlib to label with the actual numbers
 		ax5.get_xaxis().set_major_formatter(mpl.ticker.StrMethodFormatter('{x:.0f}'))
 		ax5.get_yaxis().set_major_formatter(mpl.ticker.StrMethodFormatter('{x:g}'))
@@ -1708,8 +1590,8 @@ if bin_by_mass:
 		#set the minor tick locations on the x-axis
 		ax6[i].set_xticks(xtick_min_locs, labels=xtick_min_labels, minor=True)
 		#set the axes limits
-		#ax6[i].set_xlim(1.5, 25.)
-		#ax6[i].set_ylim(0.1, 2500.)
+		ax6[i].set_xlim(1.5, 25.)
+		ax6[i].set_ylim(0.05, 2500.)
 		#force matplotlib to label with the actual numbers
 		ax6[i].get_xaxis().set_major_formatter(mpl.ticker.StrMethodFormatter('{x:.0f}'))
 		ax6[i].get_yaxis().set_major_formatter(mpl.ticker.StrMethodFormatter('{x:g}'))
@@ -1726,8 +1608,8 @@ if bin_by_mass:
 			#set the minor tick locations on the x-axis
 			ax7[i].set_xticks(xtick_min_locs, labels=xtick_min_labels, minor=True)
 			#set the axes limits
-			#ax7[i].set_xlim(1.5, 25.)
-			#ax7[i].set_ylim(0.1, 4000.)
+			ax7[i].set_xlim(1.5, 25.)
+			ax7[i].set_ylim(0.05, 4000.)
 			#force matplotlib to label with the actual numbers
 			ax7[i].get_xaxis().set_major_formatter(mpl.ticker.StrMethodFormatter('{x:.0f}'))
 			ax7[i].get_yaxis().set_major_formatter(mpl.ticker.StrMethodFormatter('{x:g}'))

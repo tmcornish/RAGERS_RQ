@@ -578,6 +578,67 @@ def apertures_area(coords, r, RAstep=0.001, DECstep=0.001, use_nsteps=False, nst
 
 
 
+def area_within_sensitivity_limit(smap_file, sens_lim, to_plot=False):
+	'''
+	Using a sensitivity map, calculates area of the survey (in sq. deg.) with sensitivity below
+	a given limit (in mJy).
 
+	Parameters
+	----------
+	smap_file: str
+		Full path of the file containing the sensitivity map.
+
+	sens_lim: float
+		Sensitivity limit in mJy.
+
+	to_plot: bool
+		If True, will additionally return the (a) the 2D array indicating all pixels below the 
+		sensitivity limit, and (b) coordinates defining the corners of the sensitivity map as a tuple: 
+		(RA_max, RA_min, DEC_min, DEC_max). Convenient if using plt.imshow to display the desired area.
+
+	Returns
+	-------
+	A: float
+		Area covered by the apertures (in deg^2).
+
+
+
+	extent: tuple
+		If to_plot=True, additionally returns this tuple of coordinates defining the corners of
+		the sensitivity map: (RA_max, RA_min, DEC_min, DEC_max).
+	'''
+
+	smap = fits.open(smap_file)
+	#retrieve the data and header (NOTE: the main HDU has 3 axes but the third has one value labelled as 'wavelength' - not actually useful)
+	smap_data = smap[0].data
+	smap_hdr = smap[0].header
+	#create a wcs object for just the first 2 axes
+	w = wcs.WCS(smap_hdr, naxis=2)
+
+	#create a copy of the smap_data where everything below the sensitivity limit = 1 and everything above = 0
+	smap_sel = np.zeros(smap_data[0].shape)
+	smap_sel[smap_data[0] <= sens_lim] = 1.
+
+	#calculate the area of each pixel in sq. deg.
+	dRA = smap_hdr['CDELT1']
+	dDEC = smap_hdr['CDELT2']
+	A_pix = np.abs(dRA * dDEC)
+	#calculate the area of the survey that is below the sensitivity limit
+	A = smap_sel.sum() * A_pix
+
+	if to_plot:
+		#number of pixels in each dimension
+		NAXIS1 = smap_hdr['NAXIS1']
+		NAXIS2 = smap_hdr['NAXIS2']
+		#get the coordinates at the lower left and upper right corners of the S2COSMOS field
+		RA_max, DEC_min = w.wcs_pix2world(0.5, 0.5, 1)
+		RA_min, DEC_max = w.wcs_pix2world(NAXIS1+0.5, NAXIS2+0.5, 1)
+		#define the `extent' within which the data from the sensitivity map can be plotted with imshow
+		extent = (RA_max, RA_min, DEC_min, DEC_max)
+
+		return A, smap_sel, extent
+
+	else:
+		return A
 
 

@@ -190,7 +190,7 @@ print(gen.colour_string('Done!', 'purple'))
 print(gen.colour_string('Creating mask using SCUBA-2 sensitivity mask...', 'purple'))
 
 #set a sensitivity limit (mJy/beam)
-sensitivity_limit = 1.3
+sensitivity_limit = gen.sens_lim
 #load the SCUBA-2 sensitivity map
 SMAP_file = PATH_DATA + 'S2COSMOS_20180927_850_err_mf_crop.fits'
 smap = fits.open(SMAP_file)

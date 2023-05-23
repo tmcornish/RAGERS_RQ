@@ -30,6 +30,9 @@ n_rq = 10
 #whether or not to only use the MAIN S2COSMOS catalogue for blank-field calculations
 main_only = True
 
+#SCUBA-2 sensitivity limit (mJy) for searching for submm companions 
+sens_lim = 1.3
+
 #number of simulated datasets to generate when constructing number counts
 nsim = 10000
 
