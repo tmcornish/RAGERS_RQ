@@ -408,3 +408,32 @@ def poisson_errs_1sig(N):
 	elo, ehi = np.abs(np.array(poisson_CI_1sig(N)) - N)
 	return elo, ehi
 
+
+def vals_and_errs_from_dist(dist):
+	'''
+	Given a distribution of values, calculates the median along with upper and lower uncertainties.
+
+	Parameters
+	----------
+	dist: ND array
+		Distribution of values. If 2D, the various percentiles will be calculated along the first
+		axis.
+
+	Returns
+	-------
+	val: float or array
+		Median value(s) from the distribution(s).
+
+	elo: float or array
+		Lower uncertainties calculated from the distribution(s).
+
+	ehi: float or array
+		Upper uncertainties calculated from the distribution(s).
+	'''
+
+	val_lo, val, val_hi = np.percentile(dist, [p16, 50., p84], axis=0)
+	#calculate the uncertainties
+	elo = val - val_lo
+	ehi = val_hi - val
+
+	return val, elo, ehi

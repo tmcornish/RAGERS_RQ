@@ -190,22 +190,22 @@ def number_counts():
 	#cycle through the RAGERS RL IDs
 	for ID in RAGERS_IDs:
 		#get the indices in the catalogue for RQ galaxies matched to the current RL galaxy
-		idx_matched = np.where(data_rq['RAGERS_ID'] == ID)[0]
+		idx_matched = np.where(data_rq_copy['RAGERS_ID'] == ID)[0]
 		#number of RQ galaxies to select for the current RL galaxy
 		N_sel_now = min(len(idx_matched), N_sel)
 		#randomly select N_sel_now of these RQ galaxies
 		idx_sel = np.random.choice(idx_matched, size=N_sel_now, replace=False)
 		#create a table containing this subset of RQ galaxies and append it to the list defined prior to this loop
-		data_rq_sel = data_rq[idx_sel]
+		data_rq_sel = data_rq_copy[idx_sel]
 		data_rq_sub.append(data_rq_sel)
 		#create SkyCoord objects from these sources' coordinates
 		coords_rq_sel = SkyCoord(data_rq_sel['ALPHA_J2000'], data_rq_sel['DELTA_J2000'], unit='deg')
 		#create SkyCoord objects from the coordinates of all sources in the RQ catalogue
-		coords_rq_all = SkyCoord(data_rq['ALPHA_J2000'], data_rq['DELTA_J2000'], unit='deg')
+		coords_rq_all = SkyCoord(data_rq_copy['ALPHA_J2000'], data_rq_copy['DELTA_J2000'], unit='deg')
 		#cross-match between the two within a tiny tolereance to identify duplicates
 		idx_repeats, *_ = coords_rq_sel.search_around_sky(coords_rq_all, 0.0001*u.arcsec)
 		#remove these sources from the RQ catalogue to avoid selecting them for a subsequent RL galaxy
-		data_rq.remove_rows(np.unique(idx_repeats))
+		data_rq_copy.remove_rows(np.unique(idx_repeats))
 
 	#stack the tables in the list to get the data for all seleted RQ galaxies in one table
 	data_rq_sub = vstack(data_rq_sub)
@@ -245,7 +245,6 @@ def number_counts():
 		for j in range(len(rl_zbin)):
 			#get the RL ID
 			ID = rl_zbin[j]
-			print(ID)
 
 			#select the RQ galaxies corresponding to this RL source
 			mask_rq_rl = data_rq_zbin['RAGERS_ID'] == ID
@@ -489,12 +488,51 @@ else:
 #calculate how many times it needs to be run in order to meet the required number
 N_todo = nsamples - N_done
 
+print(gen.colour_string(f'Constructing number counts for {N_todo} samples...', 'purple'))
+print('Progress:')
 for n in range(N_todo):
 	number_counts()
 	progress = ((n + 1) / N_todo) * 100.
 	print(f'{progress:.1f}%')
 
+
+##################################################
+#### CALCULATING FINAL BIN HEIGHTS AND ERRORS ####
+##################################################
+
+print(gen.colour_string(f'Calculating final bin heights and errors...', 'purple'))
+
+#names to give the files containing the final bin heights and unertainties
+nc_npz_file_final = PATH_CATS + 'Differential_numcount_bins.npz'
+cc_npz_file_final = PATH_CATS + 'Cumulative_numcount_bins.npz'
+
+#set up dictionaries for these results
+nc_final = {'bin_edges' : nc_dict['bin_edges']}
+cc_final = {'bin_edges' : cc_dict['bin_edges']}
+
+#get the keys of everything except the bin edges
+nc_keys = [s for s in nc_dict.keys() if s != 'bin_edges']
+for k in nc_keys:
+	#retrieve the distribution of differential number counts and covert to a 2D numpy array
+	nc_dist = np.concatenate(nc_dict[k], axis=0)
+	#calculate the median and uncertainties
+	N_final, eN_final_lo, eN_final_hi = stats.vals_and_errs_from_dist(nc_dist)
+	#store these in the new dictionary
+	nc_final[k] = np.array([N_final, eN_final_lo, eN_final_hi])
+
+	#retrieve the distribution of cumulative number counts and covert to a 2D numpy array
+	cc_dist = np.concatenate(cc_dict[k], axis=0)
+	#calculate the median and uncertainties
+	N_final, eN_final_lo, eN_final_hi = stats.vals_and_errs_from_dist(cc_dist)
+	#store these in the new dictionary
+	cc_final[k] = np.array([N_final, eN_final_lo, eN_final_hi])
+
+
 #save the number count dictionaries as compressed numpy archives
 np.savez_compressed(nc_npz_file, **nc_dict)
 np.savez_compressed(cc_npz_file, **cc_dict)
+np.savez_compressed(nc_npz_file_final, **nc_final)
+np.savez_compressed(cc_npz_file_final, **cc_final)
+
+print(gen.colour_string(f'Done!', 'purple'))
 
