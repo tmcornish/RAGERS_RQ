@@ -21,20 +21,18 @@ PATH_CATS = PATH_RAGERS + '/Catalogues/'
 PATH_PLOTS = PATH_RAGERS + '/Plots/'
 PATH_DATA = PATH_RAGERS + '/Data/'
 
-#search radius to use when finding submm counterparts
-r_search = 6.
 
-#minimum number of RQ counterparts required per RL galaxy
-n_rq = 10
+#other settings
+r_search = 6.	#search radius to use when finding submm counterparts
+n_rq = 10		#minimum number of RQ counterparts required per RL galaxy
+sens_lim = 1.3	#SCUBA-2 sensitivity limit (mJy) for searching for submm companions 
+nsim = 10000	#number of simulated datasets to generate when constructing number counts
 
-#whether or not to only use the MAIN S2COSMOS catalogue for blank-field calculations
-main_only = True
+#blank-field data
+S19_cat = PATH_CATS + 'Simpson+19_S2COSMOS_source_cat.fits' # alternatively 'S2COSMOS_sourcecat850_Simpson18.fits'
+main_only = True	#whether or not to only use the MAIN S2COSMOS catalogue for blank-field calculations
+S19_results_file = PATH_CATS + 'Simpson+19_number_counts_tab.txt'	#number counts from Simpson+19
 
-#SCUBA-2 sensitivity limit (mJy) for searching for submm companions 
-sens_lim = 1.3
-
-#number of simulated datasets to generate when constructing number counts
-nsim = 10000
 
 ###################
 #### FUNCTIONS ####
@@ -286,4 +284,68 @@ def area_of_intersection(r_a, r_b, d):
 	A1 = (r1 ** 2.) * np.arccos(d1 / r1) - d1 * np.sqrt((r1 ** 2.) - (d1 ** 2.))
 	A2 = (r2 ** 2.) * np.arccos(d2 / r2) - d2 * np.sqrt((r2 ** 2.) - (d2 ** 2.))
 	return A1 + A2
+
+
+def get_relevant_cols_S19(data, main_only=False):
+	'''
+	Retrieves the columns containing the positions, deboosted S850 flux densities and uncertainties
+	of the submillimetre sources in the S2COSMOS catalogue.
+
+	Parameters
+	----------
+	data: astropy.table.Table
+		Table form of the S2COSMOS catalogue.
+
+	main_only: bool
+		Retrieves data for only the 'MAIN' sample if True.
+
+	Returns
+	-------
+	S850, eS850_lo, eS850_hi, RMS, RA, DEC: Columns
+		The relevant columns from the catalogue.
+	'''
+
+	#two possible catalogues exist, therefore one of two possibilities for some column names;
+	#make a dictionary for each set of column names
+	cols1 = {
+		'S850' : 'S850-deb',
+		'eS850_lo' : 'e_S850-deb',
+		'eS850_hi' : 'E_S850-deb',
+		'RMS' : 'e_S850-obs',
+		'Sample' : 'Sample',
+		'RA' : 'RA_deg',
+		'DEC' : 'DEC_deg'
+		}
+	cols2 = {
+		'S850' : 'S_deboost',
+		'eS850_lo' : 'S_deboost_errlo',
+		'eS850_hi' : 'S_deboost_errhi',
+		'RMS' : 'RMS',
+		'Sample' : 'CATTYPE',
+		'RA' : 'RA_deg',
+		'DEC' : 'DEC_deg'
+		}
+
+	#see which column name for flux density is in the data
+	if cols1['S850'] in data.colnames:
+		cols = cols1
+	else:
+		cols = cols2
+
+	#trim catalogue if told to use only the MAIN sample
+	if main_only:
+		data = data[data[cols['Sample']] == 'MAIN']
+
+	#retrieve the relevant columns
+	get_keys = ['S850', 'eS850_lo', 'eS850_hi', 'RMS', 'RA', 'DEC']
+	S850, eS850_lo, eS850_hi, RMS, RA, DEC = [data[cols[c]] for c in get_keys]
+
+	#see if a completeness column also exists
+	if 'Completeness' in data.colnames:
+		#return it along with everything else
+		comp = data['Completeness']
+		return S850, eS850_lo, eS850_hi, RMS, RA, DEC, comp		
+	else:
+		return S850, eS850_lo, eS850_hi, RMS, RA, DEC
+
 

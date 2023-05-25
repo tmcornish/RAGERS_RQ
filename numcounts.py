@@ -8,6 +8,7 @@ import numpy as np
 from scipy.interpolate import LinearNDInterpolator, interp1d
 import scipy.optimize as opt
 from scipy.stats import poisson
+import matplotlib as mpl
 from matplotlib import pyplot as plt
 from matplotlib.colors import LinearSegmentedColormap
 from astropy.table import Table
@@ -103,10 +104,20 @@ def recreate_S19_comp_grid(
 			interval = np.arange(0.1, 0.501, 0.001)[::-1]
 			colors = plt.cm.RdYlBu(interval)
 			cmap = LinearSegmentedColormap.from_list('name', colors)
+		#see if additional axes were provided for the completeness to be plotted on
 		if 'other_axes' in plot_kwargs:
 			ax_other = plot_kwargs['other_axes']
 		else:
 			ax_other = None
+		#see if a plotstyle was provided; otherwise use a preset one
+		if 'plotstyle' in plot_kwargs:
+			plt.style.use(plot_kwargs['plotstyle'])
+		else:
+			plt.style.use(ps.styledict)
+		#if not already using LaTeX formatting, do so
+		if not mpl.rcParams['text.usetex']:
+			mpl.rcParams['text.usetex'] = True
+
 
 	#######################
 	#### INTERPOLATION ####
@@ -215,10 +226,11 @@ def recreate_S19_comp_grid(
 			y_interp_list.append(y_interp_new)
 			values_list.append([xspace, Y_new, np.full(len(xspace), ctf)])
 		
-		if plot_grid:
-			ax.plot(xspace, Y_new, c='k', linestyle='--')
-			if ax_other is not None:
-				ax_other.plot(xspace, Y_new, c='k', linestyle='--')
+		if 'plot_extrap' in plot_kwargs:
+			if plot_grid and plot_kwargs['plot_extrap']:
+				ax.plot(xspace, Y_new, c='k', linestyle='--')
+				if ax_other is not None:
+					ax_other.plot(xspace, Y_new, c='k', linestyle='--')
 
 	#stack the results for each completeness curve
 	t_all = np.hstack(values_list)
@@ -330,7 +342,7 @@ def schechter_model(S, params):
 
 
 
-def differential_numcounts(S, bin_edges, A, comp=None, incl_poisson=True):
+def differential_numcounts(S, bin_edges, A, comp=None, incl_poisson=True, return_dist=False):
 	'''
 	Constructs differential number counts for a given set of flux densities. Optionally also
 	randomises the flux densities according to their uncertainties to get an estimate of the
@@ -353,6 +365,9 @@ def differential_numcounts(S, bin_edges, A, comp=None, incl_poisson=True):
 
 	incl_poisson: bool
 		Whether to include Poissonian uncertainties in the errorbars. 
+
+	return_dist: bool
+		If True, just returns the distributions of counts and bin heights.
 
 	Returns
 	----------
@@ -397,6 +412,10 @@ def differential_numcounts(S, bin_edges, A, comp=None, incl_poisson=True):
 			counts = np.array([np.histogram(S[i][nonzero_comp], bin_edges, weights=1./comp[nonzero_comp])[0] for i in range(len(S))])
 
 		N_rand = counts * weights
+		
+		if return_dist:
+			return N_rand, counts
+
 		#take the median values to be the true values and use the 16th and 84th percentiles to estiamte the uncertainties
 		N16, N, N84 = np.percentile(N_rand, q=[stats.p16, 50, stats.p84], axis=0)
 		eN_lo = N - N16
@@ -418,17 +437,19 @@ def differential_numcounts(S, bin_edges, A, comp=None, incl_poisson=True):
 
 		#convert to number density
 		N = counts * weights
+
+		if return_dist:
+			return N, counts
+
 		#Poissonian uncertainties
 		eN_lo, eN_hi = np.array(stats.poisson_errs_1sig(counts)) * weights
-
-
 
 	return N, eN_lo, eN_hi, counts, weights
 
 
 
 
-def cumulative_numcounts(counts=None, S=None, bin_edges=None, A=1., comp=None, incl_poisson=True):
+def cumulative_numcounts(counts=None, S=None, bin_edges=None, A=1., comp=None, incl_poisson=True, return_dist=False):
 	'''
 	Constructs cumulative number counts, either by taking the cumulative sum of the provided counts or,
 	if counts aren't provided, by calculating from scratch for a given set of flux densities.
@@ -457,6 +478,9 @@ def cumulative_numcounts(counts=None, S=None, bin_edges=None, A=1., comp=None, i
 
 	incl_poisson: bool
 		Whether to include Poissonian uncertainties in the errorbars. 
+
+	return_dist: bool
+		If True, just returns the distributions of counts and bin heights.
 
 	Returns
 	----------
@@ -506,6 +530,11 @@ def cumulative_numcounts(counts=None, S=None, bin_edges=None, A=1., comp=None, i
 	if ndim == 2:
 		#calculate the cumulative counts for each randomly generated dataset
 		cumcounts = np.cumsum(counts[:,::-1], axis=1)[:,::-1]
+		N_rand = cumcounts / A
+
+		if return_dist:
+			return N_rand, cumcounts
+
 		#take the median values to be the true values and use the 16th and 84th percentiles to estiamte the uncertainties
 		N16, N, N84 = np.percentile(cumcounts, q=[stats.p16, 50, stats.p84], axis=0) / A
 		eN_lo = N - N16
@@ -520,6 +549,10 @@ def cumulative_numcounts(counts=None, S=None, bin_edges=None, A=1., comp=None, i
 		#calculate the cumulative counts
 		cumcounts = np.cumsum(counts[::-1])[::-1]
 		N = cumcounts / A
+
+		if return_dist:
+			return N, cumcounts
+
 		eN_lo, eN_hi = np.array(stats.poisson_errs_1sig(cumcounts)) / A
 
 
@@ -527,7 +560,7 @@ def cumulative_numcounts(counts=None, S=None, bin_edges=None, A=1., comp=None, i
 
 
 
-def fit_schechter_mcmc(x, y, yerr, nwalkers, niter, initial, offsets=0.01, plot_on_axes=True, **plot_kwargs):
+def fit_schechter_mcmc(x, y, yerr, nwalkers, niter, initial, offsets=0.01, plot_on_axes=False, **plot_kwargs):
 	'''
 	Uses MCMC to fit a Schechter function to data.
 
@@ -744,10 +777,10 @@ def fit_schechter_mcmc(x, y, yerr, nwalkers, niter, initial, offsets=0.01, plot_
 	if plot_on_axes:
 		#see if a set of axes has been provided - if not, give error message
 		if 'ax' in plot_kwargs:
-			#see if linestyle, linewidth, colour, alpha and label were provided as kwargs
+			#see if linestyle, linewidth, colour, alpha, label and zorder were provided as kwargs
 			ls_key = [s for s in ['linestyle', 'ls'] if s in plot_kwargs]
 			lw_key = [s for s in ['linewidth', 'lw'] if s in plot_kwargs]
-			c_key = [s for s in ['colour', 'color' 'c'] if s in plot_kwargs]
+			c_key = [s for s in ['colour', 'color', 'c'] if s in plot_kwargs]
 			if len(ls_key) > 0:
 				ls = plot_kwargs[ls_key[0]]
 			else:
@@ -768,26 +801,36 @@ def fit_schechter_mcmc(x, y, yerr, nwalkers, niter, initial, offsets=0.01, plot_
 				label = plot_kwargs['label']
 			else:
 				label = ''
+			if 'zorder' in plot_kwargs:
+				zorder = plot_kwargs['zorder']
+			else:
+				zorder = 100
 
 			#see if a range of x-values has been provided
 			if 'x_range' in plot_kwargs:
 				x_range = plot_kwargs['x_range']
 			else:
 				x_range = np.linspace(2., 20., 100)
-			
+			#see if an offset has beeen provided to avoid overlapping curves
+			if 'x_offset' in plot_kwargs:
+				x_range_plot = x_range * 10. ** plot_kwargs['x_offset']
+			else:
+				x_range_plot = x_range[:]
+
 			#plot the line
-			plot_kwargs['ax'].plot(x_range, schechter_model(x_range, best), c=c, linestyle=ls, linewidth=lw, label=label)
+			plot_kwargs['ax'].plot(x_range_plot, schechter_model(x_range, best), c=c, linestyle=ls, linewidth=lw, label=label, zorder=zorder)
 
 			#see if told to also add text to the axes showing the best-fit values
 			if 'add_text' in plot_kwargs:
 				if plot_kwargs['add_text']:
-					#see if the fontsize and position of the text have been provided
+					#see if the fontsize, position and colour of the text have been provided
 					fs_key = [s for s in ['fontsize', 'fs'] if s in plot_kwargs]
 					pos_key = [s for s in ['fontposition', 'fp', 'xyfont'] if s in plot_kwargs]
+					fc_key = [s for s in ['fontcolour', 'fc'] if s in plot_kwargs]
 					if len(fs_key) > 0:
 						fs = plot_kwargs[fs_key[0]]
 					else:
-						ls = '-'
+						fs = 14.
 					if len(pos_key) > 0:
 						xtext, ytext = plot_kwargs[pos_key[0]]
 						if 'transform' in plot_kwargs:
@@ -798,6 +841,10 @@ def fit_schechter_mcmc(x, y, yerr, nwalkers, niter, initial, offsets=0.01, plot_
 					else:
 						xtext, ytext = 0.05, 0.5
 						transform = plot_kwargs['ax'].transAxes
+					if len(fc_key) > 0:
+						fc = plot_kwargs[fc_key[0]]
+					else:
+						fc = 'k'
 
 					best_fit_str = [
 						r'$N_{0} = %.0f^{+%.0f}_{-%.0f}$'%(best[0],e_hi[0],e_lo[0]),
@@ -805,7 +852,7 @@ def fit_schechter_mcmc(x, y, yerr, nwalkers, niter, initial, offsets=0.01, plot_
 						r'$\gamma = %.1f^{+%.1f}_{-%.1f}$'%(best[2],e_hi[2],e_lo[2])
 						]
 					best_fit_str = '\n'.join(best_fit_str)
-					plot_kwargs['ax'].text(xtext, ytext, best_fit_str, color='k', ha='left', va='top', fontsize=fs, transform=transform)
+					plot_kwargs['ax'].text(xtext, ytext, best_fit_str, color=fc, ha='left', va='top', fontsize=fs, transform=transform)
 
 	return best, e_lo, e_hi
 
@@ -966,7 +1013,7 @@ def plot_numcounts(x, y, xerr=None, yerr=None, ax=None, cumulative=False, masks=
 		yerr = np.tile(yerr, (2,1))
 
 	#apply the provided x-offset to the bins (accounting for log space)
-	x *= 10. ** offset
+	x_plot = x * 10. ** offset
 
 	#see if any masks were provided
 	if masks is not None:
@@ -975,29 +1022,29 @@ def plot_numcounts(x, y, xerr=None, yerr=None, ax=None, cumulative=False, masks=
 		#if only one provided, plot only these sources as normal data points
 		if ndim_masks == 1:
 			#plot these bins
-			ax.plot(x[masks], y[masks], **data_kwargs)
-			ax.errorbar(x[masks], y[masks], xerr=(xerr[0][masks], xerr[1][masks]), yerr=(yerr[0][masks], yerr[1][masks]), fmt='none', **ebar_kwargs)
+			ax.plot(x_plot[masks], y[masks], **data_kwargs)
+			ax.errorbar(x_plot[masks], y[masks], xerr=(xerr[0][masks], xerr[1][masks]), yerr=(yerr[0][masks], yerr[1][masks]), fmt='none', **ebar_kwargs)
 		#otherwise, use the first mask to plot the normal data points
 		else:
-			ax.plot(x[masks[0]], y[masks[0]], **data_kwargs)
-			ax.errorbar(x[masks[0]], y[masks[0]], xerr=(xerr[0][masks[0]], xerr[1][masks[0]]), yerr=(yerr[0][masks[0]], yerr[1][masks[0]]), fmt='none', **ebar_kwargs)
+			ax.plot(x_plot[masks[0]], y[masks[0]], **data_kwargs)
+			ax.errorbar(x_plot[masks[0]], y[masks[0]], xerr=(xerr[0][masks[0]], xerr[1][masks[0]]), yerr=(yerr[0][masks[0]], yerr[1][masks[0]]), fmt='none', **ebar_kwargs)
 			#see if a second mask has been provided
 			if len(masks) > 1:
 				#remove the 'label' keyword from data_kwargs if it exists
 				if 'label' in data_kwargs:
 					del data_kwargs['label']
 				#use the second mask to plot bins below a previously defined flux limit as open data points
-				ax.plot(x[masks[1]], y[masks[1]], mfc='none', **data_kwargs)
-				ax.errorbar(x[masks[1]], y[masks[1]], xerr=(xerr[0][masks[1]], xerr[1][masks[1]]), yerr=(yerr[0][masks[1]], yerr[1][masks[1]]), fmt='none', **ebar_kwargs)
+				ax.plot(x_plot[masks[1]], y[masks[1]], mfc='none', **data_kwargs)
+				ax.errorbar(x_plot[masks[1]], y[masks[1]], xerr=(xerr[0][masks[1]], xerr[1][masks[1]]), yerr=(yerr[0][masks[1]], yerr[1][masks[1]]), fmt='none', **ebar_kwargs)
 				#see if a third mask is provided
 				if len(masks) > 2:
 					#calculate the y-values at which these limits should be plotted
 					if weights is not None:
 						#use the third mask to plot bins as limits
-						lim_data, = ax.plot(x[masks[2]], weights[masks[2]], **data_kwargs)
+						lim_data, = ax.plot(x_plot[masks[2]], weights[masks[2]], **data_kwargs)
 						#ensure the arrows have the same colour as the data points
 						limit_kwargs['color'] = lim_data.get_color()
-						ax.quiver(x[masks[2]], weights[masks[2]], 0., -1., **limit_kwargs)
+						ax.quiver(x_plot[masks[2]], weights[masks[2]], 0., -1., **limit_kwargs)
 					#else:
 						#gen.error_message('numcounts.plot_numcounts', 'Need to provide weights in order to plot limits.')
 

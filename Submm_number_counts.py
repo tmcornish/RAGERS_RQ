@@ -46,7 +46,7 @@ arrow_settings['width'] *= 1.2
 
 #toggle `switches' for additional functionality
 use_cat_from_paper = True		#use the unedited catalogue downloaded from the Simpson+19 paper website
-use_S19_bins = True				#use the flux density bins from Simpson+19
+use_S19_bins = False				#use the flux density bins from Simpson+19
 plot_positions = True			#plot positions of selected RQ galaxies with their search areas
 calc_coverage = True			#calculate the fractional coverage of all apertures placed
 independent_rq = True			#treat the RQ galaxies as independent (i.e. do not account for overlap between search areas)
@@ -58,7 +58,7 @@ main_only = gen.main_only		#use only sources from the MAIN region of S2COSMOS fo
 randomise_fluxes = True			#randomly draw flux densities from possible values
 bin_by_mass = True				#bin galaxies by stellar mass as well as redshift
 fit_schechter = True			#fit Schechter finctions to the number counts
-exclude_faint = False			#exclude bins below a flux limit from Schechter fitting
+exclude_faint = True			#exclude bins below a flux limit from Schechter fitting
 repeat_sel = False				#perform the random RQ selection several times
 settings = [
 	use_cat_from_paper,
@@ -102,7 +102,9 @@ for i in range(len(settings_print)):
 		settings_print[i] += 'n'
 
 #radius of search area to use in the submm data
-R_arcmin = gen.r_search
+#R_arcmin = gen.r_search
+R_arcmin = 6.
+
 settings_print.append(f'Radius used to search for RQ companions (arcmin): {R_arcmin}')
 
 nsim = gen.nsim		#number of iterations to use if randomising the flux densities/completeness
@@ -153,17 +155,19 @@ R_deg = R_arcmin / 60.
 #area of aperture (sq. deg)
 A_sqdeg = np.pi * R_deg ** 2.
 
+#load the table summarising the nmber counts results
+S19_results_file = PATH_CATS + 'Simpson+19_number_counts_tab.txt'
+S19_results = Table.read(S19_results_file, format='ascii')
+#bin edges and centres for the differential number counts
+S19_bin_edges = np.concatenate([np.array(S19_results['S850']), [22.]])
+S19_bin_centres = (S19_bin_edges[:-1] + S19_bin_edges[1:]) / 2.
+dS_S19 = S19_bin_edges[1:] - S19_bin_edges[:-1]
+
 if use_S19_bins:
-	#load the table summarising the nmber counts results
-	S19_results_file = PATH_CATS + 'Simpson+19_number_counts_tab.txt'
-	S19_results = Table.read(S19_results_file, format='ascii')
-	#bin edges and centres for the differential number counts
-	S850_bin_edges = np.concatenate([np.array(S19_results['S850']), [22.]])
-	S850_bin_centres = (S850_bin_edges[:-1] + S850_bin_edges[1:]) / 2.
-	#delete the Table to conserve memory
-	del S19_results, S19_results_file
 	#bin widths
-	dS = S850_bin_edges[1:] - S850_bin_edges[:-1]
+	S850_bin_edges = S19_bin_edges[:]
+	S850_bin_centres = S19_bin_centres[:]
+	dS = dS_S19[:]
 else:
 	'''
 	#850 micron flux density bins to use for submm number counts
@@ -178,6 +182,10 @@ else:
 if fit_schechter:
 	#values at which the best-fit Schechter functions will be plotted
 	x_range_fit = np.linspace(S850_bin_edges.min(), S850_bin_edges.max(), 100)
+
+#make a dictionary for saving the results
+nc_results_dict = {'bin_edges' : S850_bin_edges}
+cc_results_dict = {'bin_edges' : S850_bin_edges}
 
 
 #######################################################
@@ -476,13 +484,13 @@ if bf_results:
 	#construct the differential number counts
 	N_bf, eN_bf_lo, eN_bf_hi, counts_bf, weights_bf = nc.differential_numcounts(
 		S850_rand,
-		S850_bin_edges,
+		S19_bin_edges,
 		A_bf,
 		comp=comp_submm,
 		incl_poisson=True)
 
 	#create appropriate masks for plotting the data
-	plot_masks_bf = nc.mask_numcounts(S850_bin_centres, N_bf, limits=True, exclude_all_zero=True, Smin=flux_lim)
+	plot_masks_bf = nc.mask_numcounts(S19_bin_centres, N_bf, limits=True, exclude_all_zero=True, Smin=flux_lim)
 
 	#xbins_bf = S850_bin_centres * 10. ** (0.004)
 	if combined_plot:
@@ -490,7 +498,7 @@ if bf_results:
 
 		#plot the number counts
 		nc.plot_numcounts(
-			S850_bin_centres,
+			S19_bin_centres,
 			N_bf,
 			yerr=(eN_bf_lo,eN_bf_hi),
 			ax=ax4,
@@ -501,23 +509,45 @@ if bf_results:
 				color=ps.crimson,
 				label=label_bf,
 				linestyle='none',
-				marker='D'),
+				marker='D',
+				zorder=100),
 			ebar_kwargs=dict(
 				ecolor=ps.crimson,
-				elinewidth=2.
+				elinewidth=2.,
+				zorder=99
 				),
 			limit_kwargs=arrow_settings
 			)
 
+		'''
+		if fit_schechter:
+			#use MCMC to fit a Schechter function to the combined data for this redshift bin
+			popt_bf, epopt_lo_bf, epopt_hi_bf = nc.fit_schechter_mcmc(
+				S850_bin_centres[plot_masks_bf[0]],
+				N_bf[plot_masks_bf[0]],
+				(eN_bf_lo+eN_bf_hi)[plot_masks_bf[0]]/2.,
+				nwalkers,
+				niter,
+				p0,
+				offsets=offsets_init,
+				plot_on_axes=True,
+				ax=ax4,
+				x_range=x_range_fit,
+				add_text=True,
+				xyfont=(10., 600.),
+				fs=18.,
+				fc=ps.crimson)
+		'''
+
 	if plot_cumulative:
 		#calculate the cumulative counts
 		cumN_bf, ecumN_bf_lo, ecumN_bf_hi, cumcounts_bf = nc.cumulative_numcounts(counts=counts_bf, A=A_bf)
-		xbins_cumbf = S850_bin_edges[:-1] * 10. ** (0.004)
+		xbins_cumbf = S19_bin_edges[:-1] * 10. ** (0.004)
 		#create appropriate masks for plotting the data
-		plot_masks_bf_c = nc.mask_numcounts(S850_bin_edges[:-1], cumN_bf, limits=True, exclude_all_zero=True, Smin=flux_lim)
+		plot_masks_bf_c = nc.mask_numcounts(S19_bin_edges[:-1], cumN_bf, limits=True, exclude_all_zero=True, Smin=flux_lim)
 		if combined_plot:
 			nc.plot_numcounts(
-				S850_bin_edges[:-1],
+				S19_bin_edges[:-1],
 				cumN_bf,
 				yerr=(ecumN_bf_lo,ecumN_bf_hi),
 				ax=ax5,
@@ -528,10 +558,12 @@ if bf_results:
 					color=ps.crimson,
 					label=label_bf,
 					linestyle='none',
-					marker='D'),
+					marker='D',
+					zorder=100),
 				ebar_kwargs=dict(
 					ecolor=ps.crimson,
-					elinewidth=2.
+					elinewidth=2.,
+					zorder=99
 					),
 				limit_kwargs=arrow_settings
 				)
@@ -605,7 +637,7 @@ for i in range(len(zbin_centres)):
 	if bf_results:
 		labels_ord.append(label_bf)
 		nc.plot_numcounts(
-			S850_bin_centres,
+			S19_bin_centres,
 			N_bf,
 			yerr=(eN_bf_lo,eN_bf_hi),
 			ax=ax1[row_z,col_z],
@@ -617,16 +649,18 @@ for i in range(len(zbin_centres)):
 				label=label_bf,
 				linestyle='none',
 				marker='D',
-				alpha=0.5),
+				alpha=0.8,
+				zorder=100),
 			ebar_kwargs=dict(
 				ecolor=ps.grey,
-				alpha=0.5
+				alpha=0.8,
+				zorder=99
 				),
 			limit_kwargs=arrow_settings
 			)
 		if plot_cumulative:
 			nc.plot_numcounts(
-				S850_bin_edges[:-1],
+				S19_bin_edges[:-1],
 				cumN_bf,
 				yerr=(ecumN_bf_lo,ecumN_bf_hi),
 				ax=ax3[row_z,col_z],
@@ -638,10 +672,12 @@ for i in range(len(zbin_centres)):
 					label=label_bf,
 					linestyle='none',
 					marker='D',
-					alpha=0.5),
+					alpha=0.8,
+					zorder=100),
 				ebar_kwargs=dict(
 					ecolor=ps.grey,
-					alpha=0.5
+					alpha=0.8,
+					zorder=99
 					),
 				limit_kwargs=arrow_settings
 				)
@@ -737,7 +773,6 @@ for i in range(len(zbin_centres)):
 				N_rl,
 				ax=ax4,
 				offset=0.,
-				masks=plot_masks_rl,
 				data_kwargs=dict(
 					color=ps.grey,
 					alpha=0.2),
@@ -765,10 +800,12 @@ for i in range(len(zbin_centres)):
 				linestyle='none',
 				marker=mkr_now,
 				ms=9.,
-				alpha=0.7),
+				alpha=0.7,
+				zorder=2),
 			ebar_kwargs=dict(
 				ecolor=c_now,
-				alpha=0.7
+				alpha=0.7,
+				zorder=1
 				),
 			limit_kwargs=arrow_settings
 			)
@@ -789,8 +826,6 @@ for i in range(len(zbin_centres)):
 					cumN_rl,
 					ax=ax5,
 					offset=0.,
-					masks=plot_masks_rl_c,
-					weights=np.full(len(cumN_rl),A_rl),
 					data_kwargs=dict(
 						color=ps.grey,
 						alpha=0.2),
@@ -798,8 +833,7 @@ for i in range(len(zbin_centres)):
 						ecolor=ps.grey,
 						elinewidth=2.,
 						alpha=0.2
-						),
-					limit_kwargs=arrow_settings
+						)
 					)
 				#ax5.plot(S850_bin_edges[:-1], cumN_rl, color=ps.grey, alpha=0.2)
 
@@ -817,10 +851,12 @@ for i in range(len(zbin_centres)):
 					linestyle='none',
 					marker=mkr_now,
 					ms=9.,
-					alpha=0.7),
+					alpha=0.7,
+					zorder=2),
 				ebar_kwargs=dict(
 					ecolor=c_now,
-					alpha=0.7
+					alpha=0.7,
+					zorder=1
 					),
 				limit_kwargs=arrow_settings
 				)
@@ -861,6 +897,8 @@ for i in range(len(zbin_centres)):
 		comp=comp_matched_zbin,
 		incl_poisson=True)
 
+	#save the results in the dictionary
+	nc_results_dict[f'zbin{i+1}'] = np.array([N_zbin, eN_zbin_lo, eN_zbin_hi])
 
 	masks_zbin = nc.mask_numcounts(S850_bin_centres, N_zbin, Smin=flux_lim)
 	nc.plot_numcounts(
@@ -876,10 +914,10 @@ for i in range(len(zbin_centres)):
 			label='All',
 			linestyle='none',
 			marker='o',
-			ms=14.
+			ms=14.,
 			),
 		ebar_kwargs=dict(
-			ecolor='k'
+			ecolor='k',
 			),
 		limit_kwargs=arrow_settings
 		)
@@ -924,6 +962,9 @@ for i in range(len(zbin_centres)):
 			A=A_zbin,
 			)
 
+		#save the results in the dictionary
+		cc_results_dict[f'zbin{i+1}'] = np.array([cumN_zbin, ecumN_zbin_lo, ecumN_zbin_hi])
+
 		masks_zbin_c = nc.mask_numcounts(S850_bin_edges[:-1], cumN_zbin, Smin=flux_lim)
 		nc.plot_numcounts(
 			S850_bin_edges[:-1],
@@ -938,10 +979,10 @@ for i in range(len(zbin_centres)):
 				label='All',
 				linestyle='none',
 				marker='o',
-				ms=14.
+				ms=14.,
 				),
 			ebar_kwargs=dict(
-				ecolor='k'
+				ecolor='k',
 				),
 			limit_kwargs=arrow_settings
 			)
@@ -1012,6 +1053,9 @@ if combined_plot:
 		A_ALL,
 		comp=comp_matched_ALL,
 		incl_poisson=True)
+
+	#save the results in the dictionary
+	nc_results_dict['ALL'] = np.array([N_ALL, eN_ALL_lo, eN_ALL_hi])
 
 	masks_ALL = nc.mask_numcounts(S850_bin_centres, N_ALL, Smin=flux_lim)
 	nc.plot_numcounts(
@@ -1091,6 +1135,9 @@ if combined_plot:
 			limit_kwargs=arrow_settings
 			)
 
+		#save the results in the dictionary
+		cc_results_dict['ALL'] = np.array([cumN_ALL, ecumN_ALL_lo, ecumN_ALL_hi])
+
 		#add a legend in the bottom left corner, removing duplicate labels
 		handles, labels = ax5.get_legend_handles_labels()
 		labels_ord = [s for s in labels_ord_combined if s in labels]
@@ -1166,7 +1213,7 @@ if bin_by_mass:
 		if bf_results:
 			labels_ord.append(label_bf)
 			nc.plot_numcounts(
-				S850_bin_centres,
+				S19_bin_centres,
 				N_bf,
 				yerr=(eN_bf_lo,eN_bf_hi),
 				ax=ax6[i],
@@ -1178,11 +1225,13 @@ if bin_by_mass:
 					label=label_bf,
 					linestyle='none',
 					marker='D',
-					alpha=0.5),
+					alpha=0.5,
+					zorder=100),
 				ebar_kwargs=dict(
 					ecolor=ps.grey,
 					elinewidth=2.,
-					alpha=0.5
+					alpha=0.5,
+					zorder=99
 					),
 				limit_kwargs=arrow_settings
 				)
@@ -1190,7 +1239,7 @@ if bin_by_mass:
 			#ax6[i].errorbar(xbins_bf, N_bf, fmt='none', yerr=(eN_bf_lo,eN_bf_hi), ecolor=ps.grey, elinewidth=2., alpha=0.5)
 			if plot_cumulative:
 					nc.plot_numcounts(
-						S850_bin_edges[:-1],
+						S19_bin_edges[:-1],
 						cumN_bf,
 						yerr=(ecumN_bf_lo,ecumN_bf_hi),
 						ax=ax7[i],
@@ -1202,11 +1251,13 @@ if bin_by_mass:
 							label=label_bf,
 							linestyle='none',
 							marker='D',
-							alpha=0.5),
+							alpha=0.5,
+							zorder=100),
 						ebar_kwargs=dict(
 							ecolor=ps.grey,
 							elinewidth=2.,
-							alpha=0.5
+							alpha=0.5,
+							zorder=99
 							),
 						limit_kwargs=arrow_settings
 						)
@@ -1366,6 +1417,9 @@ if bin_by_mass:
 			comp=comp_matched_Mbin,
 			incl_poisson=True)
 
+		#save the results in the dictionary
+		nc_results_dict[f'Mbin{i+1}'] = np.array([N_Mbin, eN_Mbin_lo, eN_Mbin_hi])
+
 		plot_masks_Mbin = nc.mask_numcounts(S850_bin_centres, N_Mbin, Smin=flux_lim)
 		nc.plot_numcounts(
 			S850_bin_centres,
@@ -1427,6 +1481,9 @@ if bin_by_mass:
 				A=A_Mbin,
 				)
 
+			#save the results in the dictionary
+			cc_results_dict[f'Mbin{i+1}'] = np.array([cumN_Mbin, ecumN_Mbin_lo, ecumN_Mbin_hi])
+
 			plot_masks_Mbin_c = nc.mask_numcounts(S850_bin_edges[:-1], cumN_Mbin, Smin=flux_lim)
 			nc.plot_numcounts(
 				S850_bin_edges[:-1],
@@ -1481,7 +1538,8 @@ if bin_by_mass:
 print(gen.colour_string('Done!', 'purple'))
 
 
-
+np.savez_compressed(PATH_CATS+f'Differential_numcounts_{R_arcmin:.1f}.npz', **nc_results_dict)
+np.savez_compressed(PATH_CATS+f'Cumulative_numcounts_{R_arcmin:.1f}.npz', **cc_results_dict)
 
 
 ###########################################
