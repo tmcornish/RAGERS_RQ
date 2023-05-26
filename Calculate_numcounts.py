@@ -60,7 +60,7 @@ def main():
 	#number of matched galaxies to use per RL galaxy when constructing the number counts
 	settings_print.append(f'Number of RQ galaxies per RL galaxy: {gen.n_rq}')
 
-	nsamples = 3		#number of times to reselect RQ subsamples
+	nsamples = 100		#number of times to reselect RQ subsamples
 	if repeat_sel:
 		settings_print.append(f'Number of times to select RQ samples: {nsamples}')
 	#only use one sample if told to not repeat the selection
@@ -239,6 +239,8 @@ def main():
 			except KeyError:
 				nc_dict_dists[k] = [nc_dist_now[k]]
 				cc_dict_dists[k] = [cc_dist_now[k]]
+		os.system(f'rm -f {nc_file} {cc_file}')
+		del nc_dist_now, cc_dist_now
 
 	#save the number count dictionaries as compressed numpy archives
 	np.savez_compressed(nc_npz_file, **nc_dict_dists)
