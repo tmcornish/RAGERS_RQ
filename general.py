@@ -16,10 +16,10 @@ import numpy as np
 #relevant directories
 PATH_RAGERS = '/Users/thomascornish/Desktop/PhD/RAGERS/'
 #PATH_RAGERS = '/home/cornisht/RAGERS/'
-PATH_SCRIPTS = PATH_RAGERS + '/Scripts/Analysis_repo/'
-PATH_CATS = PATH_RAGERS + '/Catalogues/'
-PATH_PLOTS = PATH_RAGERS + '/Plots/'
-PATH_DATA = PATH_RAGERS + '/Data/'
+PATH_SCRIPTS = PATH_RAGERS + 'Scripts/Analysis_repo/'
+PATH_CATS = PATH_RAGERS + 'Catalogues/'
+PATH_PLOTS = PATH_RAGERS + 'Plots/'
+PATH_DATA = PATH_RAGERS + 'Data/'
 
 
 #other settings
