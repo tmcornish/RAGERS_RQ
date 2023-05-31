@@ -12,6 +12,7 @@ import numpy as np
 import numcounts as nc
 import stats
 import astrometry as ast
+import multiprocessing as mp
 from multiprocessing import Pool, cpu_count, freeze_support
 from astropy import wcs
 from astropy.coordinates import SkyCoord
@@ -617,5 +618,6 @@ def number_counts_star(args):
 
 
 if __name__ == '__main__':
+	mp.set_start_method('spawn')
 	freeze_support()
 	main()
