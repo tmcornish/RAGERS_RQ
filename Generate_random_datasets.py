@@ -50,6 +50,7 @@ def main():
 	#relevant paths
 	PATH_CATS = gen.PATH_CATS
 	PATH_DATA = gen.PATH_DATA
+	PATH_SIMS = gen.PATH_SIMS
 
 	#S2COSMOS catalogue
 	S19_cat = gen.S19_cat
@@ -96,7 +97,7 @@ def main():
 	dict_rand = {'S850_rand':S850_rand}
 
 	#see if file exists containing randomised flux densities already
-	npz_filename = PATH_CATS + 'S2COSMOS_randomised_S850.npz'
+	npz_filename = PATH_SIMS + 'S2COSMOS_randomised_S850.npz'
 	if os.path.exists(npz_filename):
 		rand_data = np.load(npz_filename)
 		if 'S850_rand' in rand_data.files:
@@ -121,6 +122,10 @@ def main():
 			else:
 				comp_rand[:N_done] = comp_rand_old
 			dict_rand['comp_rand'] = comp_rand
+	
+	#if the parent directory doesn't even exist, make it
+	elif not os.path.exists(PATH_SIMS):
+		os.system(f'mkdir -p {PATH_SIMS}')
 
 	#calculate how many more datasets need to be generated to reach the required number
 	N_todo = nsim - N_done

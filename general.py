@@ -8,14 +8,25 @@ import matplotlib as mpl
 from astropy.io import fits
 import scipy.optimize as opt
 import numpy as np
+import platform
 
 ####################################
 #### RELEVANT PATHS & VARIABLES ####
 ####################################
 
+#get the platform on which this pipeline is being run
+pf = platform.platform().split('-')[0]
+
 #relevant directories
-PATH_RAGERS = '/Users/thomascornish/Desktop/PhD/RAGERS/'
-#PATH_RAGERS = '/home/cornisht/RAGERS/'
+if pf == 'macOS':
+	PATH_RAGERS = '/Users/thomascornish/Desktop/PhD/RAGERS/'
+	PATH_SIMS = PATH_RAGERS + 'Simulated_data/'
+elif pf == 'Linux':
+	PATH_RAGERS = '/home/cornisht/RAGERS/'
+	PATH_SIMS = '/media/cornisht/DATA/RAGERS/Simulated_data/'
+else:
+	PATH_RAGERS = './'
+	PATH_SIMS = PATH_RAGERS + 'Simulated_data/'
 PATH_SCRIPTS = PATH_RAGERS + 'Scripts/Analysis_repo/'
 PATH_CATS = PATH_RAGERS + 'Catalogues/'
 PATH_PLOTS = PATH_RAGERS + 'Plots/'

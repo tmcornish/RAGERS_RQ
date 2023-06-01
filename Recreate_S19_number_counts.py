@@ -90,10 +90,11 @@ PATH_RAGERS = gen.PATH_RAGERS
 PATH_CATS = gen.PATH_CATS
 PATH_DATA = gen.PATH_DATA
 PATH_PLOTS = gen.PATH_PLOTS
+PATH_SIMS = gen.PATH_SIMS
 
 if randomise_fluxes:
 	#see if file exists containing randomised flux densities already
-	npz_filename = PATH_CATS + 'S2COSMOS_randomised_S850.npz'
+	npz_filename = PATH_SIMS + 'S2COSMOS_randomised_S850.npz'
 	if not os.path.exists(npz_filename):
 		gen.error_message(sys.argv[0], 'No file found for randomised flux densities. Run step 2 of the pipeline to create one.')
 		exit()

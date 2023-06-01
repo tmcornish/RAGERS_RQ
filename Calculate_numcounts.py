@@ -19,272 +19,10 @@ from astropy.coordinates import SkyCoord
 from astropy import units as u
 from itertools import repeat
 import tqdm
+from memory_profiler import memory_usage
+import psutil
+from functools import partial
 
-
-def main():
-
-	##################
-	#### SETTINGS ####
-	##################
-
-	#toggle `switches' for additional functionality
-	use_S19_bins = True				#use the flux density bins from Simpson+19
-	independent_rq = True			#treat the RQ galaxies as independent (i.e. do not account for overlap between search areas)
-	comp_correct = True				#apply completeness corrections
-	main_only = gen.main_only		#use only sources from the MAIN region of S2COSMOS for blank-field results
-	repeat_sel = True				#perform the random RQ selection several times
-	settings = [
-		use_S19_bins,
-		independent_rq, 
-		comp_correct,
-		main_only,
-		repeat_sel]
-
-	#print the chosen settings to the Terminal
-	print(gen.colour_string('CHOSEN SETTINGS:', 'white'))
-	settings_print = [
-		'Use flux density bins from Simpson+19: ', 
-		'Treat RQ galaxies independently: ',
-		'Apply completeness corrections: ',
-		'Use MAIN region only (for blank-field results): ',
-		'Repeat the random selection of RQ galaxies several times: '
-		]
-	for i in range(len(settings_print)):
-		if settings[i]:
-			settings_print[i] += 'y'
-		else:
-			settings_print[i] += 'n'
-
-	#radius of search area to use in the submm data
-	settings_print.append(f'Radius used to search for RQ companions (arcmin): {gen.r_search}')
-
-	#number of matched galaxies to use per RL galaxy when constructing the number counts
-	settings_print.append(f'Number of RQ galaxies per RL galaxy: {gen.n_rq}')
-
-	nsamples = 100		#number of times to reselect RQ subsamples
-	if repeat_sel:
-		settings_print.append(f'Number of times to select RQ samples: {nsamples}')
-	#only use one sample if told to not repeat the selection
-	else:
-		nsamples = 1
-
-
-	print(gen.colour_string('\n'.join(settings_print), 'white'))
-
-
-
-	##################################
-	#### SETTINGS (NUMBER COUNTS) ####
-	##################################
-
-	if use_S19_bins:
-		#load the table summarising the nmber counts results
-		S19_results = Table.read(gen.S19_results_file, format='ascii')
-		#bin edges and centres for the differential number counts
-		S850_bin_edges = np.concatenate([np.array(S19_results['S850']), [22.]])
-		S850_bin_centres = (S850_bin_edges[:-1] + S850_bin_edges[1:]) / 2.
-		#delete the Table to conserve memory
-		del S19_results
-		#bin widths
-		dS = S850_bin_edges[1:] - S850_bin_edges[:-1]
-	else:
-		#850 micron flux density bins to use for submm number counts
-		dS = 2.		#bin width (mJy)
-		S850_bin_centres = np.arange(2.5, 22.5, dS)
-		S850_bin_edges = np.append(S850_bin_centres-(dS/2.), S850_bin_centres[-1]+(dS/2.))
-		'''
-		S850_bin_edges = np.array([2., 3., 4., 6., 9., 13., 17., 22.])
-		S850_bin_centres = (S850_bin_edges[:-1] + S850_bin_edges[1:]) / 2.
-		dS = S850_bin_edges[1:] - S850_bin_edges[:-1]
-		'''
-
-	#redshift bin edges
-	zbin_edges = np.arange(1., 3.5, 0.5)
-	#stellar mass bin edges
-	Mbin_edges = np.array([11., 11.2, 11.4, 11.7])
-
-	#######################################################
-	###############    START OF SCRIPT    #################
-	#######################################################
-
-	#catalogue containing data for (radio-quiet) galaxies from COSMOS2020 matched in M* and z with the radio-loud sample
-	RQ_CAT = gen.PATH_CATS + 'RAGERS_COSMOS2020_matches_Mstar_z.fits'
-	data_rq = Table.read(RQ_CAT, format='fits')
-	#get the RAs and DECs
-	RA_rq = data_rq['ALPHA_J2000']
-	DEC_rq = data_rq['DELTA_J2000']
-	#convert these into SkyCoord objects
-	coords_rq = SkyCoord(RA_rq, DEC_rq, unit='deg')
-
-	#retrieve relevant data from catalogue containing submm data for S2COSMOS sources
-	data_submm = Table.read(gen.S19_cat, format='fits')
-	S850, eS850_lo, eS850_hi, RMS, RA_submm, DEC_submm, comp_cat = gen.get_relevant_cols_S19(data_submm, main_only=main_only)
-	#create SkyCoord objects from RA and Dec.
-	coords_submm = SkyCoord(RA_submm, DEC_submm, unit='deg')
-
-	#attempt to retrieve randomised flux densities and completenesses from an existing file
-	S850_npz_file = gen.PATH_CATS + 'S2COSMOS_randomised_S850.npz'
-	if os.path.exists(S850_npz_file):
-		rand_data = np.load(S850_npz_file)
-		if 'S850_rand' in rand_data.files:
-			S850_rand = rand_data['S850_rand']
-		else:
-			S850_rand = S850[:]
-		if comp_correct:
-			if 'comp_rand' in rand_data.files:
-				comp_rand = rand_data['comp_rand']
-			else:
-				comp_rand = comp_cat[:]
-		else:
-			comp_rand = np.ones(S850_rand.shape)
-	#if the file doesn't exist, just use the catalogue values
-	else:
-		S850_rand = S850[:]
-		if comp_correct:
-			comp_rand = comp_cat[:]
-		else:
-			comp_rand = np.ones(comp_cat)
-
-
-	#retrieve a list of the unique RAGERS IDs from the catalogue and the number of matches
-	RAGERS_IDs, idx_unique, n_rq_per_rl = np.unique(data_rq['RAGERS_ID'], return_index=True, return_counts=True)
-	#sort the IDs in order of increasing number of RQ matches
-	idx_ordered = np.argsort(n_rq_per_rl)
-	RAGERS_IDs = RAGERS_IDs[idx_ordered]
-	#also get lists of the RAGERS RL redshifts and stellar masses and order them
-	RAGERS_zs = data_rq['RAGERS_z'][idx_unique]
-	RAGERS_zs = RAGERS_zs[idx_ordered]
-	RAGERS_Ms = data_rq['RAGERS_logMstar'][idx_unique]
-	RAGERS_Ms = RAGERS_Ms[idx_ordered]
-	RAGERS_info = [RAGERS_IDs, RAGERS_zs, RAGERS_Ms]
-
-	#see if files exist containing the differential/cumulative number count distributions in each bin
-	PATH_NC_DISTS = gen.PATH_CATS + 'Differential_numcount_dists/'
-	if not os.path.exists(PATH_NC_DISTS):
-		os.system(f'mkdir -p {PATH_NC_DISTS}')
-	PATH_CC_DISTS = gen.PATH_CATS + 'Cumulative_numcount_dists/'
-	if not os.path.exists(PATH_CC_DISTS):
-		os.system(f'mkdir -p {PATH_CC_DISTS}')
-
-	nc_npz_file = PATH_NC_DISTS + 'All_samples.npz'
-	if os.path.exists(nc_npz_file):
-		nc_dict_dists = np.load(nc_npz_file)
-		nc_dict_dists = dict(zip(nc_dict_dists.files, [nc_dict_dists[f] for f in nc_dict_dists.files]))
-	else:
-		nc_dict_dists = {'bin_edges' : S850_bin_edges}
-	cc_npz_file = PATH_CC_DISTS + 'All_samples.npz'
-	if os.path.exists(cc_npz_file):
-		cc_dict_dists = np.load(cc_npz_file)
-		cc_dict_dists = dict(zip(cc_dict_dists.files, [cc_dict_dists[f] for f in cc_dict_dists.files]))
-	else:
-		cc_dict_dists = {'bin_edges' : S850_bin_edges}
-
-
-	#find out how many times the above method has been run in the past
-	if 'ALL' in nc_dict_dists:
-		N_done = len(nc_dict_dists['ALL'])
-	else:
-		N_done = 0
-	#calculate how many times it needs to be run in order to meet the required number
-	N_todo = nsamples - N_done
-
-	print(gen.colour_string(f'Constructing number counts for {N_todo} samples...', 'purple'))
-	'''
-	print('Progress:')
-	for n in range(N_todo):
-		number_counts(data_rq,
-			RAGERS_info,
-			nc_dict,
-			cc_dict_dists,
-			zbin_edges,
-			Mbin_edges,
-			independent_rq)
-		progress = ((n + 1) / N_todo) * 100.
-		print(f'{progress:.1f}%')
-	'''
-	nc_args = zip(
-		repeat(S850_rand,N_todo),
-		repeat(S850_bin_edges,N_todo),
-		repeat(comp_rand,N_todo),
-		repeat(data_rq,N_todo),
-		repeat(RAGERS_info,N_todo),
-		repeat(coords_submm,N_todo),
-		repeat(zbin_edges,N_todo),
-		repeat(Mbin_edges,N_todo),
-		repeat(independent_rq,N_todo),
-		range(N_todo),
-		repeat(PATH_NC_DISTS,N_todo),
-		repeat(PATH_CC_DISTS,N_todo)
-		)
-	with Pool(cpu_count()-1) as pool:
-		#results = pool.starmap(number_counts, tqdm.tqdm(nc_args, total=N_todo))
-		results_files = list(tqdm.tqdm(pool.imap(number_counts_star, nc_args), total=N_todo))
-	
-	
-	##################################################
-	#### CALCULATING FINAL BIN HEIGHTS AND ERRORS ####
-	##################################################
-	
-	print(gen.colour_string(f'Collating results from all samples...', 'purple'))
-
-	nc_keys = list(RAGERS_IDs) + [f'zbin{n}' for n in range(1,len(zbin_edges))] + [f'Mbin{n}' for n in range(1,len(Mbin_edges))] + ['ALL']
-	
-	for nc_file, cc_file in results_files:
-		nc_dist_now = np.load(nc_file)
-		cc_dist_now = np.load(cc_file)
-
-		for k in nc_keys:
-			try:
-				nc_dict_dists[k].append(nc_dist_now[k])
-				cc_dict_dists[k].append(cc_dist_now[k])
-			except KeyError:
-				nc_dict_dists[k] = [nc_dist_now[k]]
-				cc_dict_dists[k] = [cc_dist_now[k]]
-		os.system(f'rm -f {nc_file} {cc_file}')
-		del nc_dist_now, cc_dist_now
-
-	#save the number count dictionaries as compressed numpy archives
-	np.savez_compressed(nc_npz_file, **nc_dict_dists)
-	np.savez_compressed(cc_npz_file, **cc_dict_dists)
-
-
-	print(gen.colour_string(f'Calculating final bin heights and errors...', 'purple'))
-	
-
-	#names to give the files containing the final bin heights and unertainties
-	nc_npz_file_final = gen.PATH_CATS + 'Differential_numcount_bins.npz'
-	cc_npz_file_final = gen.PATH_CATS + 'Cumulative_numcount_bins.npz'
-
-	#set up dictionaries for these results
-	nc_final = {'bin_edges' : nc_dict_dists['bin_edges']}
-	cc_final = {'bin_edges' : cc_dict_dists['bin_edges']}
-
-	for k in nc_keys:
-		#retrieve the distribution of differential number counts and covert to a 2D numpy array
-		nc_dist = np.concatenate(nc_dict_dists[k], axis=0)
-		#calculate the median and uncertainties
-		N_final, eN_final_lo, eN_final_hi = stats.vals_and_errs_from_dist(nc_dist)
-		#store these in the new dictionary
-		nc_final[k] = np.array([N_final, eN_final_lo, eN_final_hi])
-
-		#retrieve the distribution of cumulative number counts and covert to a 2D numpy array
-		cc_dist = np.concatenate(cc_dict_dists[k], axis=0)
-		#calculate the median and uncertainties
-		N_final, eN_final_lo, eN_final_hi = stats.vals_and_errs_from_dist(cc_dist)
-		#store these in the new dictionary
-		cc_final[k] = np.array([N_final, eN_final_lo, eN_final_hi])
-
-
-	#save the number count dictionaries as compressed numpy archives
-	np.savez_compressed(nc_npz_file_final, **nc_final)
-	np.savez_compressed(cc_npz_file_final, **cc_final)
-	
-	
-
-
-
-	print(gen.colour_string(f'Done!', 'purple'))
-	
 
 def number_counts(
 	S850_rand,
@@ -296,10 +34,68 @@ def number_counts(
 	zbin_edges,
 	Mbin_edges,
 	independent_rq,
-	idx,
 	PATH_NC_DISTS,
-	PATH_CC_DISTS
+	PATH_CC_DISTS,
+	idx
 	):
+
+	'''
+	Calculates the number counts for groups of RQ galaxies, as well as in different redshift and 
+	stellar mass bins. 
+
+	Parameters
+	----------
+	S850_rand: array
+		Array of flux densities to be binned for the number counts. If 2D, assumed to be the result
+		of creating simulated datasets by randomly generating flux densities from the catalogue values
+		and uncertainties.
+
+	S850_bin_egdes: array
+		Edges of the flux density bins.
+
+	comp_rand: array 
+		Completeness values corresponding to each flux density value in S850_rand.
+
+	data_rq: Table
+		Table of data for the radio-quiet galaxies that have been matched in stellar mass and redshift
+		with the radio-loud RAGERS sample.
+
+	RAGERS_info: list
+		List containing three Columns: the IDs, redshifts and stellar masses of each RAGERS RL galaxy.
+
+	coords_submm: SkyCoord array
+		Array of SkyCoords for each submm source in the S2COSMOS catalogue.
+
+	zbin_edges: array
+		Edges of the redshift bins.
+
+	Mbin_edges: array
+		Edegs of the stellar mass bins.
+
+	independent_rq: bool
+		Whether to treat each RQ galaxy independently from each other.
+
+	PATH_NC_DISTS: str
+		Path of the directory in which the differential number count distributions will be stored.
+
+	PATH_CC_DISTS: str
+		Path of the directory in which the cumulative number count distributions will be stored.
+
+	idx: int
+		Integer indicator to help keep track of processes if using multiprocessing.
+
+
+	Returns
+	-------
+	nc_name: str
+		Path of the dictionary containing the differential number count distributions for this iteration.
+
+	cc_name: str
+		Path of the dictionary containing the cumulative number count distributions for this iteration.
+	'''
+	
+	print(f'Started task {idx+1} ({mp.current_process().name}).', flush=True)
+
 
 	#set up dictionaries for the results
 	nc_dict = {'bin_edges' : S850_bin_edges} 
@@ -364,7 +160,6 @@ def number_counts(
 	##########################
 	#### REDSHIFT BINNING ####
 	##########################
-
 	#cycle through the redshift bins
 	for i in range(len(zbin_centres)):
 		#get the current redshift bin and print its bounds
@@ -387,6 +182,7 @@ def number_counts(
 		###################################
 		#### RQ GALAXIES PER RL GALAXY ####
 		###################################
+
 
 		#cycle through the RL galaxies in this redshift bin
 		for j in range(len(rl_zbin)):
@@ -503,7 +299,6 @@ def number_counts(
 	##############################
 	#### STELLAR MASS BINNING ####
 	##############################
-
 	#cycle through the redshift bins
 	for i in range(len(Mbin_centres)):
 		#get the current redshift bin and print its bounds
@@ -610,14 +405,278 @@ def number_counts(
 	np.savez_compressed(nc_name, **nc_dict)
 	np.savez_compressed(cc_name, **cc_dict)
 
+	print(f'Finished task {idx+1} ({mp.current_process().name}).', flush=True)
+
 	return nc_name, cc_name
 
 
-def number_counts_star(args):
-	return number_counts(*args)
 
 
 if __name__ == '__main__':
-	mp.set_start_method('spawn')
+	#mp.set_start_method('spawn')
 	freeze_support()
-	main()
+
+	##################
+	#### SETTINGS ####
+	##################
+
+	#toggle `switches' for additional functionality
+	use_S19_bins = True				#use the flux density bins from Simpson+19
+	independent_rq = True			#treat the RQ galaxies as independent (i.e. do not account for overlap between search areas)
+	comp_correct = True				#apply completeness corrections
+	main_only = gen.main_only		#use only sources from the MAIN region of S2COSMOS for blank-field results
+	repeat_sel = True				#perform the random RQ selection several times
+	settings = [
+		use_S19_bins,
+		independent_rq, 
+		comp_correct,
+		main_only,
+		repeat_sel]
+
+	#print the chosen settings to the Terminal
+	print(gen.colour_string('CHOSEN SETTINGS:', 'white'))
+	settings_print = [
+		'Use flux density bins from Simpson+19: ', 
+		'Treat RQ galaxies independently: ',
+		'Apply completeness corrections: ',
+		'Use MAIN region only (for blank-field results): ',
+		'Repeat the random selection of RQ galaxies several times: '
+		]
+	for i in range(len(settings_print)):
+		if settings[i]:
+			settings_print[i] += 'y'
+		else:
+			settings_print[i] += 'n'
+
+	#radius of search area to use in the submm data
+	settings_print.append(f'Radius used to search for RQ companions (arcmin): {gen.r_search}')
+
+	#number of matched galaxies to use per RL galaxy when constructing the number counts
+	settings_print.append(f'Number of RQ galaxies per RL galaxy: {gen.n_rq}')
+
+	nsamples = 100		#number of times to reselect RQ subsamples
+	if repeat_sel:
+		settings_print.append(f'Number of times to select RQ samples: {nsamples}')
+	#only use one sample if told to not repeat the selection
+	else:
+		nsamples = 1
+
+
+	print(gen.colour_string('\n'.join(settings_print), 'white'))
+
+
+
+	##################################
+	#### SETTINGS (NUMBER COUNTS) ####
+	##################################
+
+	if use_S19_bins:
+		#load the table summarising the nmber counts results
+		S19_results = Table.read(gen.S19_results_file, format='ascii')
+		#bin edges and centres for the differential number counts
+		S850_bin_edges = np.concatenate([np.array(S19_results['S850']), [22.]])
+		#delete the Table to conserve memory
+		del S19_results
+	else:
+		S850_bin_edges = np.array([2., 3., 5., 7., 9., 12., 15., 18., 22.])
+
+	#redshift bin edges
+	zbin_edges = np.arange(1., 3.5, 0.5)
+	#stellar mass bin edges
+	Mbin_edges = np.array([11., 11.2, 11.4, 11.7])
+
+	#######################################################
+	###############    START OF SCRIPT    #################
+	#######################################################
+
+	#catalogue containing data for (radio-quiet) galaxies from COSMOS2020 matched in M* and z with the radio-loud sample
+	RQ_CAT = gen.PATH_CATS + 'RAGERS_COSMOS2020_matches_Mstar_z.fits'
+	data_rq = Table.read(RQ_CAT, format='fits')
+	#get the RAs and DECs
+	RA_rq = data_rq['ALPHA_J2000']
+	DEC_rq = data_rq['DELTA_J2000']
+	#convert these into SkyCoord objects
+	coords_rq = SkyCoord(RA_rq, DEC_rq, unit='deg')
+
+	#retrieve relevant data from catalogue containing submm data for S2COSMOS sources
+	data_submm = Table.read(gen.S19_cat, format='fits')
+	S850, eS850_lo, eS850_hi, RMS, RA_submm, DEC_submm, comp_cat = gen.get_relevant_cols_S19(data_submm, main_only=main_only)
+	#create SkyCoord objects from RA and Dec.
+	coords_submm = SkyCoord(RA_submm, DEC_submm, unit='deg')
+
+	#attempt to retrieve randomised flux densities and completenesses from an existing file
+	S850_npz_file = gen.PATH_SIMS + 'S2COSMOS_randomised_S850.npz'
+	if os.path.exists(S850_npz_file):
+		rand_data = np.load(S850_npz_file)
+		if 'S850_rand' in rand_data.files:
+			S850_rand = rand_data['S850_rand']
+		else:
+			S850_rand = S850[:]
+		if comp_correct:
+			if 'comp_rand' in rand_data.files:
+				comp_rand = rand_data['comp_rand']
+			else:
+				comp_rand = comp_cat[:]
+		else:
+			comp_rand = np.ones(S850_rand.shape)
+	#if the file doesn't exist, just use the catalogue values
+	else:
+		S850_rand = S850[:]
+		if comp_correct:
+			comp_rand = comp_cat[:]
+		else:
+			comp_rand = np.ones(comp_cat)
+
+
+	#retrieve a list of the unique RAGERS IDs from the catalogue and the number of matches
+	RAGERS_IDs, idx_unique, n_rq_per_rl = np.unique(data_rq['RAGERS_ID'], return_index=True, return_counts=True)
+	#sort the IDs in order of increasing number of RQ matches
+	idx_ordered = np.argsort(n_rq_per_rl)
+	RAGERS_IDs = RAGERS_IDs[idx_ordered]
+	#also get lists of the RAGERS RL redshifts and stellar masses and order them
+	RAGERS_zs = data_rq['RAGERS_z'][idx_unique]
+	RAGERS_zs = RAGERS_zs[idx_ordered]
+	RAGERS_Ms = data_rq['RAGERS_logMstar'][idx_unique]
+	RAGERS_Ms = RAGERS_Ms[idx_ordered]
+	RAGERS_info = [RAGERS_IDs, RAGERS_zs, RAGERS_Ms]
+
+	#see if files exist containing the differential/cumulative number count distributions in each bin
+	PATH_NC_DISTS = gen.PATH_SIMS + 'Differential_numcount_dists/'
+	if not os.path.exists(PATH_NC_DISTS):
+		os.system(f'mkdir -p {PATH_NC_DISTS}')
+	PATH_CC_DISTS = gen.PATH_SIMS + 'Cumulative_numcount_dists/'
+	if not os.path.exists(PATH_CC_DISTS):
+		os.system(f'mkdir -p {PATH_CC_DISTS}')
+
+	nc_npz_file = PATH_NC_DISTS + 'All_samples.npz'
+	if os.path.exists(nc_npz_file):
+		nc_dict_dists = np.load(nc_npz_file)
+		nc_dict_dists = dict(zip(nc_dict_dists.files, [nc_dict_dists[f] for f in nc_dict_dists.files]))
+	else:
+		nc_dict_dists = {'bin_edges' : S850_bin_edges}
+	cc_npz_file = PATH_CC_DISTS + 'All_samples.npz'
+	if os.path.exists(cc_npz_file):
+		cc_dict_dists = np.load(cc_npz_file)
+		cc_dict_dists = dict(zip(cc_dict_dists.files, [cc_dict_dists[f] for f in cc_dict_dists.files]))
+	else:
+		cc_dict_dists = {'bin_edges' : S850_bin_edges}
+
+
+	#find out how many times the above method has been run in the past
+	if 'ALL' in nc_dict_dists:
+		N_done = len(nc_dict_dists['ALL'])
+	else:
+		N_done = 0
+	#calculate how many times it needs to be run in order to meet the required number
+	N_todo = nsamples - N_done
+
+	print(gen.colour_string(f'Calculating number counts for {N_todo} samples...', 'purple'))
+
+	#since only the final argument of number_counts changes with each iteration, make a partial function
+	number_counts_p = partial(
+		number_counts,
+		S850_rand,
+		S850_bin_edges,
+		comp_rand,
+		data_rq,
+		RAGERS_info,
+		coords_submm,
+		zbin_edges,
+		Mbin_edges,
+		independent_rq,
+		PATH_NC_DISTS,
+		PATH_CC_DISTS
+		)
+
+	#get the number of CPUs available
+	ncpu_avail = cpu_count()
+	#if using the Linux machine, need to conserve memory to avoid the Pool hanging
+	if gen.pf == 'Linux':
+		if N_todo > ncpu_avail:
+			#calculate max memory usage when running number_counts to decide how many processes to run
+			print(gen.colour_string('Testing memory usage of number_counts function...', 'purple'))
+			mem_usage = memory_usage((number_counts_p, (-1,)))
+			mem_usage = max(mem_usage) / 1000
+			print(gen.colour_string(f'Memory used by number_counts (GB): {mem_usage}', 'blue'))
+			mem_avail = (psutil.virtual_memory().available + psutil.swap_memory().free) / (1000**3)
+			print(gen.colour_string(f'Available memory (GB): {mem_avail}', 'blue'))
+			ncpu = min(int(mem_avail / mem_usage), ncpu_avail)
+
+		#if not many iterations to run, just assign a maximum of 5 CPUs
+		else:
+			ncpu = min(5, N_todo)
+
+	else:
+		#since macOS dynamically assigns swap memory, just use number of CPUs bar 1
+		ncpu = ncpu_avail - 1
+	
+	print(gen.colour_string(f'Assigning {ncpu} CPUs to run number_counts', 'blue'))
+	
+	#create a Pool with the specified number of processes
+	with Pool(ncpu) as pool:
+		results_files = pool.map(number_counts_p, range(N_todo))
+		#results_files = list(pool.imap_unordered(number_counts_star, nc_args))
+		pool.close()
+		pool.join()
+	
+
+	##################################################
+	#### CALCULATING FINAL BIN HEIGHTS AND ERRORS ####
+	##################################################
+	
+	print(gen.colour_string(f'Collating results from all samples...', 'purple'))
+
+	nc_keys = list(RAGERS_IDs) + [f'zbin{n}' for n in range(1,len(zbin_edges))] + [f'Mbin{n}' for n in range(1,len(Mbin_edges))] + ['ALL']
+	
+	for nc_file, cc_file in results_files:
+		nc_dist_now = np.load(nc_file)
+		cc_dist_now = np.load(cc_file)
+
+		for k in nc_keys:
+			try:
+				nc_dict_dists[k].append(nc_dist_now[k])
+				cc_dict_dists[k].append(cc_dist_now[k])
+			except KeyError:
+				nc_dict_dists[k] = [nc_dist_now[k]]
+				cc_dict_dists[k] = [cc_dist_now[k]]
+		os.system(f'rm -f {nc_file} {cc_file}')
+		del nc_dist_now, cc_dist_now
+
+	#save the number count dictionaries as compressed numpy archives
+	np.savez_compressed(nc_npz_file, **nc_dict_dists)
+	np.savez_compressed(cc_npz_file, **cc_dict_dists)
+
+
+	print(gen.colour_string(f'Calculating final bin heights and errors...', 'purple'))
+	
+
+	#names to give the files containing the final bin heights and unertainties
+	nc_npz_file_final = gen.PATH_CATS + 'Differential_numcount_bins.npz'
+	cc_npz_file_final = gen.PATH_CATS + 'Cumulative_numcount_bins.npz'
+
+	#set up dictionaries for these results
+	nc_final = {'bin_edges' : nc_dict_dists['bin_edges']}
+	cc_final = {'bin_edges' : cc_dict_dists['bin_edges']}
+
+	for k in nc_keys:
+		#retrieve the distribution of differential number counts and covert to a 2D numpy array
+		nc_dist = np.concatenate(nc_dict_dists[k], axis=0)
+		#calculate the median and uncertainties
+		N_final, eN_final_lo, eN_final_hi = stats.vals_and_errs_from_dist(nc_dist)
+		#store these in the new dictionary
+		nc_final[k] = np.array([N_final, eN_final_lo, eN_final_hi])
+
+		#retrieve the distribution of cumulative number counts and covert to a 2D numpy array
+		cc_dist = np.concatenate(cc_dict_dists[k], axis=0)
+		#calculate the median and uncertainties
+		N_final, eN_final_lo, eN_final_hi = stats.vals_and_errs_from_dist(cc_dist)
+		#store these in the new dictionary
+		cc_final[k] = np.array([N_final, eN_final_lo, eN_final_hi])
+
+
+	#save the number count dictionaries as compressed numpy archives
+	np.savez_compressed(nc_npz_file_final, **nc_final)
+	np.savez_compressed(cc_npz_file_final, **cc_final)
+	
+
+	print(gen.colour_string(f'Done!', 'purple'))
