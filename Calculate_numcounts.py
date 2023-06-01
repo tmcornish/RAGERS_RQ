@@ -31,6 +31,7 @@ def number_counts(
 	data_rq,
 	RAGERS_info,
 	coords_submm,
+	r_search,
 	zbin_edges,
 	Mbin_edges,
 	independent_rq,
@@ -102,7 +103,7 @@ def number_counts(
 	cc_dict = {'bin_edges' : S850_bin_edges}
 
 	#convert search radius to degrees
-	R_deg = gen.r_search / 60.
+	R_deg = r_search / 60.
 	#area of aperture (sq. deg)
 	A_sqdeg = np.pi * R_deg ** 2.
 
@@ -207,8 +208,8 @@ def number_counts(
 				#get the coordinates for the current RQ galaxy
 				coord_central = coords_rq_rl[k:k+1]
 
-				#search for submm sources within gen.r_search of the galaxy
-				idx_coords_submm_matched, *_ = coord_central.search_around_sky(coords_submm, gen.r_search * u.arcmin)
+				#search for submm sources within r_search of the galaxy
+				idx_coords_submm_matched, *_ = coord_central.search_around_sky(coords_submm, r_search * u.arcmin)
 				#append these indices to lists for (a) each RL galaxy, (b) each z bin, (c) all RL galaxies
 				idx_matched_rl.append(idx_coords_submm_matched)
 				idx_matched_zbin.append(idx_coords_submm_matched)
@@ -316,7 +317,7 @@ def number_counts(
 		coords_rq_Mbin = coords_rq_sub[mass_mask_rq]
 
 		#concatenate the arrays of indices of matched submm sources for this z bin
-		idx_matched_Mbin, *_ = coords_rq_Mbin.search_around_sky(coords_submm, gen.r_search * u.arcmin)
+		idx_matched_Mbin, *_ = coords_rq_Mbin.search_around_sky(coords_submm, r_search * u.arcmin)
 		
 		#if each aperture is independent, the area is simply the sum of their areas
 		if independent_rq:
@@ -400,8 +401,8 @@ def number_counts(
 	cc_dict['ALL'] = cumN_ALL_rand
 
 	#write the dictionaries to a file
-	nc_name = PATH_NC_DISTS + f'sample{idx}.npz'
-	cc_name = PATH_CC_DISTS + f'sample{idx}.npz'
+	nc_name = PATH_NC_DISTS + f'sample{idx}_{r_search:.1f}am.npz'
+	cc_name = PATH_CC_DISTS + f'sample{idx}_{r_search:.1f}am.npz'
 	np.savez_compressed(nc_name, **nc_dict)
 	np.savez_compressed(cc_name, **cc_dict)
 
@@ -421,17 +422,19 @@ if __name__ == '__main__':
 	##################
 
 	#toggle `switches' for additional functionality
-	use_S19_bins = True				#use the flux density bins from Simpson+19
+	use_S19_bins = False				#use the flux density bins from Simpson+19
 	independent_rq = True			#treat the RQ galaxies as independent (i.e. do not account for overlap between search areas)
 	comp_correct = True				#apply completeness corrections
 	main_only = gen.main_only		#use only sources from the MAIN region of S2COSMOS for blank-field results
 	repeat_sel = True				#perform the random RQ selection several times
+	many_radii = True
 	settings = [
 		use_S19_bins,
 		independent_rq, 
 		comp_correct,
 		main_only,
-		repeat_sel]
+		repeat_sel,
+		many_radii]
 
 	#print the chosen settings to the Terminal
 	print(gen.colour_string('CHOSEN SETTINGS:', 'white'))
@@ -440,16 +443,14 @@ if __name__ == '__main__':
 		'Treat RQ galaxies independently: ',
 		'Apply completeness corrections: ',
 		'Use MAIN region only (for blank-field results): ',
-		'Repeat the random selection of RQ galaxies several times: '
+		'Repeat the random selection of RQ galaxies several times: ',
+		'Calculate number counts using multiple search radii: '
 		]
 	for i in range(len(settings_print)):
 		if settings[i]:
 			settings_print[i] += 'y'
 		else:
 			settings_print[i] += 'n'
-
-	#radius of search area to use in the submm data
-	settings_print.append(f'Radius used to search for RQ companions (arcmin): {gen.r_search}')
 
 	#number of matched galaxies to use per RL galaxy when constructing the number counts
 	settings_print.append(f'Number of RQ galaxies per RL galaxy: {gen.n_rq}')
@@ -461,6 +462,12 @@ if __name__ == '__main__':
 	else:
 		nsamples = 1
 
+	#radii (arcmin) of search areas to use in the submm data
+	if many_radii:
+		radii = [1., 2., 4., 6.]
+	else:
+		radii = [gen.r_search]
+	settings_print.append(f'Radius used to search for RQ companions (arcmin): {", ".join(map(str, radii))}')
 
 	print(gen.colour_string('\n'.join(settings_print), 'white'))
 
@@ -548,135 +555,143 @@ if __name__ == '__main__':
 	if not os.path.exists(PATH_CC_DISTS):
 		os.system(f'mkdir -p {PATH_CC_DISTS}')
 
-	nc_npz_file = PATH_NC_DISTS + 'All_samples.npz'
-	if os.path.exists(nc_npz_file):
-		nc_dict_dists = np.load(nc_npz_file)
-		nc_dict_dists = dict(zip(nc_dict_dists.files, [nc_dict_dists[f] for f in nc_dict_dists.files]))
-	else:
-		nc_dict_dists = {'bin_edges' : S850_bin_edges}
-	cc_npz_file = PATH_CC_DISTS + 'All_samples.npz'
-	if os.path.exists(cc_npz_file):
-		cc_dict_dists = np.load(cc_npz_file)
-		cc_dict_dists = dict(zip(cc_dict_dists.files, [cc_dict_dists[f] for f in cc_dict_dists.files]))
-	else:
-		cc_dict_dists = {'bin_edges' : S850_bin_edges}
-
-
-	#find out how many times the above method has been run in the past
-	if 'ALL' in nc_dict_dists:
-		N_done = len(nc_dict_dists['ALL'])
-	else:
-		N_done = 0
-	#calculate how many times it needs to be run in order to meet the required number
-	N_todo = nsamples - N_done
-
-	print(gen.colour_string(f'Calculating number counts for {N_todo} samples...', 'purple'))
-
-	#since only the final argument of number_counts changes with each iteration, make a partial function
-	number_counts_p = partial(
-		number_counts,
-		S850_rand,
-		S850_bin_edges,
-		comp_rand,
-		data_rq,
-		RAGERS_info,
-		coords_submm,
-		zbin_edges,
-		Mbin_edges,
-		independent_rq,
-		PATH_NC_DISTS,
-		PATH_CC_DISTS
-		)
-
 	#get the number of CPUs available
 	ncpu_avail = cpu_count()
-	#if using the Linux machine, need to conserve memory to avoid the Pool hanging
-	if gen.pf == 'Linux':
-		if N_todo > ncpu_avail:
-			#calculate max memory usage when running number_counts to decide how many processes to run
-			print(gen.colour_string('Testing memory usage of number_counts function...', 'purple'))
-			mem_usage = memory_usage((number_counts_p, (-1,)))
-			mem_usage = max(mem_usage) / 1000
-			print(gen.colour_string(f'Memory used by number_counts (GB): {mem_usage}', 'blue'))
-			mem_avail = (psutil.virtual_memory().available + psutil.swap_memory().free) / (1000**3)
-			print(gen.colour_string(f'Available memory (GB): {mem_avail}', 'blue'))
-			ncpu = min(int(mem_avail / mem_usage), ncpu_avail)
 
-		#if not many iterations to run, just assign a maximum of 5 CPUs
+	for r in radii:
+		print(gen.colour_string(f'Using {r:.1f} arcminute search radius.', 'orange'))
+		nc_npz_file = PATH_NC_DISTS + f'All_samples_{r:.1f}am.npz'
+		if os.path.exists(nc_npz_file):
+			nc_dict_dists = np.load(nc_npz_file)
+			nc_dict_dists = dict(zip(nc_dict_dists.files, [nc_dict_dists[f] for f in nc_dict_dists.files]))
 		else:
-			ncpu = min(5, N_todo)
+			nc_dict_dists = {'bin_edges' : S850_bin_edges}
+		cc_npz_file = PATH_CC_DISTS + f'All_samples_{r:.1f}am.npz'
+		if os.path.exists(cc_npz_file):
+			cc_dict_dists = np.load(cc_npz_file)
+			cc_dict_dists = dict(zip(cc_dict_dists.files, [cc_dict_dists[f] for f in cc_dict_dists.files]))
+		else:
+			cc_dict_dists = {'bin_edges' : S850_bin_edges}
 
-	else:
-		#since macOS dynamically assigns swap memory, just use number of CPUs bar 1
-		ncpu = ncpu_avail - 1
-	
-	print(gen.colour_string(f'Assigning {ncpu} CPUs to run number_counts', 'blue'))
-	
-	#create a Pool with the specified number of processes
-	with Pool(ncpu) as pool:
-		results_files = pool.map(number_counts_p, range(N_todo))
-		#results_files = list(pool.imap_unordered(number_counts_star, nc_args))
-		pool.close()
-		pool.join()
-	
+		#find out how many times the above method has been run in the past
+		if 'ALL' in nc_dict_dists:
+			N_done = len(nc_dict_dists['ALL'])
+		else:
+			N_done = 0
+		#calculate how many times it needs to be run in order to meet the required number
+		N_todo = nsamples - N_done
 
-	##################################################
-	#### CALCULATING FINAL BIN HEIGHTS AND ERRORS ####
-	##################################################
-	
-	print(gen.colour_string(f'Collating results from all samples...', 'purple'))
+		#since only the final argument of number_counts changes with each iteration, make a partial function
+		number_counts_p = partial(
+			number_counts,
+			S850_rand,
+			S850_bin_edges,
+			comp_rand,
+			data_rq,
+			RAGERS_info,
+			coords_submm,
+			r,
+			zbin_edges,
+			Mbin_edges,
+			independent_rq,
+			PATH_NC_DISTS,
+			PATH_CC_DISTS
+			)
 
-	nc_keys = list(RAGERS_IDs) + [f'zbin{n}' for n in range(1,len(zbin_edges))] + [f'Mbin{n}' for n in range(1,len(Mbin_edges))] + ['ALL']
-	
-	for nc_file, cc_file in results_files:
-		nc_dist_now = np.load(nc_file)
-		cc_dist_now = np.load(cc_file)
+		#if using the Linux machine, need to conserve memory to avoid the Pool hanging
+		if gen.pf == 'Linux':
+			if N_todo > ncpu_avail:
+				#calculate max memory usage when running number_counts to decide how many processes to run
+				print(gen.colour_string('Testing memory usage of number_counts function...', 'purple'))
+				mem_usage = memory_usage((number_counts_p, (-1,)))
+				mem_usage = max(mem_usage) / 1000
+				print(gen.colour_string(f'Memory used by number_counts (GB): {mem_usage}', 'blue'))
+				mem_avail = (psutil.virtual_memory().available + psutil.swap_memory().free) / (1000**3)
+				print(gen.colour_string(f'Available memory (GB): {mem_avail}', 'blue'))
+				ncpu = min(int(mem_avail / mem_usage), ncpu_avail)
+
+			#if not many iterations to run, just assign a maximum of 5 CPUs
+			else:
+				ncpu = min(5, N_todo)
+
+		else:
+			#since macOS dynamically assigns swap memory, just use number of CPUs bar 1
+			ncpu = ncpu_avail - 1
+		
+		print(gen.colour_string(f'Assigning {ncpu} CPUs to run number_counts.', 'blue'))
+
+		print(gen.colour_string(f'Calculating number counts for {N_todo} samples...', 'purple'))
+		
+		#create a Pool with the specified number of processes
+		with Pool(ncpu) as pool:
+			results_files = pool.map(number_counts_p, range(N_todo))
+			#results_files = list(pool.imap_unordered(number_counts_star, nc_args))
+			pool.close()
+			pool.join()
+		
+
+		##################################################
+		#### CALCULATING FINAL BIN HEIGHTS AND ERRORS ####
+		##################################################
+		
+		print(gen.colour_string(f'Collating results from all samples...', 'purple'))
+
+		nc_keys = list(RAGERS_IDs) + [f'zbin{n}' for n in range(1,len(zbin_edges))] + [f'Mbin{n}' for n in range(1,len(Mbin_edges))] + ['ALL']
+		
+		for nc_file, cc_file in results_files:
+			nc_dist_now = np.load(nc_file)
+			cc_dist_now = np.load(cc_file)
+
+			for k in nc_keys:
+				try:
+					nc_dict_dists[k].append(nc_dist_now[k])
+					cc_dict_dists[k].append(cc_dist_now[k])
+				except KeyError:
+					nc_dict_dists[k] = [nc_dist_now[k]]
+					cc_dict_dists[k] = [cc_dist_now[k]]
+			os.system(f'rm -f {nc_file} {cc_file}')
+			del nc_dist_now, cc_dist_now
+
+		#save the number count dictionaries as compressed numpy archives
+		np.savez_compressed(nc_npz_file, **nc_dict_dists)
+		np.savez_compressed(cc_npz_file, **cc_dict_dists)
+
+
+		print(gen.colour_string(f'Calculating final bin heights and errors...', 'purple'))
+		
+
+		#names to give the files containing the final bin heights and unertainties
+		nc_npz_file_final = gen.PATH_CATS + f'Differential_numcounts_and_errs_{r:.1f}am.npz'
+		cc_npz_file_final = gen.PATH_CATS + f'Cumulative_numcounts_and_errs_{r:.1f}am.npz'
+
+		#set up dictionaries for these results
+		nc_final = {'bin_edges' : nc_dict_dists['bin_edges']}
+		cc_final = {'bin_edges' : cc_dict_dists['bin_edges']}
 
 		for k in nc_keys:
-			try:
-				nc_dict_dists[k].append(nc_dist_now[k])
-				cc_dict_dists[k].append(cc_dist_now[k])
-			except KeyError:
-				nc_dict_dists[k] = [nc_dist_now[k]]
-				cc_dict_dists[k] = [cc_dist_now[k]]
-		os.system(f'rm -f {nc_file} {cc_file}')
-		del nc_dist_now, cc_dist_now
+			#retrieve the distribution of differential number counts and covert to a 2D numpy array
+			nc_dist = np.concatenate(nc_dict_dists[k], axis=0)
+			#calculate the median and uncertainties
+			N_final, eN_final_lo, eN_final_hi = stats.vals_and_errs_from_dist(nc_dist)
+			#store these in the new dictionary
+			nc_final[k] = np.array([N_final, eN_final_lo, eN_final_hi])
 
-	#save the number count dictionaries as compressed numpy archives
-	np.savez_compressed(nc_npz_file, **nc_dict_dists)
-	np.savez_compressed(cc_npz_file, **cc_dict_dists)
-
-
-	print(gen.colour_string(f'Calculating final bin heights and errors...', 'purple'))
-	
-
-	#names to give the files containing the final bin heights and unertainties
-	nc_npz_file_final = gen.PATH_CATS + 'Differential_numcount_bins.npz'
-	cc_npz_file_final = gen.PATH_CATS + 'Cumulative_numcount_bins.npz'
-
-	#set up dictionaries for these results
-	nc_final = {'bin_edges' : nc_dict_dists['bin_edges']}
-	cc_final = {'bin_edges' : cc_dict_dists['bin_edges']}
-
-	for k in nc_keys:
-		#retrieve the distribution of differential number counts and covert to a 2D numpy array
-		nc_dist = np.concatenate(nc_dict_dists[k], axis=0)
-		#calculate the median and uncertainties
-		N_final, eN_final_lo, eN_final_hi = stats.vals_and_errs_from_dist(nc_dist)
-		#store these in the new dictionary
-		nc_final[k] = np.array([N_final, eN_final_lo, eN_final_hi])
-
-		#retrieve the distribution of cumulative number counts and covert to a 2D numpy array
-		cc_dist = np.concatenate(cc_dict_dists[k], axis=0)
-		#calculate the median and uncertainties
-		N_final, eN_final_lo, eN_final_hi = stats.vals_and_errs_from_dist(cc_dist)
-		#store these in the new dictionary
-		cc_final[k] = np.array([N_final, eN_final_lo, eN_final_hi])
+			#retrieve the distribution of cumulative number counts and covert to a 2D numpy array
+			cc_dist = np.concatenate(cc_dict_dists[k], axis=0)
+			#calculate the median and uncertainties
+			N_final, eN_final_lo, eN_final_hi = stats.vals_and_errs_from_dist(cc_dist)
+			#store these in the new dictionary
+			cc_final[k] = np.array([N_final, eN_final_lo, eN_final_hi])
 
 
-	#save the number count dictionaries as compressed numpy archives
-	np.savez_compressed(nc_npz_file_final, **nc_final)
-	np.savez_compressed(cc_npz_file_final, **cc_final)
-	
+		#save the number count dictionaries as compressed numpy archives
+		np.savez_compressed(nc_npz_file_final, **nc_final)
+		np.savez_compressed(cc_npz_file_final, **cc_final)
+		
 
 	print(gen.colour_string(f'Done!', 'purple'))
+
+
+
+
+
