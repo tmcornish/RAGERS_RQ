@@ -562,27 +562,10 @@ if __name__ == '__main__':
 
 	for r in radii:
 		print(gen.colour_string(f'Using {r:.1f} arcminute search radius.', 'orange'))
+
+		#names of the files containing the results from all iterations
 		nc_npz_file = PATH_NC_DISTS + f'All_samples_{r:.1f}am.npz'
 		cc_npz_file = PATH_CC_DISTS + f'All_samples_{r:.1f}am.npz'
-		'''
-		if os.path.exists(nc_npz_file):
-			nc_dict_dists = np.load(nc_npz_file)
-			nc_dict_dists = dict(zip(nc_dict_dists.files, [nc_dict_dists[f] for f in nc_dict_dists.files]))
-		else:
-			nc_dict_dists = {'bin_edges' : S850_bin_edges}
-		cc_npz_file = PATH_CC_DISTS + f'All_samples_{r:.1f}am.npz'
-		if os.path.exists(cc_npz_file):
-			cc_dict_dists = np.load(cc_npz_file)
-			cc_dict_dists = dict(zip(cc_dict_dists.files, [cc_dict_dists[f] for f in cc_dict_dists.files]))
-		else:
-			cc_dict_dists = {'bin_edges' : S850_bin_edges}
-
-		#find out how many times the above method has been run in the past
-		if 'ALL' in nc_dict_dists:
-			N_done = len(nc_dict_dists['ALL'])
-		else:
-			N_done = 0
-		'''
 
 		#if this script has been run previously, load the results to determine how many iterations have been done
 		if os.path.exists(nc_npz_file) and os.path.exists(cc_npz_file):
