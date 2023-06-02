@@ -1,5 +1,5 @@
 ############################################################################################################
-# A script for calculating and the sub-mm number counts in the environments of radio-quiet counterparts
+# A script for calculating the sub-mm number counts in the environments of radio-quiet counterparts
 # to the RAGERS radio-loud galaxies.
 ############################################################################################################
 
@@ -411,7 +411,9 @@ def number_counts(
 	return nc_name, cc_name
 
 
-
+#######################################################
+###############    START OF SCRIPT    #################
+#######################################################
 
 if __name__ == '__main__':
 	#mp.set_start_method('spawn')
@@ -455,7 +457,7 @@ if __name__ == '__main__':
 	#number of matched galaxies to use per RL galaxy when constructing the number counts
 	settings_print.append(f'Number of RQ galaxies per RL galaxy: {gen.n_rq}')
 
-	nsamples = 100		#number of times to reselect RQ subsamples
+	nsamples = 1000		#number of times to reselect RQ subsamples
 	if repeat_sel:
 		settings_print.append(f'Number of times to select RQ samples: {nsamples}')
 	#only use one sample if told to not repeat the selection
@@ -561,6 +563,8 @@ if __name__ == '__main__':
 	for r in radii:
 		print(gen.colour_string(f'Using {r:.1f} arcminute search radius.', 'orange'))
 		nc_npz_file = PATH_NC_DISTS + f'All_samples_{r:.1f}am.npz'
+		cc_npz_file = PATH_CC_DISTS + f'All_samples_{r:.1f}am.npz'
+		'''
 		if os.path.exists(nc_npz_file):
 			nc_dict_dists = np.load(nc_npz_file)
 			nc_dict_dists = dict(zip(nc_dict_dists.files, [nc_dict_dists[f] for f in nc_dict_dists.files]))
@@ -578,6 +582,19 @@ if __name__ == '__main__':
 			N_done = len(nc_dict_dists['ALL'])
 		else:
 			N_done = 0
+		'''
+
+		#if this script has been run previously, load the results to determine how many iterations have been done
+		if os.path.exists(nc_npz_file) and os.path.exists(cc_npz_file):
+			nc_dict_dists = np.load(nc_npz_file)
+			N_done = len(nc_dict_dists['ALL'])
+			#remove the loaded results from memory
+			del nc_dict_dists
+			#flag that the script has been run previously
+			prev_run = True
+		else:
+			N_done = 0
+			prev_run = False
 		#calculate how many times it needs to be run in order to meet the required number
 		N_todo = nsamples - N_done
 
@@ -636,6 +653,17 @@ if __name__ == '__main__':
 		
 		print(gen.colour_string(f'Collating results from all samples...', 'purple'))
 
+		#load the results from previously running this script if any exist
+		if prev_run:
+			nc_dict_dists = np.load(nc_npz_file)
+			nc_dict_dists = dict(zip(nc_dict_dists.files, [nc_dict_dists[f] for f in nc_dict_dists.files]))
+			cc_dict_dists = np.load(cc_npz_file)
+			cc_dict_dists = dict(zip(cc_dict_dists.files, [cc_dict_dists[f] for f in cc_dict_dists.files]))
+		#otherwise, create new dictionaries
+		else:
+			nc_dict_dists = {'bin_edges' : S850_bin_edges}
+			cc_dict_dists = {'bin_edges' : S850_bin_edges}
+
 		nc_keys = list(RAGERS_IDs) + [f'zbin{n}' for n in range(1,len(zbin_edges))] + [f'Mbin{n}' for n in range(1,len(Mbin_edges))] + ['ALL']
 		
 		for nc_file, cc_file in results_files:
@@ -649,8 +677,8 @@ if __name__ == '__main__':
 				except KeyError:
 					nc_dict_dists[k] = [nc_dist_now[k]]
 					cc_dict_dists[k] = [cc_dist_now[k]]
-			os.system(f'rm -f {nc_file} {cc_file}')
 			del nc_dist_now, cc_dist_now
+		os.system(f'rm -f {PATH_NC_DISTS}/sample*.npz {PATH_CC_DISTS}/sample*.npz')
 
 		#save the number count dictionaries as compressed numpy archives
 		np.savez_compressed(nc_npz_file, **nc_dict_dists)
