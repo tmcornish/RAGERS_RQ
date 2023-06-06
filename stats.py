@@ -383,8 +383,9 @@ def poisson_CI_1sig(N):
 		except ZeroDivisionError:
 			Nlo = 0.
 	else:
-		Nlo = N * (1. - 1./(9.*N) - 1./(3.*np.sqrt(N))) ** 3.
-		Nlo[np.isinf(Nlo) * np.isnan(Nlo)] = 0.
+		with np.errstate(all='ignore'):
+			Nlo = N * (1. - 1./(9.*N) - 1./(3.*np.sqrt(N))) ** 3.
+		Nlo[np.isinf(Nlo) + np.isnan(Nlo)] = 0.
 	Nhi = N + np.sqrt(N + 0.75) + 1.
 
 	return Nlo, Nhi
@@ -409,15 +410,18 @@ def poisson_errs_1sig(N):
 	return elo, ehi
 
 
-def vals_and_errs_from_dist(dist):
+def vals_and_errs_from_dist(dist, axis=0):
 	'''
 	Given a distribution of values, calculates the median along with upper and lower uncertainties.
 
 	Parameters
 	----------
 	dist: ND array
-		Distribution of values. If 2D, the various percentiles will be calculated along the first
+		Distribution of values. If >1D, the various percentiles will be calculated along the specified
 		axis.
+
+	axis: int
+		Axis along which the quantiles should be calculated.
 
 	Returns
 	-------
@@ -431,7 +435,7 @@ def vals_and_errs_from_dist(dist):
 		Upper uncertainties calculated from the distribution(s).
 	'''
 
-	val_lo, val, val_hi = np.percentile(dist, [p16, 50., p84], axis=0)
+	val_lo, val, val_hi = np.nanpercentile(dist, [p16, 50., p84], axis=axis)
 	#calculate the uncertainties
 	elo = val - val_lo
 	ehi = val_hi - val

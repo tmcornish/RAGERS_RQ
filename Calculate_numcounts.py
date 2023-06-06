@@ -13,7 +13,7 @@ import numcounts as nc
 import stats
 import astrometry as ast
 import multiprocessing as mp
-from multiprocessing import Pool, cpu_count, freeze_support
+from multiprocessing import Pool, cpu_count, freeze_support, Manager
 from astropy import wcs
 from astropy.coordinates import SkyCoord
 from astropy import units as u
@@ -238,23 +238,21 @@ def number_counts(
 				comp_matched_rl = comp_rand[idx_matched_rl]
 
 			#construct the differential number counts
-			N_rl_rand, counts_rl_rand = nc.differential_numcounts(
+			N_rl, eN_rl_lo, eN_rl_hi, counts_rl_rand, _ = nc.differential_numcounts(
 				S850_matched_rl,
 				S850_bin_edges,
 				A_rl,
-				comp=comp_matched_rl,
-				return_dist=True)
-			#add results to dictionary
-			nc_dict[ID] = N_rl_rand
+				comp=comp_matched_rl)
+			#combine counts and uncertainties into one array and add to dictionary
+			nc_dict[ID] = np.array([N_rl, eN_rl_lo, eN_rl_hi])
 
 			#construct the cumulative number counts
-			cumN_rl_rand, _ = nc.cumulative_numcounts(
+			cumN_rl, ecumN_rl_lo, ecumN_rl_hi, _ = nc.cumulative_numcounts(
 				counts=counts_rl_rand,
-				A=A_rl,
-				return_dist=True
+				A=A_rl
 				)
-			#add results to dictionary
-			cc_dict[ID] = cumN_rl_rand
+			#combine counts and uncertainties into one array and add to dictionary
+			cc_dict[ID] = np.array([cumN_rl, ecumN_rl_lo, ecumN_rl_hi])
 
 		#concatenate the arrays of indices of matched submm sources for this z bin
 		idx_matched_zbin = np.concatenate(idx_matched_zbin)
@@ -278,23 +276,21 @@ def number_counts(
 			comp_matched_zbin = comp_rand[idx_matched_zbin]
 
 		#construct the differential number counts
-		N_zbin_rand, counts_zbin_rand = nc.differential_numcounts(
+		N_zbin, eN_zbin_lo, eN_zbin_hi, counts_zbin_rand, _  = nc.differential_numcounts(
 			S850_matched_zbin,
 			S850_bin_edges,
 			A_zbin,
-			comp=comp_matched_zbin,
-			return_dist=True)
-		#add results to dictionary
-		nc_dict[f'zbin{i+1}'] = N_zbin_rand
+			comp=comp_matched_zbin)
+		#combine counts and uncertainties into one array and add to dictionary
+		nc_dict[f'zbin{i+1}'] = np.array([N_zbin, eN_zbin_lo, eN_zbin_hi])
 
 		#construct the cumulative number counts
-		cumN_zbin_rand, _ = nc.cumulative_numcounts(
+		cumN_zbin, ecumN_zbin_lo, ecumN_zbin_hi, _  = nc.cumulative_numcounts(
 			counts=counts_zbin_rand,
-			A=A_zbin,
-			return_dist=True
+			A=A_zbin
 			)
-		#add results to dictionary
-		cc_dict[f'zbin{i+1}'] = cumN_zbin_rand
+		#combine counts and uncertainties into one array and add to dictionary
+		cc_dict[f'zbin{i+1}'] = np.array([cumN_zbin, ecumN_zbin_lo, ecumN_zbin_hi])
 
 
 	##############################
@@ -338,23 +334,21 @@ def number_counts(
 			comp_matched_Mbin = comp_rand[idx_matched_Mbin]
 
 		#construct the differential number counts
-		N_Mbin_rand, counts_Mbin_rand = nc.differential_numcounts(
+		N_Mbin, eN_Mbin_lo, eN_Mbin_hi, counts_Mbin_rand, _  = nc.differential_numcounts(
 			S850_matched_Mbin,
 			S850_bin_edges,
 			A_Mbin,
-			comp=comp_matched_Mbin,
-			return_dist=True)
-		#add results to dictionary
-		nc_dict[f'Mbin{i+1}'] = N_Mbin_rand
+			comp=comp_matched_Mbin)
+		#combine counts and uncertainties into one array and add to dictionary
+		nc_dict[f'Mbin{i+1}'] = np.array([N_Mbin, eN_Mbin_lo, eN_Mbin_hi])
 
 		#construct the cumulative number counts
-		cumN_Mbin_rand, _ = nc.cumulative_numcounts(
+		cumN_Mbin, ecumN_Mbin_lo, ecumN_Mbin_hi, _  = nc.cumulative_numcounts(
 			counts=counts_Mbin_rand,
-			A=A_Mbin,
-			return_dist=True
+			A=A_Mbin
 			)
 		#add results to dictionary
-		cc_dict[f'Mbin{i+1}'] = cumN_Mbin_rand
+		cc_dict[f'Mbin{i+1}'] = np.array([cumN_Mbin, ecumN_Mbin_lo, ecumN_Mbin_hi])
 
 	#########################
 	#### COMBINED COUNTS ####
@@ -382,23 +376,21 @@ def number_counts(
 		comp_matched_ALL = comp_rand[idx_matched_ALL]
 
 	#construct the differential number counts
-	N_ALL_rand, counts_ALL_rand = nc.differential_numcounts(
+	N_ALL, eN_ALL_lo, eN_ALL_hi, counts_ALL_rand, _  = nc.differential_numcounts(
 		S850_matched_ALL,
 		S850_bin_edges,
 		A_ALL,
-		comp=comp_matched_ALL,
-		return_dist=True)
-	#add results to dictionary
-	nc_dict['ALL'] = N_ALL_rand
+		comp=comp_matched_ALL)
+	#combine counts and uncertainties into one array and add to dictionary
+	nc_dict[f'ALL'] = np.array([N_ALL, eN_ALL_lo, eN_ALL_hi])
 
 	#construct the cumulative number counts
-	cumN_ALL_rand, _ = nc.cumulative_numcounts(
+	cumN_ALL, ecumN_ALL_lo, ecumN_ALL_hi, _ = nc.cumulative_numcounts(
 		counts=counts_ALL_rand,
-		A=A_ALL,
-		return_dist=True
+		A=A_ALL
 		)
 	#add results to dictionary
-	cc_dict['ALL'] = cumN_ALL_rand
+	cc_dict['ALL'] = np.array([cumN_ALL, ecumN_ALL_lo, ecumN_ALL_hi])
 
 	#write the dictionaries to a file
 	nc_name = PATH_NC_DISTS + f'sample{idx}_{r_search:.1f}am.npz'
@@ -409,6 +401,78 @@ def number_counts(
 	print(f'Finished task {idx+1} ({mp.current_process().name}).', flush=True)
 
 	return nc_name, cc_name
+
+
+
+def collate_results(results_dict, nmax, nsim, key):
+	'''
+	Takes the results for a given RQ galaxy or set of galaxies and combines them in such a way
+	that doesn't overload the memory of the device running it.
+
+	Parameters
+	----------
+	results_dict: dict
+		Dictionary containing the results for all galaxies from a given sample.
+
+	nmax: int
+		The maximum number of simualted datasets that can be analysed at any one time.
+
+	nsim: int
+		The number of simulated values to create for each bin.
+
+	key: str
+		The key in the results dictionary corresponding to the target galaxy or set of galaxies.
+
+	Returns
+	-------
+	key: str
+		The same key as was inputted.
+
+	R: array
+		2D array containing the bin heights and lower and upper uncertainties.
+	'''
+
+	#retrieve the data for this key
+	data = results_dict[key]
+	ndata = len(data)
+	#determine how many iterations required after nmax is enforces
+	n_iter = int(np.ceil(ndata / nmax))
+
+	results_final = []
+	for n in range(n_iter):
+		results_iter = []
+		#generate distributions from the results for each sample
+		for i in range(n*nmax, min((n+1)*nmax,ndata)):
+			dists_now = [stats.random_asymmetric_gaussian(data[i][0][j], data[i][1][j], data[i][2][j], nsim) for j in range(len(data[i][0]))]
+			results_iter.append(dists_now)
+			del dists_now
+		#concatenate the results along the second axis to get distributions for each bin across all samples in this clump
+		results_iter = np.concatenate(results_iter, axis=1)
+		#calculate the median and uncertainties
+		N, eN_lo, eN_hi = stats.vals_and_errs_from_dist(results_iter, axis=1)
+		#generate a new distribution using these parameters
+		dists_iter = [stats.random_asymmetric_gaussian(N[j], eN_lo[j], eN_hi[j], nsim) for j in range(len(N))]
+		results_final.append(dists_iter)
+		del dists_iter
+
+	#concatenate the results along the second axis to get distributions for each bin across all samples
+	results_final = np.concatenate(results_final, axis=1)
+	#calculate the median and uncertainties
+	N, eN_lo, eN_hi = stats.vals_and_errs_from_dist(results_iter, axis=1)
+	R = np.array([N, eN_lo, eN_hi])
+
+	#return the key and the final results
+	return key, R
+
+
+
+
+
+
+
+
+
+
 
 
 #######################################################
@@ -580,6 +644,9 @@ if __name__ == '__main__':
 			prev_run = False
 		#calculate how many times it needs to be run in order to meet the required number
 		N_todo = nsamples - N_done
+		
+		if N_todo == 0:
+			continue
 
 		#since only the final argument of number_counts changes with each iteration, make a partial function
 		number_counts_p = partial(
@@ -608,7 +675,9 @@ if __name__ == '__main__':
 				print(gen.colour_string(f'Memory used by number_counts (GB): {mem_usage}', 'blue'))
 				mem_avail = (psutil.virtual_memory().available + psutil.swap_memory().free) / (1000**3)
 				print(gen.colour_string(f'Available memory (GB): {mem_avail}', 'blue'))
-				ncpu = min(int(mem_avail / mem_usage), ncpu_avail)
+				ncpu = min(int(mem_avail / mem_usage), ncpu_avail-1)
+				#remove any files created by this test
+				os.system('rm -f sample-1*.npz')
 
 			#if not many iterations to run, just assign a maximum of 5 CPUs
 			else:
@@ -649,24 +718,35 @@ if __name__ == '__main__':
 
 		nc_keys = list(RAGERS_IDs) + [f'zbin{n}' for n in range(1,len(zbin_edges))] + [f'Mbin{n}' for n in range(1,len(Mbin_edges))] + ['ALL']
 		
+		#set up a dictionary with these keys, with empty lists for each one
+		nc_new_dict = dict(zip(nc_keys, [[] for _ in range(len(nc_keys))]))
+		cc_new_dict = dict(zip(nc_keys, [[] for _ in range(len(nc_keys))]))
+
 		for nc_file, cc_file in results_files:
 			nc_dist_now = np.load(nc_file)
 			cc_dist_now = np.load(cc_file)
 
 			for k in nc_keys:
-				try:
-					nc_dict_dists[k].append(nc_dist_now[k])
-					cc_dict_dists[k].append(cc_dist_now[k])
-				except KeyError:
-					nc_dict_dists[k] = [nc_dist_now[k]]
-					cc_dict_dists[k] = [cc_dist_now[k]]
+				nc_new_dict[k].append(nc_dist_now[k])
+				cc_new_dict[k].append(cc_dist_now[k])
+
 			del nc_dist_now, cc_dist_now
+
+		#add the new results to the existing, if any exist
+		for k in nc_keys:
+			if k in nc_dict_dists:
+				nc_dict_dists[k] = np.concatenate([nc_dict_dists[k], nc_new_dict[k]], axis=0)
+				cc_dict_dists[k] = np.concatenate([cc_dict_dists[k], cc_new_dict[k]], axis=0)
+			else:
+				nc_dict_dists[k] = nc_new_dict[k]
+				cc_dict_dists[k] = cc_new_dict[k]
+
 		os.system(f'rm -f {PATH_NC_DISTS}/sample*.npz {PATH_CC_DISTS}/sample*.npz')
 
 		#save the number count dictionaries as compressed numpy archives
 		np.savez_compressed(nc_npz_file, **nc_dict_dists)
 		np.savez_compressed(cc_npz_file, **cc_dict_dists)
-
+				
 
 		print(gen.colour_string(f'Calculating final bin heights and errors...', 'purple'))
 		
@@ -679,25 +759,34 @@ if __name__ == '__main__':
 		nc_final = {'bin_edges' : nc_dict_dists['bin_edges']}
 		cc_final = {'bin_edges' : cc_dict_dists['bin_edges']}
 
-		for k in nc_keys:
-			#retrieve the distribution of differential number counts and covert to a 2D numpy array
-			nc_dist = np.concatenate(nc_dict_dists[k], axis=0)
-			#calculate the median and uncertainties
-			N_final, eN_final_lo, eN_final_hi = stats.vals_and_errs_from_dist(nc_dist)
-			#store these in the new dictionary
-			nc_final[k] = np.array([N_final, eN_final_lo, eN_final_hi])
+		#make partial function versions of collate_results for the differential and cumulative results
+		collate_results_nc = partial(
+			collate_results,
+			nc_dict_dists,
+			50,
+			gen.nsim)
+		collate_results_cc = partial(
+			collate_results,
+			cc_dict_dists,
+			50,
+			gen.nsim)
 
-			#retrieve the distribution of cumulative number counts and covert to a 2D numpy array
-			cc_dist = np.concatenate(cc_dict_dists[k], axis=0)
-			#calculate the median and uncertainties
-			N_final, eN_final_lo, eN_final_hi = stats.vals_and_errs_from_dist(cc_dist)
-			#store these in the new dictionary
-			cc_final[k] = np.array([N_final, eN_final_lo, eN_final_hi])
-
+		#create a Pool with the specified number of processes
+		with Pool(ncpu_avail-1) as pool:
+			results_nc = pool.map(collate_results_nc, nc_keys)
+			results_cc = pool.map(collate_results_cc, nc_keys)
+			#results_files = list(pool.imap_unordered(number_counts_star, nc_args))
+			pool.close()
+			pool.join()
+		#add the results to the dictionaries
+		for k in range(len(results_nc)):
+			nc_final[results_nc[k][0]] = results_nc[k][1]
+			cc_final[results_cc[k][0]] = results_cc[k][1]
 
 		#save the number count dictionaries as compressed numpy archives
 		np.savez_compressed(nc_npz_file_final, **nc_final)
 		np.savez_compressed(cc_npz_file_final, **cc_final)
+		
 		
 
 	print(gen.colour_string(f'Done!', 'purple'))

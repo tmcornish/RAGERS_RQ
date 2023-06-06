@@ -14,10 +14,12 @@ import general as gen
 
 #toggle `switches' for determining which scripts to run
 recreate_S19_comp = False	#recreate the completeness results from Simpson+19
-random_datasets = True		#generate random flux densities (and completeness values) from the S2COSMOS catalogue
+random_datasets = False		#generate random flux densities (and completeness values) from the S2COSMOS catalogue
 recreate_S19_nc = False		#recreate the number counts from Simpson+19
 rq_sample = False			#select the sample of radio-quiet massive galaxies
-calc_numcounts = False		#calculate number counts for 
+calc_numcounts = False		#calculate number counts
+fit_schechter = True		#run MCMC to fit Schechter functions to the results
+plot_numcounts = False		#plot the number counts
 numcounts_mega = False		#number counts mega script
 apertures_test = False		#test the effect of different aperture sizes on the number counts
 
@@ -29,6 +31,8 @@ settings = [
 	recreate_S19_nc, 
 	rq_sample,
 	calc_numcounts,
+	fit_schechter,
+	plot_numcounts,
 	numcounts_mega,
 	apertures_test
 	]
@@ -38,6 +42,8 @@ proc_names = [
 	'Recreating Simpson+19 number counts', 
 	'Selecting RQ sample', 
 	'Constructing number counts',
+	'Fitting Schechter functions',
+	'Plotting number counts',
 	'Constructing number counts (mega script)',
 	'Test different apertures'
 	]
@@ -47,6 +53,8 @@ run_str = [
 	'python Recreate_S19_number_counts.py',
 	'python Select_radio_quiet_sample.py',
 	'python Calculate_numcounts.py',
+	'python Fit_schechter_funcs.py',
+	'python Plot_numcounts.py',
 	'python Submm_number_counts.py',
 	'python Test_search_radius.py'
 	]

@@ -560,7 +560,7 @@ def cumulative_numcounts(counts=None, S=None, bin_edges=None, A=1., comp=None, i
 
 
 
-def fit_schechter_mcmc(x, y, yerr, nwalkers, niter, initial, offsets=0.01, plot_on_axes=False, **plot_kwargs):
+def fit_schechter_mcmc(x, y, yerr, nwalkers, niter, initial, offsets=0.01, return_sampler=False, plot_on_axes=False, **plot_kwargs):
 	'''
 	Uses MCMC to fit a Schechter function to data.
 
@@ -588,6 +588,10 @@ def fit_schechter_mcmc(x, y, yerr, nwalkers, niter, initial, offsets=0.01, plot_
 		Offsets in each dimension of the parameter space from an initial fit, used to determine
 		the starting positions of each walker.
 
+	return_sampler: bool
+		If True, returns the full sampler output from running the MCMC in addition to the best-fit
+		parameters and uncertainties.
+
 	plot_on_axes: bool
 		Plot the line of best fit on a provided set of axes.
 
@@ -604,6 +608,9 @@ def fit_schechter_mcmc(x, y, yerr, nwalkers, niter, initial, offsets=0.01, plot_
 
 	e_hi: array
 		Upper uncertainties on the best-fit parameters.
+
+	sampler: EnsembleSamper
+		EnsembleSampler object obtained by running emcee. Only returned if return_sampler=True.
 
 	'''
 
@@ -854,7 +861,10 @@ def fit_schechter_mcmc(x, y, yerr, nwalkers, niter, initial, offsets=0.01, plot_
 					best_fit_str = '\n'.join(best_fit_str)
 					plot_kwargs['ax'].text(xtext, ytext, best_fit_str, color=fc, ha='left', va='top', fontsize=fs, transform=transform)
 
-	return best, e_lo, e_hi
+	if return_sampler:
+		return best, e_lo, e_hi, sampler
+	else:
+		return best, e_lo, e_hi
 
 
 def mask_numcounts(x, y, limits=True, exclude_all_zero=True, Smin=None):
