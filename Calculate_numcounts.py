@@ -613,13 +613,14 @@ if __name__ == '__main__':
 	RAGERS_Ms = RAGERS_Ms[idx_ordered]
 	RAGERS_info = [RAGERS_IDs, RAGERS_zs, RAGERS_Ms]
 
-	#see if files exist containing the differential/cumulative number count distributions in each bin
+	#see if directories exist for containing the outputs of this script
+	PATH_COUNTS = gen.PATH_CATS + 'Number_counts/'
 	PATH_NC_DISTS = gen.PATH_SIMS + 'Differential_numcount_dists/'
-	if not os.path.exists(PATH_NC_DISTS):
-		os.system(f'mkdir -p {PATH_NC_DISTS}')
 	PATH_CC_DISTS = gen.PATH_SIMS + 'Cumulative_numcount_dists/'
-	if not os.path.exists(PATH_CC_DISTS):
-		os.system(f'mkdir -p {PATH_CC_DISTS}')
+	for P in [PATH_COUNTS, PATH_NC_DISTS, PATH_CC_DISTS]:	
+		if not os.path.exists(P):
+			os.system(f'mkdir -p {P}')
+
 
 	#get the number of CPUs available
 	ncpu_avail = cpu_count()
@@ -752,8 +753,8 @@ if __name__ == '__main__':
 		
 
 		#names to give the files containing the final bin heights and unertainties
-		nc_npz_file_final = gen.PATH_CATS + f'Differential_numcounts_and_errs_{r:.1f}am.npz'
-		cc_npz_file_final = gen.PATH_CATS + f'Cumulative_numcounts_and_errs_{r:.1f}am.npz'
+		nc_npz_file_final = gen.PATH_COUNTS + f'Differential_numcounts_and_errs_{r:.1f}am.npz'
+		cc_npz_file_final = gen.PATH_COUNTS + f'Cumulative_numcounts_and_errs_{r:.1f}am.npz'
 
 		#set up dictionaries for these results
 		nc_final = {'bin_edges' : nc_dict_dists['bin_edges']}

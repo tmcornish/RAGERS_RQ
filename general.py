@@ -38,6 +38,7 @@ r_search = 6.	#search radius to use when finding submm counterparts
 n_rq = 10		#minimum number of RQ counterparts required per RL galaxy
 sens_lim = 1.3	#SCUBA-2 sensitivity limit (mJy) for searching for submm companions 
 nsim = 10000	#number of simulated datasets to generate when constructing number counts
+Smin = 3.		#minimum flux density below which bins will be excluded for Schechter fits
 
 #blank-field data
 S19_cat = PATH_CATS + 'Simpson+19_S2COSMOS_source_cat.fits' # alternatively 'S2COSMOS_sourcecat850_Simpson18.fits'

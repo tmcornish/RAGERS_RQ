@@ -682,7 +682,7 @@ def fit_schechter_mcmc(x, y, yerr, nwalkers, niter, initial, offsets=0.01, retur
 		'''
 
 		N0, S0, gamma = theta
-		if (1000. <= N0 <= 10000.) and (1. <= S0 <= 10.) and (-1. <= gamma <= 6.):
+		if (1000. <= N0 <= 15000.) and (1. <= S0 <= 10.) and (-1. <= gamma <= 6.):
 			return 0.
 		else:
 			return -np.inf
