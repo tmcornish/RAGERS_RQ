@@ -240,7 +240,6 @@ if __name__ == '__main__':
 			niter,
 			S19_fit_params[0],
 			offsets=offsets_init,
-			parallel=True,
 			plot_on_axes=True,
 			ax=ax1,
 			linestyle='--',

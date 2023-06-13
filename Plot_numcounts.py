@@ -39,7 +39,7 @@ PATH_COUNTS = PATH_CATS + 'Number_counts/'
 nc_files = sorted(glob.glob(PATH_COUNTS+'Differential_numcounts_and_errs*.npz'))
 cc_files = sorted(glob.glob(PATH_COUNTS+'Cumulative_numcounts_and_errs*.npz'))
 #get the radii used
-radii = [float(s.split('_')[-1][:3]) for s in nc_files]
+radii = gen.r_search_all
 #combine these into one list
 nc_cc_all = [nc_files, cc_files]
 

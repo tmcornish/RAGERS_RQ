@@ -14,9 +14,12 @@ import glob
 import numpy as np
 
 
+
 ##################
 #### SETTINGS ####
 ##################
+
+settings_print = []
 
 #number of walkers and iterations to use in MCMC fitting
 nwalkers = 100
@@ -26,11 +29,18 @@ offsets_init = [10., 0.01, 0.01]
 #initial guesses for the parameters
 popt_initial = [5000., 3., 1.6]
 
+settings_print.append(f'Number of walkers to use for MCMC: {nwalkers}')
+settings_print.append(f'Number of iterations to use for MCMC: {niter}')
+
 #minimum flux density allowed when fitting (mJy)
 Smin = gen.Smin
+settings_print.append(f'Flux density limit for bin inclusion: {flux_lim} mJy')
 
 #datasets to which Schechter functions will be fitted
 data_to_fit = [f'zbin{i}' for i in range(1,5)] + [f'Mbin{i}' for i in range(1,4)] + ['ALL']
+
+
+print(gen.colour_string('\n'.join(settings_print), 'white'))
 
 #######################################################
 ###############    START OF SCRIPT    #################
@@ -52,7 +62,7 @@ for P in [PATH_PARAMS, PATH_POSTS]:
 nc_files = sorted(glob.glob(PATH_COUNTS+'Differential_numcounts_and_errs*.npz'))
 cc_files = sorted(glob.glob(PATH_COUNTS+'Cumulative_numcounts_and_errs*.npz'))
 #get the radii used
-radii = [float(s.split('_')[-1][:3]) for s in nc_files]
+radii = gen.r_search_all
 
 #cycle through the radii
 for r, ncf, ccf in zip(radii, nc_files, cc_files):
@@ -122,6 +132,9 @@ for r, ncf, ccf in zip(radii, nc_files, cc_files):
 		cc_params_dict[k] = np.array([popt_cc, epopt_lo_cc, epopt_hi_cc])
 		#add the sampler flatchain to the posteriors dictionary
 		cc_post_dict[k] = sampler_cc.flatchain
+
+		#if just fitted to the 'ALL' datasets, add results to table
+
 
 	#save the created dictionaries in the destination files
 	np.savez_compressed(nc_params_file, **nc_params_dict)
