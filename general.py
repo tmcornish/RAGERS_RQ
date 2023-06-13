@@ -46,6 +46,10 @@ Smin = 3.		#minimum flux density below which bins will be excluded for Schechter
 S19_cat = PATH_CATS + 'Simpson+19_S2COSMOS_source_cat.fits' # alternatively 'S2COSMOS_sourcecat850_Simpson18.fits'
 main_only = True	#whether or not to only use the MAIN S2COSMOS catalogue for blank-field calculations
 S19_results_file = PATH_CATS + 'Simpson+19_number_counts_tab.txt'	#number counts from Simpson+19
+if main_only:
+	s2c_key = 'MAIN'
+else:
+	s2c_key = 'ALL'
 
 
 ###################

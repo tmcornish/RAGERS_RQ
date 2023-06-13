@@ -519,12 +519,8 @@ if __name__ == '__main__':
 			fc=fit_colour
 			)
 		#add the results to the relevant dictionaries
-		if gen.main_only:
-			key = 'MAIN'
-		else:
-			key = 'ALL'
-		nc_params_dict[key] = np.array([popt_diff, elo_popt_diff, ehi_popt_diff])
-		nc_post_dict[key] = sampler_diff.flatchain
+		nc_params_dict[gen.s2c_key] = np.array([popt_diff, elo_popt_diff, ehi_popt_diff])
+		nc_post_dict[gen.s2c_key] = sampler_diff.flatchain
 		#save the results to the files
 		np.savez_compressed(nc_params_file, **nc_params_dict)
 		np.savez_compressed(nc_post_file, **nc_post_dict)
@@ -552,8 +548,8 @@ if __name__ == '__main__':
 				xyfont=(9., 1000.),
 				fc=fit_colour
 				) 
-			cc_params_dict[key] = np.array([popt_cumul, elo_popt_cumul, ehi_popt_cumul])
-			cc_post_dict[key] = sampler_cumul.flatchain
+			cc_params_dict[gen.s2c_key] = np.array([popt_cumul, elo_popt_cumul, ehi_popt_cumul])
+			cc_post_dict[gen.s2c_key] = sampler_cumul.flatchain
 			#save the results to the files
 			np.savez_compressed(cc_params_file, **cc_params_dict)
 			np.savez_compressed(cc_post_file, **cc_post_dict)
