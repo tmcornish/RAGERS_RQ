@@ -19,9 +19,9 @@ recreate_S19_nc = False		#recreate the number counts from Simpson+19
 rq_sample = False			#select the sample of radio-quiet massive galaxies
 calc_numcounts = False		#calculate number counts
 fit_schechter = False		#run MCMC to fit Schechter functions to the results
-param_tables = False			#format best-fit results from MCMC into a LaTeX-style table
+param_tables = True			#format best-fit results from MCMC into a LaTeX-style table
 plot_numcounts = False		#plot the number counts
-contour_plot = True			#make contour plots for the Schechter fit parameters
+contour_plot = False			#make contour plots for the Schechter fit parameters
 numcounts_mega = False		#number counts mega script
 apertures_test = False		#test the effect of different aperture sizes on the number counts
 
