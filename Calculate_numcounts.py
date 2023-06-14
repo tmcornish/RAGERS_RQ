@@ -432,8 +432,9 @@ def collate_results(results_dict, nmax, nsim, key):
 		2D array containing the bin heights and lower and upper uncertainties.
 	'''
 
-	#retrieve the data for this key
+	#retrieve the data for this key, and the weights for each bin
 	data = results_dict[key]
+	weights = results_dict['w_'+key]
 	ndata = len(data)
 	#determine how many iterations required after nmax is enforces
 	n_iter = int(np.ceil(ndata / nmax))
@@ -461,8 +462,11 @@ def collate_results(results_dict, nmax, nsim, key):
 	N, eN_lo, eN_hi = stats.vals_and_errs_from_dist(results_iter, axis=1)
 	R = np.array([N, eN_lo, eN_hi])
 
+	#calculate the average weights in each bin
+	w = np.mean(weights, axis=0)
+
 	#return the key and the final results
-	return key, R
+	return key, R, w
 
 
 
@@ -537,7 +541,13 @@ if __name__ == '__main__':
 
 	print(gen.colour_string('\n'.join(settings_print), 'white'))
 
-
+	#see if directories exist for containing the outputs of this script
+	PATH_COUNTS = gen.PATH_CATS + 'Number_counts/'
+	PATH_NC_DISTS = gen.PATH_SIMS + 'Differential_numcount_dists/'
+	PATH_CC_DISTS = gen.PATH_SIMS + 'Cumulative_numcount_dists/'
+	for P in [PATH_COUNTS, PATH_NC_DISTS, PATH_CC_DISTS]:	
+		if not os.path.exists(P):
+			os.system(f'mkdir -p {P}')
 
 	##################################
 	#### SETTINGS (NUMBER COUNTS) ####
@@ -601,6 +611,58 @@ if __name__ == '__main__':
 			comp_rand = np.ones(comp_cat)
 
 
+	###################################
+	#### BLANK-FIELD NUMBER COUNTS ####
+	###################################
+
+	print(gen.colour_string(f'Calculating results for S2COSMOS.', 'orange'))
+
+	#files in which the results will be stored
+	nc_bf_file = PATH_COUNTS + 'Differential_numcounts_and_errs_bf.npz'
+	cc_bf_file = PATH_COUNTS + 'Cumulative_numcounts_and_errs_bf.npz'
+
+	#see if blank-field results already exist
+	if os.path.exists(cc_bf_file):
+		nc_bf_dict = np.load(nc_npz_file)
+		nc_bf_dict = dict(zip(nc_bf_dict.files, [nc_bf_dict[f] for f in nc_bf_dict.files]))
+		cc_bf_dict = np.load(cc_npz_file)
+		cc_bf_dict = dict(zip(cc_bf_dict.files, [cc_bf_dict[f] for f in cc_bf_dict.files]))
+	else:
+		#create dictionaries for storing the results
+		nc_bf_dict = {'bin_edges' : S850_bin_edges}
+		cc_bf_dict = {'bin_edges' : S850_bin_edges}		
+
+	#calculate the differential number counts (S2COSMOS)
+	N_s2c, eN_s2c_lo, eN_s2c_hi, counts_s2c_comp_corr, weights_s2c = nc.differential_numcounts(
+		S850_rand,
+		S850_bin_edges,
+		gen.A_s2c,
+		comp=comp_rand
+		)
+	#put the results in the relevant dictionary
+	nc_bf_dict['S2COSMOS'] = np.array([N_s2c, eN_s2c_lo, eN_s2c_hi])
+	#include the weights for each bin
+	nc_bf_dict['w_S2COSMOS'] = weights_s2c
+
+	#calculate the cumulative number counts (S2COSMOS)
+	cumN_s2c, eN_s2c_lo, eN_s2c_hi, _ = nc.cumulative_numcounts(
+		counts=counts_s2c_comp_corr,
+		bin_edges=S850_bin_edges,
+		A=gen.A_s2c)
+	#put the results in the relevant dictionary
+	nc_bf_dict['S2COSMOS'] = np.array([N_s2c, eN_s2c_lo, eN_s2c_hi])
+	#include the weights for each bin
+	nc_bf_dict['w_S2COSMOS'] = np.full(len(N_s2c), gen.A_s2c)
+
+	#save the results to their files
+	np.savez_compressed(nc_bf_file, **nc_bf_dict)
+	np.savez_compressed(cc_bf_file, **cc_bf_dict)
+
+
+	######################################
+	#### RQ ENVIRONMENT NUMBER COUNTS ####
+	######################################
+
 	#retrieve a list of the unique RAGERS IDs from the catalogue and the number of matches
 	RAGERS_IDs, idx_unique, n_rq_per_rl = np.unique(data_rq['RAGERS_ID'], return_index=True, return_counts=True)
 	#sort the IDs in order of increasing number of RQ matches
@@ -612,14 +674,6 @@ if __name__ == '__main__':
 	RAGERS_Ms = data_rq['RAGERS_logMstar'][idx_unique]
 	RAGERS_Ms = RAGERS_Ms[idx_ordered]
 	RAGERS_info = [RAGERS_IDs, RAGERS_zs, RAGERS_Ms]
-
-	#see if directories exist for containing the outputs of this script
-	PATH_COUNTS = gen.PATH_CATS + 'Number_counts/'
-	PATH_NC_DISTS = gen.PATH_SIMS + 'Differential_numcount_dists/'
-	PATH_CC_DISTS = gen.PATH_SIMS + 'Cumulative_numcount_dists/'
-	for P in [PATH_COUNTS, PATH_NC_DISTS, PATH_CC_DISTS]:	
-		if not os.path.exists(P):
-			os.system(f'mkdir -p {P}')
 
 
 	#get the number of CPUs available
@@ -782,7 +836,9 @@ if __name__ == '__main__':
 		#add the results to the dictionaries
 		for k in range(len(results_nc)):
 			nc_final[results_nc[k][0]] = results_nc[k][1]
+			nc_final['w_'+results_nc[k][0]] = results_nc[k][2]
 			cc_final[results_cc[k][0]] = results_cc[k][1]
+			cc_final['w_'+results_cc[k][0]] = results_cc[k][2]
 
 		#save the number count dictionaries as compressed numpy archives
 		np.savez_compressed(nc_npz_file_final, **nc_final)
