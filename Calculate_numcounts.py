@@ -238,13 +238,14 @@ def number_counts(
 				comp_matched_rl = comp_rand[idx_matched_rl]
 
 			#construct the differential number counts
-			N_rl, eN_rl_lo, eN_rl_hi, counts_rl_rand, _ = nc.differential_numcounts(
+			N_rl, eN_rl_lo, eN_rl_hi, counts_rl_rand, weights_rl = nc.differential_numcounts(
 				S850_matched_rl,
 				S850_bin_edges,
 				A_rl,
 				comp=comp_matched_rl)
 			#combine counts and uncertainties into one array and add to dictionary
 			nc_dict[ID] = np.array([N_rl, eN_rl_lo, eN_rl_hi])
+			nc_dict['w_'+ID] = weights_rl
 
 			#construct the cumulative number counts
 			cumN_rl, ecumN_rl_lo, ecumN_rl_hi, _ = nc.cumulative_numcounts(
@@ -253,6 +254,7 @@ def number_counts(
 				)
 			#combine counts and uncertainties into one array and add to dictionary
 			cc_dict[ID] = np.array([cumN_rl, ecumN_rl_lo, ecumN_rl_hi])
+			cc_dict['w_'+ID] = np.full(len(cumN_rl), A_rl)
 
 		#concatenate the arrays of indices of matched submm sources for this z bin
 		idx_matched_zbin = np.concatenate(idx_matched_zbin)
@@ -276,13 +278,14 @@ def number_counts(
 			comp_matched_zbin = comp_rand[idx_matched_zbin]
 
 		#construct the differential number counts
-		N_zbin, eN_zbin_lo, eN_zbin_hi, counts_zbin_rand, _  = nc.differential_numcounts(
+		N_zbin, eN_zbin_lo, eN_zbin_hi, counts_zbin_rand, weights_zbin  = nc.differential_numcounts(
 			S850_matched_zbin,
 			S850_bin_edges,
 			A_zbin,
 			comp=comp_matched_zbin)
 		#combine counts and uncertainties into one array and add to dictionary
 		nc_dict[f'zbin{i+1}'] = np.array([N_zbin, eN_zbin_lo, eN_zbin_hi])
+		nc_dict[f'w_zbin{i+1}'] = weights_zbin
 
 		#construct the cumulative number counts
 		cumN_zbin, ecumN_zbin_lo, ecumN_zbin_hi, _  = nc.cumulative_numcounts(
@@ -291,6 +294,7 @@ def number_counts(
 			)
 		#combine counts and uncertainties into one array and add to dictionary
 		cc_dict[f'zbin{i+1}'] = np.array([cumN_zbin, ecumN_zbin_lo, ecumN_zbin_hi])
+		cc_dict[f'w_zbin{i+1}'] = np.full(len(cumN_zbin), A_zbin)
 
 
 	##############################
@@ -341,6 +345,7 @@ def number_counts(
 			comp=comp_matched_Mbin)
 		#combine counts and uncertainties into one array and add to dictionary
 		nc_dict[f'Mbin{i+1}'] = np.array([N_Mbin, eN_Mbin_lo, eN_Mbin_hi])
+		nc_dict[f'w_Mbin{i+1}'] = weights_Mbin
 
 		#construct the cumulative number counts
 		cumN_Mbin, ecumN_Mbin_lo, ecumN_Mbin_hi, _  = nc.cumulative_numcounts(
@@ -349,6 +354,7 @@ def number_counts(
 			)
 		#add results to dictionary
 		cc_dict[f'Mbin{i+1}'] = np.array([cumN_Mbin, ecumN_Mbin_lo, ecumN_Mbin_hi])
+		cc_dict[f'w_Mbin{i+1}'] = np.full(len(cumN_Mbin), A_Mbin)
 
 	#########################
 	#### COMBINED COUNTS ####
@@ -376,13 +382,14 @@ def number_counts(
 		comp_matched_ALL = comp_rand[idx_matched_ALL]
 
 	#construct the differential number counts
-	N_ALL, eN_ALL_lo, eN_ALL_hi, counts_ALL_rand, _  = nc.differential_numcounts(
+	N_ALL, eN_ALL_lo, eN_ALL_hi, counts_ALL_rand, weights_ALL = nc.differential_numcounts(
 		S850_matched_ALL,
 		S850_bin_edges,
 		A_ALL,
 		comp=comp_matched_ALL)
 	#combine counts and uncertainties into one array and add to dictionary
-	nc_dict[f'ALL'] = np.array([N_ALL, eN_ALL_lo, eN_ALL_hi])
+	nc_dict['ALL'] = np.array([N_ALL, eN_ALL_lo, eN_ALL_hi])
+	nc_dict['w_ALL'] = weights_ALL
 
 	#construct the cumulative number counts
 	cumN_ALL, ecumN_ALL_lo, ecumN_ALL_hi, _ = nc.cumulative_numcounts(
@@ -391,6 +398,7 @@ def number_counts(
 		)
 	#add results to dictionary
 	cc_dict['ALL'] = np.array([cumN_ALL, ecumN_ALL_lo, ecumN_ALL_hi])
+	cc_dict['w_ALL'] = np.full(len(cumN_ALL), A_ALL)
 
 	#write the dictionaries to a file
 	nc_name = PATH_NC_DISTS + f'sample{idx}_{r_search:.1f}am.npz'
