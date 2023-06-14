@@ -683,6 +683,10 @@ if __name__ == '__main__':
 	RAGERS_Ms = RAGERS_Ms[idx_ordered]
 	RAGERS_info = [RAGERS_IDs, RAGERS_zs, RAGERS_Ms]
 
+	#keys to use for the dictionaries containing all results
+	nc_keys = list(RAGERS_IDs) + [f'zbin{n}' for n in range(1,len(zbin_edges))] + [f'Mbin{n}' for n in range(1,len(Mbin_edges))] + ['ALL']
+	#extend the list to include the keys for the corresponding bin weights
+	nc_keys = nc_keys + [f'w_{nck}' for nck in nc_keys]
 
 	#get the number of CPUs available
 	ncpu_avail = cpu_count()
@@ -779,7 +783,6 @@ if __name__ == '__main__':
 			nc_dict_dists = {'bin_edges' : S850_bin_edges}
 			cc_dict_dists = {'bin_edges' : S850_bin_edges}
 
-		nc_keys = list(RAGERS_IDs) + [f'zbin{n}' for n in range(1,len(zbin_edges))] + [f'Mbin{n}' for n in range(1,len(Mbin_edges))] + ['ALL']
 		
 		#set up a dictionary with these keys, with empty lists for each one
 		nc_new_dict = dict(zip(nc_keys, [[] for _ in range(len(nc_keys))]))
