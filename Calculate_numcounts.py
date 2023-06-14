@@ -623,9 +623,9 @@ if __name__ == '__main__':
 
 	#see if blank-field results already exist
 	if os.path.exists(cc_bf_file):
-		nc_bf_dict = np.load(nc_npz_file)
+		nc_bf_dict = np.load(nc_bf_file)
 		nc_bf_dict = dict(zip(nc_bf_dict.files, [nc_bf_dict[f] for f in nc_bf_dict.files]))
-		cc_bf_dict = np.load(cc_npz_file)
+		cc_bf_dict = np.load(cc_bf_file)
 		cc_bf_dict = dict(zip(cc_bf_dict.files, [cc_bf_dict[f] for f in cc_bf_dict.files]))
 	else:
 		#create dictionaries for storing the results
