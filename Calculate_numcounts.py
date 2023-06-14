@@ -338,7 +338,7 @@ def number_counts(
 			comp_matched_Mbin = comp_rand[idx_matched_Mbin]
 
 		#construct the differential number counts
-		N_Mbin, eN_Mbin_lo, eN_Mbin_hi, counts_Mbin_rand, _  = nc.differential_numcounts(
+		N_Mbin, eN_Mbin_lo, eN_Mbin_hi, counts_Mbin_rand, weights_Mbin  = nc.differential_numcounts(
 			S850_matched_Mbin,
 			S850_bin_edges,
 			A_Mbin,
