@@ -618,8 +618,8 @@ if __name__ == '__main__':
 	print(gen.colour_string(f'Calculating results for S2COSMOS.', 'orange'))
 
 	#files in which the results will be stored
-	nc_bf_file = PATH_COUNTS + 'Differential_numcounts_and_errs_bf.npz'
-	cc_bf_file = PATH_COUNTS + 'Cumulative_numcounts_and_errs_bf.npz'
+	nc_bf_file = PATH_COUNTS + 'Differential_with_errs_bf.npz'
+	cc_bf_file = PATH_COUNTS + 'Cumulative_with_errs_bf.npz'
 
 	#see if blank-field results already exist
 	if os.path.exists(cc_bf_file):
@@ -807,8 +807,8 @@ if __name__ == '__main__':
 		
 
 		#names to give the files containing the final bin heights and unertainties
-		nc_npz_file_final = gen.PATH_COUNTS + f'Differential_numcounts_and_errs_{r:.1f}am.npz'
-		cc_npz_file_final = gen.PATH_COUNTS + f'Cumulative_numcounts_and_errs_{r:.1f}am.npz'
+		nc_npz_file_final = PATH_COUNTS + f'Differential_with_errs_{r:.1f}am.npz'
+		cc_npz_file_final = PATH_COUNTS + f'Cumulative_with_errs_{r:.1f}am.npz'
 
 		#set up dictionaries for these results
 		nc_final = {'bin_edges' : nc_dict_dists['bin_edges']}
