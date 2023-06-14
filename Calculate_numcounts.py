@@ -685,8 +685,8 @@ if __name__ == '__main__':
 
 	#keys to use for the dictionaries containing all results
 	nc_keys = list(RAGERS_IDs) + [f'zbin{n}' for n in range(1,len(zbin_edges))] + [f'Mbin{n}' for n in range(1,len(Mbin_edges))] + ['ALL']
-	#extend the list to include the keys for the corresponding bin weights
-	nc_keys = nc_keys + [f'w_{nck}' for nck in nc_keys]
+	#keys for the corresponding bin weights
+	wnc_keys = [f'w_{nck}' for nck in nc_keys]
 
 	#get the number of CPUs available
 	ncpu_avail = cpu_count()
@@ -785,27 +785,35 @@ if __name__ == '__main__':
 
 		
 		#set up a dictionary with these keys, with empty lists for each one
-		nc_new_dict = dict(zip(nc_keys, [[] for _ in range(len(nc_keys))]))
-		cc_new_dict = dict(zip(nc_keys, [[] for _ in range(len(nc_keys))]))
+		nc_new_dict = dict(zip(nc_keys+wnc_keys, [[] for _ in range(len(nc_keys)+len(wnc_keys))]))
+		cc_new_dict = dict(zip(nc_keys+wnc_keys, [[] for _ in range(len(nc_keys)+len(wnc_keys))]))
 
 		for nc_file, cc_file in results_files:
 			nc_dist_now = np.load(nc_file)
 			cc_dist_now = np.load(cc_file)
 
-			for k in nc_keys:
+			for k, wk in zip(nc_keys, wnc_keys):
 				nc_new_dict[k].append(nc_dist_now[k])
 				cc_new_dict[k].append(cc_dist_now[k])
+				nc_new_dict[wk].append(nc_dist_now[wk])
+				cc_new_dict[wk].append(cc_dist_now[wk])
 
 			del nc_dist_now, cc_dist_now
 
 		#add the new results to the existing, if any exist
-		for k in nc_keys:
+		for k, wk in zip(nc_keys, wnc_keys):
 			if k in nc_dict_dists:
 				nc_dict_dists[k] = np.concatenate([nc_dict_dists[k], nc_new_dict[k]], axis=0)
 				cc_dict_dists[k] = np.concatenate([cc_dict_dists[k], cc_new_dict[k]], axis=0)
 			else:
 				nc_dict_dists[k] = nc_new_dict[k]
 				cc_dict_dists[k] = cc_new_dict[k]
+			if wk in nc_dict_dists:
+				nc_dict_dists[wk] = np.concatenate([nc_dict_dists[wk], nc_new_dict[wk]], axis=0)
+				cc_dict_dists[wk] = np.concatenate([cc_dict_dists[wk], cc_new_dict[wk]], axis=0)
+			else:
+				nc_dict_dists[wk] = np.array(nc_new_dict[wk])
+				cc_dict_dists[wk] = np.array(cc_new_dict[wk])
 
 		os.system(f'rm -f {PATH_NC_DISTS}/sample*.npz {PATH_CC_DISTS}/sample*.npz')
 
