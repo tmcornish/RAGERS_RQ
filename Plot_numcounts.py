@@ -64,14 +64,14 @@ xtick_min_labels = [f'{s:g}' if s in xtick_min_labels else '' for s in xtick_min
 ax_big1 = f.add_subplot(121, frameon=False)
 ax_big1.tick_params(labelcolor='none', top=False, bottom=False, left=False, right=False, which='both')
 #label x and y axes
-ax_big1.set_xlabel(r'$S_{850~\mu{\rm m}}$ (mJy)', labelpad=10.)
+ax_big1.set_xlabel(r'$S_{850}$ (mJy)', labelpad=10.)
 ax_big1.set_ylabel(r'$dN/dS$ (deg$^{-2}$ mJy$^{-1}$)', labelpad=20.)
 
 #create a second big subplot covering the second column make it invisible, and label its axes
 ax_big2 = f.add_subplot(122, frameon=False)
 ax_big2.tick_params(labelcolor='none', top=False, bottom=False, left=False, right=False, which='both')
 #label x and y axes
-ax_big2.set_xlabel(r'$S_{850~\mu{\rm m}}$ (mJy)', labelpad=10.)
+ax_big2.set_xlabel(r'$S_{850}$ (mJy)', labelpad=10.)
 ax_big2.set_ylabel(r'$N(>S)$ (deg$^{-2}$)', labelpad=20.)
 
 #############################
@@ -114,6 +114,14 @@ c_S19, ec_S19_lo, ec_S19_hi, cumcounts = nc.cumulative_numcounts(counts=counts_S
 #masks for visualisation
 plot_masks_nc_S19 = nc.mask_numcounts(S19_bin_centres, N_S19, limits=False, Smin=gen.Smin)
 plot_masks_cc_S19 = nc.mask_numcounts(S19_bin_edges[:-1], c_S19, limits=False, Smin=gen.Smin)
+
+#load the best-fit parameters for this radius
+nc_params_S19 = np.load(PATH_PARAMS + f'Differential_S2COSMOS.npz')
+cc_params_S19 = np.load(PATH_PARAMS + f'Cumulative_S2COSMOS.npz')
+
+#retrieve the best-fit parameters
+nc_popt_S19, enc_popt_lo_S19, enc_popt_hi_S19 = nc_params_S19[gen.s2c_key]
+cc_popt_S19, ecc_popt_lo_S19, ecc_popt_hi_S19 = cc_params_S19[gen.s2c_key]
 
 plot_offset_S19 = 0.01
 
@@ -255,7 +263,7 @@ for i in range(n_rows):
 	data_kwargs = dict(color=ps.crimson, label=label, linestyle='none', marker='D', ms=8., zorder=3, alpha=0.5)
 	ebar_kwargs = dict(ecolor=ps.crimson, zorder=2, alpha=0.5)
 
-	#plot the number counts
+	#plot the differential number counts
 	nc.plot_numcounts(
 		S19_bin_centres,
 		N_S19,
@@ -267,7 +275,10 @@ for i in range(n_rows):
 		data_kwargs=data_kwargs,
 		ebar_kwargs=ebar_kwargs
 		)
+	#plot the best-fit Schechter function
+	ax_nc.plot(x_range, nc.schechter_model(x_range, nc_popt_S19), c=ps.crimson, alpha=0.5, linestyle='--')
 
+	#plot the cumulative number counts
 	nc.plot_numcounts(
 		S19_bin_edges[:-1],
 		c_S19,
@@ -279,7 +290,8 @@ for i in range(n_rows):
 		data_kwargs=data_kwargs,
 		ebar_kwargs=ebar_kwargs
 		)
-
+	#plot the best-fit Schechter function
+	ax_cc.plot(x_range, nc.schechter_model(x_range, cc_popt_S19), c=ps.crimson, alpha=0.5, linestyle='--')
 
 
 	############################

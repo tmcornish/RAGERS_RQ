@@ -111,51 +111,6 @@ for counttype, data in zip(['Differential', 'Cumulative'], [nc_data, cc_data]):
 	data_lines.append(' & '.join(params_all) + r'\\' + '\n\t\t' + r'\hline' + '\n\t\t'+ r'\vspace{%s}'%padding)
 
 
-'''
-for ncd, ccd, r in zip(nc_data, cc_data, gen.r_search_all):
-	#cycle through each parameter
-	params_all = ['\t\t' + r'$%g\arcmin$'%r]
-	for data in [ncd, ccd]:
-		for i in range(len(data[0])):
-			#parameter and errors
-			pe = data[:,i]
-			#figure out how many significant figures the parameter and uncertainties should be quoted to
-			order_p = int(np.floor(np.log10(pe[0])))
-			order_err = int(np.floor(np.log10(min(pe[1:]))))
-			if order_p == order_err:
-				Nsf_p = Nsf_err = 1
-			else:
-				Nsf_p = order_p - order_err + 1
-				Nsf_err = 1
-			pe = [gen.round_sigfigs(x, n) for x,n in zip(pe, [Nsf_p, Nsf_err, Nsf_err])]
-			params_all.append(r'$%g_{-%g}^{+%g}$'%tuple(pe))
-	if r == gen.r_search_all[-1]:
-		data_lines.append(' & '.join(params_all) + r'\\' + '\n\t\t' + r'\hline' + '\n\t\t' + r'\vspace{%s}'%padding)
-	else:
-		data_lines.append(' & '.join(params_all) + r'\\' + '\n\t\t' + r'\vspace{%s}'%padding)
-
-
-#retrieve the best-fit parameters for the blank field
-bf_data = [np.load(gen.PATH_CATS + 'Schechter_params/' + f'{f}_S2COSMOS.npz')[gen.s2c_key] for f in ['Differential', 'Cumulative']]
-#cycle through each parameter
-params_all = ['\t\t' + 'S2COSMOS']
-for bfd in bf_data:
-	for i in range(len(bfd[0])):
-		#parameter and errors
-		pe = bfd[:,i]
-		#figure out how many significant figures the parameter and uncertainties should be quoted to
-		order_p = int(np.floor(np.log10(pe[0])))
-		order_err = int(np.floor(np.log10(min(pe[1:]))))
-		if order_p == order_err:
-			Nsf_p = Nsf_err = 1
-		else:
-			Nsf_p = order_p - order_err + 1
-			Nsf_err = 1
-		pe = [gen.round_sigfigs(x, n) for x,n in zip(pe, [Nsf_p, Nsf_err, Nsf_err])]
-		params_all.append(r'$%g_{-%g}^{+%g}$'%tuple(pe))
-data_lines.append(' & '.join(params_all) + r'\\' + '\n\t\t' + r'\hline' + '\n\t\t'+ r'\vspace{%s}'%padding)
-'''
-
 tab_lines.extend(data_lines)
 #tab_lines.append('\t\t' + r'\hline')
 

@@ -56,7 +56,7 @@ clevels = np.array([np.diff(stats.percentiles_nsig(i))[0] for i in sig_levels])[
 ######################
 
 #create a figure with 3 panels
-f, ax = plt.subplots(3, 2, figsize=(2.*ps.x_size, 3.*ps.y_size))
+f, ax = plt.subplots(3, 2, figsize=(2.*ps.x_size, 2.5*ps.y_size))
 
 #x and y labels for each subplot
 xlabels = [r'$N_{0}$', r'$S_{0}$', r'$\gamma$']
