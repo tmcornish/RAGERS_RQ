@@ -48,8 +48,10 @@ main_only = True	#whether or not to only use the MAIN S2COSMOS catalogue for bla
 S19_results_file = PATH_CATS + 'Simpson+19_number_counts_tab.txt'	#number counts from Simpson+19
 if main_only:
 	s2c_key = 'MAIN'
+	A_s2c = 1.6		#sq. deg
 else:
 	s2c_key = 'ALL'
+	A_s2c = 2.6		#sq. deg
 
 
 ###################
