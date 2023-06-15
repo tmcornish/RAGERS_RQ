@@ -653,7 +653,7 @@ if __name__ == '__main__':
 	nc_bf_dict['w_S2COSMOS'] = weights_s2c
 
 	#calculate the cumulative number counts (S2COSMOS)
-	cumN_s2c, eN_s2c_lo, eN_s2c_hi, _ = nc.cumulative_numcounts(
+	cumN_s2c, ecumN_s2c_lo, ecumN_s2c_hi, _ = nc.cumulative_numcounts(
 		counts=counts_s2c_comp_corr,
 		bin_edges=S850_bin_edges,
 		A=gen.A_s2c)
