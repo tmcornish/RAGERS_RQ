@@ -132,6 +132,7 @@ for j in range(len(ax[0])):
 		#get the extent for plotting the contours
 		ext = [min(xc), max(xc), min(yc), max(yc)]
 		#normalise the histogram so that it represents the 2D PDF
+		#z = gaussian_filter(z, (0.5, 0.5))
 		z /= z.sum()
 
 		#create an array of steps at which the PDF will be integrated
@@ -185,7 +186,7 @@ for j in range(len(ax[0])):
 			ext = [min(xc), max(xc), min(yc), max(yc)]
 
 			#smooth the histogram with a 2D gaussian filter
-			#z = gaussian_filter(z, (0.2, 0.2))
+			#z = gaussian_filter(z, (0.5, 0.5))
 			#normalise the histogram so that it represents the 2D PDF
 			z /= z.sum()
 
