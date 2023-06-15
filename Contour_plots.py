@@ -82,11 +82,11 @@ nc_posts_all = [np.load(PATH_POSTS+f'Differential_{r:.1f}am.npz')['ALL'] for r i
 cc_posts_all = [np.load(PATH_POSTS+f'Cumulative_{r:.1f}am.npz')['ALL'] for r in gen.r_search_all]
 
 #blank field parameters (S2COSMOS)
-nc_params_s2c = np.load(PATH_PARAMS+f'Differential_S2COSMOS.npz')[gen.s2c_key]
-cc_params_s2c = np.load(PATH_PARAMS+f'Cumulative_S2COSMOS.npz')[gen.s2c_key]
+nc_params_s2c = np.load(PATH_PARAMS+f'Differential_bf.npz')['S2COSMOS']
+cc_params_s2c = np.load(PATH_PARAMS+f'Cumulative_bf.npz')['S2COSMOS']
 #blank field posteriors (S2COSMOS)
-nc_posts_s2c = np.load(PATH_POSTS+f'Differential_S2COSMOS.npz')[gen.s2c_key]
-cc_posts_s2c = np.load(PATH_POSTS+f'Cumulative_S2COSMOS.npz')[gen.s2c_key]
+nc_posts_s2c = np.load(PATH_POSTS+f'Differential_bf.npz')['S2COSMOS']
+cc_posts_s2c = np.load(PATH_POSTS+f'Cumulative_bf.npz')['S2COSMOS']
 
 #combine the differential and cumulative results into lists
 params_all = [nc_params_all, cc_params_all]

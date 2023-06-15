@@ -658,9 +658,9 @@ if __name__ == '__main__':
 		bin_edges=S850_bin_edges,
 		A=gen.A_s2c)
 	#put the results in the relevant dictionary
-	cc_bf_dict['S2COSMOS'] = np.array([N_s2c, eN_s2c_lo, eN_s2c_hi])
+	cc_bf_dict['S2COSMOS'] = np.array([cumN_s2c, ecumN_s2c_lo, ecumN_s2c_hi])
 	#include the weights for each bin
-	cc_bf_dict['w_S2COSMOS'] = np.full(len(N_s2c), gen.A_s2c)
+	cc_bf_dict['w_S2COSMOS'] = np.full(len(cumN_s2c), gen.A_s2c)
 
 	#save the results to their files
 	np.savez_compressed(nc_bf_file, **nc_bf_dict)

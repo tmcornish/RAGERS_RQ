@@ -35,13 +35,12 @@ PATH_SIMS = gen.PATH_SIMS
 PATH_PARAMS = PATH_CATS + 'Schechter_params/'
 PATH_COUNTS = PATH_CATS + 'Number_counts/'
 
-#list the files containing results to plot
-nc_files = sorted(glob.glob(PATH_COUNTS+'Differential_numcounts_and_errs*.npz'))
-cc_files = sorted(glob.glob(PATH_COUNTS+'Cumulative_numcounts_and_errs*.npz'))
 #get the radii used
 radii = gen.r_search_all
-#combine these into one list
-nc_cc_all = [nc_files, cc_files]
+
+#list the files containing results to plot
+nc_files = [PATH_COUNTS + f'Differential_with_errs_{r:.1f}am.npz' for r in radii]
+cc_files = [PATH_COUNTS + f'Cumulative_with_errs_{r:.1f}am.npz' for r in radii]
 
 
 ######################
@@ -78,50 +77,31 @@ ax_big2.set_ylabel(r'$N(>S)$ (deg$^{-2}$)', labelpad=20.)
 #### BLANK_FIELD RESULTS ####
 #############################
 
-#load the table summarising the nmber counts results
-S19_results = Table.read(gen.S19_results_file, format='ascii')
-#bin edges and centres for the differential number counts
-S19_bin_edges = np.concatenate([np.array(S19_results['S850']), [22.]])
+#load the differential and cumulative counts for the blank field data
+data_nc_bf = np.load(PATH_COUNTS + 'Differential_with_errs_bf.npz')
+data_cc_bf = np.load(PATH_COUNTS + 'Cumulative_with_errs_bf.npz')
+
+#get the bin edges used for the blank field results
+S19_bin_edges = data_nc_bf['bin_edges']
 S19_bin_centres = (S19_bin_edges[:-1] + S19_bin_edges[1:]) / 2.
-del S19_results
 
-if gen.main_only:
-	#survey area in square degrees
-	A = np.full(len(S19_bin_centres), 1.6)
-else:
-	#survey area in square degrees
-	A = np.full(len(S19_bin_centres), 2.6)
-
-#load the S2COSMOS catalogue
-data_submm = Table.read(gen.S19_cat, format='fits')
-#retrieve the deboosted flux densities and uncertainties, and RMS noise
-S850, eS850_lo, eS850_hi, RMS, *_, comp_cat = gen.get_relevant_cols_S19(data_submm, main_only=gen.main_only)
-
-
-#see if file exists containing randomised flux densities already
-npz_filename = PATH_SIMS + 'S2COSMOS_randomised_S850.npz'
-if os.path.exists(npz_filename):
-	rand_data = np.load(npz_filename)
-	S850_rand = rand_data['S850_rand']
-	comp_rand = rand_data['comp_rand']
-else:
-	S850_rand = S850[:]
-	comp_rand = np.ones(len(S850))
-
-#construct the differential number counts
-N_S19, eN_S19_lo, eN_S19_hi, counts_S19, weights_S19 = nc.differential_numcounts(S850_rand, S19_bin_edges, A, incl_poisson=True, comp=comp_rand)
-c_S19, ec_S19_lo, ec_S19_hi, cumcounts = nc.cumulative_numcounts(counts=counts_S19, A=A)
+#retrieve the results for the S2COSMOS dataset
+N_S19, eN_S19_lo, eN_S19_hi = data_nc_bf['S2COSMOS']
+c_S19, ec_S19_lo, ec_S19_hi = data_cc_bf['S2COSMOS']
+#weights for each bin
+weights_S19 = data_nc_bf['w_S2COSMOS']
 #masks for visualisation
 plot_masks_nc_S19 = nc.mask_numcounts(S19_bin_centres, N_S19, limits=False, Smin=gen.Smin)
 plot_masks_cc_S19 = nc.mask_numcounts(S19_bin_edges[:-1], c_S19, limits=False, Smin=gen.Smin)
 
-#load the best-fit parameters for this radius
-nc_params_S19 = np.load(PATH_PARAMS + f'Differential_S2COSMOS.npz')
-cc_params_S19 = np.load(PATH_PARAMS + f'Cumulative_S2COSMOS.npz')
+
+#load the best-fit parameters for the blank field
+nc_params_bf = np.load(PATH_PARAMS + f'Differential_bf.npz')
+cc_params_bf = np.load(PATH_PARAMS + f'Cumulative_bf.npz')
 
 #retrieve the best-fit parameters
-nc_popt_S19, enc_popt_lo_S19, enc_popt_hi_S19 = nc_params_S19[gen.s2c_key]
-cc_popt_S19, ecc_popt_lo_S19, ecc_popt_hi_S19 = cc_params_S19[gen.s2c_key]
+nc_popt_S19, enc_popt_lo_S19, enc_popt_hi_S19 = nc_params_bf['S2COSMOS']
+cc_popt_S19, ecc_popt_lo_S19, ecc_popt_hi_S19 = cc_params_bf['S2COSMOS']
 
 plot_offset_S19 = 0.01
 
@@ -166,7 +146,7 @@ for i in range(n_rows):
 	################################
 
 	#get the IDs of all the RAGERS RL galaxies
-	IDs = [s for s in data_nc.files if 'bin' not in s and s != 'ALL']
+	IDs = [s for s in data_nc.files if 'bin' not in s and s[:2] != 'w_' and s != 'ALL']
 
 	#cycle through the individual galaxies
 	for ID in IDs:
@@ -286,7 +266,7 @@ for i in range(n_rows):
 		ax=ax_cc,
 		offset=plot_offset_S19,
 		masks=plot_masks_cc_S19,
-		weights=weights_S19,
+		weights=np.full(len(S19_bin_edges)-1, gen.A_s2c),
 		data_kwargs=data_kwargs,
 		ebar_kwargs=ebar_kwargs
 		)
