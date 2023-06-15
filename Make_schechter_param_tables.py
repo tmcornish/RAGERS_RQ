@@ -92,7 +92,7 @@ for counttype, data in zip(['Differential', 'Cumulative'], [nc_data, cc_data]):
 		data_lines.append(' & '.join(params_all) + r'\\' + '\n\t\t' + r'\vspace{%s}'%padding)
 
 	#retrieve the best-fit parameters for the blank field
-	bf_data = np.load(gen.PATH_CATS + 'Schechter_params/' + f'{counttype}_S2COSMOS.npz')[gen.s2c_key]
+	bf_data = np.load(gen.PATH_CATS + 'Schechter_params/' + f'{counttype}_bf.npz')['S2COSMOS']
 	#cycle through each parameter
 	params_all = ['\t\t' + 'S2COSMOS', '--']
 	for i in range(len(bf_data[0])):
