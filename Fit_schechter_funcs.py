@@ -22,8 +22,8 @@ import numpy as np
 settings_print = []
 
 #number of walkers and iterations to use in MCMC fitting
-nwalkers = 50
-niter = 20000
+nwalkers = 100
+niter = 10000
 #offsets for the initial walker positions from the initial guess values
 offsets_init = [10., 0.01, 0.01]
 #initial guesses for the parameters

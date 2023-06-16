@@ -500,14 +500,16 @@ if __name__ == '__main__':
 	##################
 
 	#toggle `switches' for additional functionality
-	use_S19_bins = False				#use the flux density bins from Simpson+19
+	use_S19_bins_rq = False			#use the flux density bins from Simpson+19 for RQ results
+	use_S19_bins_bf = False			#use the flux density bins from Simpson+19 for blank-field results
 	independent_rq = True			#treat the RQ galaxies as independent (i.e. do not account for overlap between search areas)
 	comp_correct = True				#apply completeness corrections
 	main_only = gen.main_only		#use only sources from the MAIN region of S2COSMOS for blank-field results
 	repeat_sel = True				#perform the random RQ selection several times
 	many_radii = True
 	settings = [
-		use_S19_bins,
+		use_S19_bins_rq,
+		use_S19_bins_bf,
 		independent_rq, 
 		comp_correct,
 		main_only,
@@ -517,7 +519,8 @@ if __name__ == '__main__':
 	#print the chosen settings to the Terminal
 	print(gen.colour_string('CHOSEN SETTINGS:', 'white'))
 	settings_print = [
-		'Use flux density bins from Simpson+19: ', 
+		'Use flux density bins from Simpson+19 for RQ results: ',
+		'Use flux density bins from Simpson+19 for blank-field results: ', 
 		'Treat RQ galaxies independently: ',
 		'Apply completeness corrections: ',
 		'Use MAIN region only (for blank-field results): ',
@@ -561,15 +564,17 @@ if __name__ == '__main__':
 	#### SETTINGS (NUMBER COUNTS) ####
 	##################################
 
-	if use_S19_bins:
-		#load the table summarising the nmber counts results
-		S19_results = Table.read(gen.S19_results_file, format='ascii')
+	if use_S19_bins_rq:
 		#bin edges and centres for the differential number counts
-		S850_bin_edges = np.concatenate([np.array(S19_results['S850']), [22.]])
-		#delete the Table to conserve memory
-		del S19_results
+		S850_bin_edges = gen.S19_bin_edges
 	else:
 		S850_bin_edges = np.array([2., 3., 5., 7., 9., 12., 15., 18., 22.])
+
+	if use_S19_bins_bf:
+		s2c_bin_edges = gen.S19_bin_edges
+	else:
+		s2c_bin_edges = S850_bin_edges[:]
+
 
 	#redshift bin edges
 	zbin_edges = np.arange(1., 3.5, 0.5)
@@ -629,21 +634,14 @@ if __name__ == '__main__':
 	nc_bf_file = PATH_COUNTS + 'Differential_with_errs_bf.npz'
 	cc_bf_file = PATH_COUNTS + 'Cumulative_with_errs_bf.npz'
 
-	#see if blank-field results already exist
-	if os.path.exists(cc_bf_file):
-		nc_bf_dict = np.load(nc_bf_file)
-		nc_bf_dict = dict(zip(nc_bf_dict.files, [nc_bf_dict[f] for f in nc_bf_dict.files]))
-		cc_bf_dict = np.load(cc_bf_file)
-		cc_bf_dict = dict(zip(cc_bf_dict.files, [cc_bf_dict[f] for f in cc_bf_dict.files]))
-	else:
-		#create dictionaries for storing the results
-		nc_bf_dict = {'bin_edges' : S850_bin_edges}
-		cc_bf_dict = {'bin_edges' : S850_bin_edges}		
+	#create dictionaries for storing the results
+	nc_bf_dict = {'bin_edges' : s2c_bin_edges}
+	cc_bf_dict = {'bin_edges' : s2c_bin_edges}		
 
 	#calculate the differential number counts (S2COSMOS)
 	N_s2c, eN_s2c_lo, eN_s2c_hi, counts_s2c_comp_corr, weights_s2c = nc.differential_numcounts(
 		S850_rand,
-		S850_bin_edges,
+		s2c_bin_edges,
 		gen.A_s2c,
 		comp=comp_rand
 		)
@@ -655,7 +653,7 @@ if __name__ == '__main__':
 	#calculate the cumulative number counts (S2COSMOS)
 	cumN_s2c, ecumN_s2c_lo, ecumN_s2c_hi, _ = nc.cumulative_numcounts(
 		counts=counts_s2c_comp_corr,
-		bin_edges=S850_bin_edges,
+		bin_edges=s2c_bin_edges,
 		A=gen.A_s2c)
 	#put the results in the relevant dictionary
 	cc_bf_dict['S2COSMOS'] = np.array([cumN_s2c, ecumN_s2c_lo, ecumN_s2c_hi])

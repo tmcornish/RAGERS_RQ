@@ -27,14 +27,16 @@ import astrometry as ast
 
 include_lims = False	#include radio-loud RAGERS galaxies with limiting stellar masses
 plot_selection = True	#visualise the sample selection in z-M* space
+plot_cosmos = False		#plot the whole COSMOS ditribution (requires plot_selection is also True)
 plot_N_per_RL = True	#plot the number of RQ counterparts per RL source
 plot_positions = True	#plot the positions of the RQ counterparts
-settings = [include_lims, plot_selection, plot_N_per_RL, plot_positions]
+settings = [include_lims, plot_selection, plot_cosmos, plot_N_per_RL, plot_positions]
 #print the chosen settings to the Terminal
 print(gen.colour_string('CHOSEN SETTINGS:', 'white'))
 settings_print = [
 	'Include stellar mass limits: ',
 	'Plot sample selection: ',
+	'Show full COSMOS catalogue on selection plot: ',
 	'Plot number of RQ counterparts per RL galaxy: ',
 	'Plot RQ counterpart positions: ',
 ]
@@ -80,6 +82,15 @@ if plot_selection:
 	ax1.set_xlabel(r'$z$')
 	ax1.set_ylabel(r'log$_{10}$($M_{\star}$/M$_{\odot}$)')
 
+	#set the minimum and maximum redshifts and stellar masses for the plot
+	if plot_cosmos:
+		xmin1, xmax1 = ax1.set_xlim(0.4, 3.2)
+		ymin1, ymax1 = ax1.set_ylim(10.5, 12.2)
+	else:
+		xmin1, xmax1 = ax1.set_xlim(0.88, 3.2)
+		ymin1, ymax1 = ax1.set_ylim(11.04, 11.9)
+	
+
 if plot_N_per_RL:
 	#create the figure (number of matches vs redshift and vs stellar mass)
 	f2 = plt.figure(figsize=(2*ps.x_size, ps.y_size))
@@ -107,7 +118,7 @@ cmap = mpl.cm.rainbow
 #### LOADING DATA AND CROSS-MATCHING ####
 #########################################
 
-print(gen.colour_string('Loading catalogues and cross-matching...', 'purple'))
+print(gen.colour_string('Loading RAGERS catalogue...', 'purple'))
 
 #path to the RAGERS radio-loud catalogue
 RL_CAT = PATH_CATS + 'RAGERS_radio_loud_sample.fits'
@@ -131,6 +142,9 @@ N_rl = len(data_rl)
 #get N colours from the colourmap where N is the number of RAGERS sources
 colours = [cmap(i/N_rl) for i in range(N_rl)]
 
+
+print(gen.colour_string('Loading COSMOS2020 catalogue...', 'purple'))
+
 #path to the reference catalogue (COSMOS2020)
 REF_CAT = PATH_CATS + 'COSMOS2020_CLASSIC_R1_v2.0.fits'
 #load the catalogue
@@ -145,6 +159,18 @@ data_ref = data_ref[mask]
 #coord_mask = (data_ref['ALPHA_J2000'] > RA_min) * (data_ref['ALPHA_J2000'] < RA_max) * (data_ref['DELTA_J2000'] > DEC_min) * (data_ref['DELTA_J2000'] < DEC_max)
 #data_ref = data_ref[coord_mask]
 
+
+if plot_selection and plot_cosmos:
+
+	print(gen.colour_string('Plotting COSMOS2020 Mstar vs z...', 'purple'))
+
+	#plot the full distribution of M* vs z for the COSMOS catalogue
+	to_plot = (data_ref['ez_z_phot'] >= xmin1) *  (data_ref['ez_z_phot'] <= xmax1) * (data_ref['ez_mass'] >= ymin1) *  (data_ref['ez_mass'] <= ymax1)
+	ax1.plot(data_ref['ez_z_phot'][to_plot], data_ref['ez_mass'][to_plot], marker='.', c=ps.grey, linestyle='none', ms=2., label='Full COSMOS2020 catalogue', alpha=0.05)
+
+
+print(gen.colour_string('Loading VLA-COSMOS catalogue...', 'purple'))
+
 #path to the catalogue containing data for VLA sources with COSMOS2015 counterparts
 VLA_CAT = PATH_CATS + 'VLA_3GHz_counterpart_array_20170210_paper_smolcic_et_al.fits'
 data_vla = Table.read(VLA_CAT, format='fits')
@@ -154,6 +180,8 @@ data_vla = data_vla[vla_keep]
 #only keep relevant columns
 #cols_keep = ['ID_VLA', 'RA_VLA_J2000', 'DEC_VLA_J2000', 'ID_CPT', 'RA_CPT_J2000', 'DEC_CPT_J2000', 'Z_BEST', 'FLUX_INT_3GHz', 'Lradio_10cm', 'Lradio_21cm']
 #data_vla = data_vla[cols_keep]
+
+print(gen.colour_string('Cross-matching VLA-COSMOS with COSMOS2020...', 'purple'))
 #cross-match with the COSMOS2020 catalogue
 data_ref = ast.cross_match_catalogues(data_ref, data_vla, 'ALPHA_J2000', 'DELTA_J2000', 'RA_CPT_J2000', 'DEC_CPT_J2000', tol=1., join='all1')
 #deal with a bug in which the 'true' and 'false' strings in the various VLA flag columns have added whitespace
@@ -181,7 +209,6 @@ COSMOS_data_matched = []
 #create one more list to which the number of matched sources will be appended for each RAGERS galaxy
 N_matches_all = []
 
-print(gen.colour_string('Done!', 'purple'))
 
 #################################
 #### SCUBA-2 SENSITIVITY MAP ####
@@ -213,7 +240,6 @@ extent = (RA_max, RA_min, DEC_min, DEC_max)
 smap_sel = np.zeros(smap_data[0].shape)
 smap_sel[smap_data[0] <= sensitivity_limit] = 1.
 
-print(gen.colour_string('Done!', 'purple'))
 
 
 ###########################################
@@ -350,7 +376,6 @@ with open(N_matched_file, 'w') as file:
 masked_cat_all_RQ = vstack(masked_cat_all_RQ)
 masked_cat_all_RL = vstack(masked_cat_all_RL)
 
-print(gen.colour_string('Done!', 'purple'))
 
 
 #retrieve relevant parameters and uncertainties
@@ -376,16 +401,18 @@ if plot_selection:
 	#format the figure
 	f1.tight_layout()
 	#save the figure
+	figname = 'RQ_sample_selection.png'
 	if include_lims:
-		figname = 'RQ_sample_selection_incl_RL_limits.png'
-	else:
-		figname = 'RQ_sample_selection.png'
-		#set the axis limits
-		#xmin, xmax = ax1.set_xlim(0.5, 4.)
-		ymin, ymax = ax1.set_ylim(11.04, 11.9)
+		figname = figname[:-4] + '_incl_lims.png'
+	if plot_cosmos:
+		figname = figname[:-4] + '_with_cosmos.png'
+
+	#set the axis limits
+	#xmin, xmax = ax1.set_xlim(0.88, 3.2)
+	#ymin, ymax = ax1.set_ylim(11.04, 11.9)
+	#ymin, ymax = ax1.set_ylim(10., 11.9)
 	f1.savefig(PATH_PLOTS+figname, bbox_inches='tight', dpi=300)
 
-	print(gen.colour_string('Done!', 'purple'))
 
 
 #stack the data for the matched sources into one table
@@ -426,7 +453,6 @@ if plot_N_per_RL:
 		figname = 'N_RQ_vs_Mstar_and_z.png'
 	f2.savefig(PATH_PLOTS+figname, bbox_inches='tight', dpi=300)
 
-	print(gen.colour_string('Done!', 'purple'))
 
 
 #######################################
@@ -460,7 +486,10 @@ if plot_positions:
 		figname = 'RQ_positions_sky.png'
 	f3.savefig(PATH_PLOTS+figname, bbox_inches='tight', dpi=300)
 
-	print(gen.colour_string('Done!', 'purple'))
+
+
+
+print(gen.colour_string('Done!', 'purple'))
 
 
 

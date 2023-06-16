@@ -28,7 +28,7 @@ make_corners = False			#make corner plots for each dataset
 plt.style.use(ps.styledict)
 
 #bins for the 2D histograms
-nbins = 50
+nbins = 30
 
 #select a radius for which the results will be emphasised on the plot
 r_emph = 4.
