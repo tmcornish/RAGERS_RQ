@@ -16,8 +16,9 @@ import general as gen
 recreate_S19_comp = False	#recreate the completeness results from Simpson+19
 random_datasets = False		#generate random flux densities (and completeness values) from the S2COSMOS catalogue
 recreate_S19_nc = False		#recreate the number counts from Simpson+19
-rq_sample = True			#select the sample of radio-quiet massive galaxies
+rq_sample = False			#select the sample of radio-quiet massive galaxies
 calc_numcounts = False		#calculate number counts
+plot_areas = True			#plot the areas searched for a given sample of RQ galaxies
 fit_schechter = False		#run MCMC to fit Schechter functions to the results
 param_tables = False			#format best-fit results from MCMC into a LaTeX-style table
 plot_numcounts = False		#plot the number counts
@@ -33,6 +34,7 @@ settings = [
 	recreate_S19_nc, 
 	rq_sample,
 	calc_numcounts,
+	plot_areas,
 	fit_schechter,
 	param_tables,
 	plot_numcounts,
@@ -46,6 +48,7 @@ proc_names = [
 	'Recreating Simpson+19 number counts', 
 	'Selecting RQ sample', 
 	'Constructing number counts',
+	'Plotting search areas',
 	'Fitting Schechter functions',
 	'Making LaTeX tables of best-fit parameters',
 	'Plotting number counts',
@@ -59,6 +62,7 @@ run_str = [
 	'python Recreate_S19_number_counts.py',
 	'python Select_radio_quiet_sample.py',
 	'python Calculate_numcounts.py',
+	'python Plot_search_areas.py',
 	'python Fit_schechter_funcs.py',
 	'python Make_schechter_param_tables.py',
 	'python Plot_numcounts.py',
