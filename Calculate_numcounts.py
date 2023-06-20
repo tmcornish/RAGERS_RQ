@@ -135,9 +135,9 @@ def number_counts(
 		#get the indices in the catalogue for RQ galaxies matched to the current RL galaxy
 		idx_matched = np.where(data_rq_copy['RAGERS_ID'] == ID)[0]
 		#number of RQ galaxies to select for the current RL galaxy
-		gen.n_rq_now = min(len(idx_matched), gen.n_rq)
-		#randomly select gen.n_rq_now of these RQ galaxies
-		idx_sel = np.random.choice(idx_matched, size=gen.n_rq_now, replace=False)
+		n_rq_now = min(len(idx_matched), gen.n_rq)
+		#randomly select n_rq_now of these RQ galaxies
+		idx_sel = np.random.choice(idx_matched, size=n_rq_now, replace=False)
 		#create a table containing this subset of RQ galaxies and append it to the list defined prior to this loop
 		data_rq_sel = data_rq_copy[idx_sel]
 		data_rq_sub.append(data_rq_sel)
