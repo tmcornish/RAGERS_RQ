@@ -50,6 +50,8 @@ interval = np.hstack([np.arange(0, 0.501, 0.001), np.arange(0.7, 1.001, 0.001)])
 colors = plt.cm.rainbow(interval)
 cmap = LinearSegmentedColormap.from_list('name', colors)
 
+#number of RQ galaxies to use per RL galaxy
+n_rq = 4
 
 print(gen.colour_string('\n'.join(settings_print), 'white'))
 
