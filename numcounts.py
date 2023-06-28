@@ -1099,6 +1099,31 @@ def Gamma_upper(s, x):
 Gamma_upper_vec = np.frompyfunc(Gamma_upper, 2, 1)
 
 
+def cumulative_model(S, params):
+	'''
+	Integral of a model Schechter function of the form used for number counts.
+
+	Parameters
+	----------
+	S: array-like 
+		Flux density values at which the function is to be evaluated.
+
+	params: array_like
+		List/tuple/array containing the fit parameters (normalisation, flux density at the 'knee',
+		faint-end slope).
+
+	Returns
+	----------
+	y: array-like
+		Model Schechter function values evaluated at the specified flux densities.
+	'''
+
+	N0, S0, gamma = params
+	with np.errstate(all='ignore'):
+		y = N0 * Gamma_upper_vec(-gamma + 1., S / S0)
+	return y
+
+
 def fit_cumulative_mcmc(x, y, yerr, nwalkers, niter, initial, offsets=0.01, return_sampler=False, plot_on_axes=False, **plot_kwargs):
 	'''
 	Uses MCMC to fit a renormalised incomplete Gamma function to data. (Used for cumulative number counts.)

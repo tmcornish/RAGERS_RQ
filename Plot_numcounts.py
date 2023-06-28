@@ -229,7 +229,7 @@ for i in range(n_rows):
 	#plot the best-fit functions on the relevant axes
 	x_range = np.linspace(bin_edges[0], bin_edges[-1], 100)
 	ax_nc.plot(x_range, nc.schechter_model(x_range, nc_popt), c='k')
-	ax_cc.plot(x_range, nc.schechter_model(x_range, cc_popt), c='k')
+	ax_cc.plot(x_range, nc.cumulative_model(x_range, cc_popt), c='k')
 
 
 
@@ -271,7 +271,7 @@ for i in range(n_rows):
 		ebar_kwargs=ebar_kwargs
 		)
 	#plot the best-fit Schechter function
-	ax_cc.plot(x_range, nc.schechter_model(x_range, cc_popt_S19), c=ps.crimson, alpha=0.5, linestyle='--')
+	ax_cc.plot(x_range, nc.cumulative_model(x_range, cc_popt_S19), c=ps.crimson, alpha=0.5, linestyle='--')
 
 
 	############################
