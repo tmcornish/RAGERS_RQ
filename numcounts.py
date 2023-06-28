@@ -8,6 +8,7 @@ import numpy as np
 from scipy.interpolate import LinearNDInterpolator, interp1d
 import scipy.optimize as opt
 from scipy.stats import poisson
+from scipy.integrate import quad
 import matplotlib as mpl
 from matplotlib import pyplot as plt
 from matplotlib.colors import LinearSegmentedColormap
@@ -15,6 +16,7 @@ from astropy.table import Table
 from matplotlib.ticker import AutoMinorLocator
 import emcee
 import plotstyle as ps
+import mpmath
 
 def FD_like(x, theta):
 	'''
@@ -1071,8 +1073,337 @@ def plot_numcounts(x, y, xerr=None, yerr=None, ax=None, cumulative=False, masks=
 		return None
 
 
+def Gamma_integrand(t, s):
+	return t ** (s - 1.) * np.exp(-t)
+
+def Gamma_upper(s, x):
+	'''
+	Upper incomplete gamma function.
+
+	Parameters
+	----------
+
+	s: float
+		Lower bound of the integral used to compute the Gamma function.
+
+	x: float
+		Controls the exponent of the variable in the integrand.
+	'''
+	#return float(mpmath.gammainc(s, x))
+
+	G = quad(Gamma_integrand, x, np.inf, args=(s,))[0]
+	return G
 
 
+#create a new version of the above function that's compatible with numpy arrays
+Gamma_upper_vec = np.frompyfunc(Gamma_upper, 2, 1)
+
+
+def fit_cumulative_mcmc(x, y, yerr, nwalkers, niter, initial, offsets=0.01, return_sampler=False, plot_on_axes=False, **plot_kwargs):
+	'''
+	Uses MCMC to fit a renormalised incomplete Gamma function to data. (Used for cumulative number counts.)
+
+	Parameters
+	----------
+	x: array-like
+		Independent variable (flux density).
+
+	y: array-like
+		Dependent variable (surface density).
+
+	yerr: array-like
+		(Symmetric) uncertainties in the dependent variable.
+
+	nwalkers: int
+		Number of walkers to use when running the MCMC.
+
+	niter: int
+		Number of steps for each walker to take before the simulation completes.
+
+	initial: list
+		Initial guesses for each fit parameter.
+
+	offsets: float or array-like
+		Offsets in each dimension of the parameter space from an initial fit, used to determine
+		the starting positions of each walker.
+
+	return_sampler: bool
+		If True, returns the full sampler output from running the MCMC in addition to the best-fit
+		parameters and uncertainties.
+
+	plot_on_axes: bool
+		Plot the line of best fit on a provided set of axes.
+
+	**plot_kwargs
+		Any remaining keyword arguments will be used to format the plot (if generated).
+
+	Returns
+	----------
+	best: array
+			Best-fit parameters.
+
+	e_lo: array
+		Lower uncertainties on the best-fit parameters.
+
+	e_hi: array
+		Upper uncertainties on the best-fit parameters.
+
+	sampler: EnsembleSamper
+		EnsembleSampler object obtained by running emcee. Only returned if return_sampler=True.
+
+	'''
+
+	def model(theta, S):
+		'''
+		The model form of the Schechter function to be fitted to the data.
+
+		Parameters
+		----------
+		theta: tuple
+			Fit parameters (N0, S0, gamma).
+
+		S: array-like
+			Flux density.
+
+		Returns
+		----------
+		y: array-like
+			Model y-values for each value in x.
+		'''
+
+		N0, S0, gamma = theta
+		y = N0 * Gamma_upper_vec(-gamma + 1., S / S0)
+		return y
+
+
+	def lnlike(theta, x, y, yerr):
+		'''
+		Calculates the log-likelihood of the model.
+
+		Parameters
+		----------
+		theta: tuple
+			Fit parameters (N0, S0, gamma).
+
+		x: array-like
+			Independent variable (flux density).
+
+		y: array-like
+			Dependent variable (surface density).
+
+		yerr: array-like
+			(Symmetric) uncertainties in the dependent variable.
+
+		Returns
+		----------
+		L: float
+			Log-likelihood.
+		'''
+
+		ymodel = model(theta, x)
+		L = -0.5 * np.sum(((y - ymodel) / yerr) ** 2.)
+		return L
+
+	def lnprior(theta):
+		'''
+		Sets the priors on the fit parameters.
+
+		Parameters
+		----------
+		theta: tuple
+			Fit parameters (N0, S0, gamma).
+
+		Returns
+		----------
+		0 or inf: float
+			Returns 0 if the parameters satisfy the priors, and returns -inf if one or more of 
+			them does not.
+		'''
+
+		N0, S0, gamma = theta
+		if (1000. <= N0 <= 15000.) and (1. <= S0 <= 10.) and (-1. <= gamma <= 6.):
+			return 0.
+		else:
+			return -np.inf
+
+	def lnprob(theta, x, y, yerr):
+		'''
+		Calculates the logged probability of the data matching the fit.
+
+		Parameters
+		----------
+		theta: tuple
+			Fit parameters (N0, S0, gamma).
+
+		x: array-like
+			Independent variable (flux density).
+
+		y: array-like
+			Dependent variable (surface density).
+
+		yerr: array-like
+			(Symmetric) uncertainties in the dependent variable.
+
+		Returns
+		----------
+		P: float
+			Logged probability of the data matching the fit.
+		'''
+
+		lp = lnprior(theta)
+		if not np.isfinite(lp):
+			return -np.inf
+		else:
+			return lp + lnlike(theta, x, y, yerr)
+
+
+	def main(p0, nwalkers, niter, ndim, lnprob, data):
+		'''
+		Actually runs the MCMC to perform the fit.
+
+		Parameters
+		----------
+
+		p0: list
+			List of initial starting points for each walker.
+
+		nwalkers: int
+			Number of walkers to use when running the MCMC.
+
+		niter: int
+			Number of steps for each walker to take before the simulation completes.
+
+		ndim: int
+			Number of parameters to fit.
+
+		lnprob: callable
+			Function for calculating the logged probability of the data matching the fit.
+
+		data: tuple or array-like 
+			Contains (as three separate entries) the x values, the y values, and the uncertainties
+			in y.
+
+		'''
+
+		sampler = emcee.EnsembleSampler(nwalkers, ndim, lnprob, args=data)
+
+		print("Running burn-in...")
+		p0, _, _ = sampler.run_mcmc(p0, 100)
+		sampler.reset()
+
+		print("Running production...")
+		pos, prob, state = sampler.run_mcmc(p0, niter, progress=True)
+
+		return sampler, pos, prob, state
+
+	#use an optimiser to get a better initial estimate for the fit parameters
+	nll = lambda *args: -lnlike(*args)
+	result = opt.minimize(nll, x0=initial, args=(x, y, yerr))
+	initial = result['x']
+
+	#number of parameters to be fitted
+	ndim = len(initial)
+
+	#initial starting points for each walker in the MCMC
+	offsets = np.array(offsets)
+	p0 = [np.array(initial) + offsets * np.random.randn(ndim) for i in range(nwalkers)]
+
+	data = (x, y, yerr)
+	sampler, pos, prob, state = main(p0,nwalkers,niter,ndim,lnprob,data)
+	samples = sampler.flatchain
+	#theta_max  = samples[np.argmax(sampler.flatlnprobability)]
+
+	#get the median, 16th and 84th percentiles for each parameter
+	q = np.percentile(samples, [stats.p16, 50., stats.p84], axis=0)
+	best = q[1]
+	uncert = np.diff(q, axis=0)
+	e_lo = uncert[0]
+	e_hi = uncert[1]
+
+	if plot_on_axes:
+		#see if a set of axes has been provided - if not, give error message
+		if 'ax' in plot_kwargs:
+			#see if linestyle, linewidth, colour, alpha, label and zorder were provided as kwargs
+			ls_key = [s for s in ['linestyle', 'ls'] if s in plot_kwargs]
+			lw_key = [s for s in ['linewidth', 'lw'] if s in plot_kwargs]
+			c_key = [s for s in ['colour', 'color', 'c'] if s in plot_kwargs]
+			if len(ls_key) > 0:
+				ls = plot_kwargs[ls_key[0]]
+			else:
+				ls = '-'
+			if len(lw_key) > 0:
+				lw = plot_kwargs[lw_key[0]]
+			else:
+				lw = 1.
+			if len(c_key) > 0:
+				c = plot_kwargs[c_key[0]]
+			else:
+				c = 'k'
+			if 'alpha' in plot_kwargs:
+				alpha = plot_kwargs['alpha']
+			else:
+				alpha = 1.
+			if 'label' in plot_kwargs:
+				label = plot_kwargs['label']
+			else:
+				label = ''
+			if 'zorder' in plot_kwargs:
+				zorder = plot_kwargs['zorder']
+			else:
+				zorder = 100
+
+			#see if a range of x-values has been provided
+			if 'x_range' in plot_kwargs:
+				x_range = plot_kwargs['x_range']
+			else:
+				x_range = np.linspace(2., 20., 100)
+			#see if an offset has beeen provided to avoid overlapping curves
+			if 'x_offset' in plot_kwargs:
+				x_range_plot = x_range * 10. ** plot_kwargs['x_offset']
+			else:
+				x_range_plot = x_range[:]
+
+			#plot the line
+			plot_kwargs['ax'].plot(x_range_plot, schechter_model(x_range, best), c=c, linestyle=ls, linewidth=lw, label=label, zorder=zorder)
+
+			#see if told to also add text to the axes showing the best-fit values
+			if 'add_text' in plot_kwargs:
+				if plot_kwargs['add_text']:
+					#see if the fontsize, position and colour of the text have been provided
+					fs_key = [s for s in ['fontsize', 'fs'] if s in plot_kwargs]
+					pos_key = [s for s in ['fontposition', 'fp', 'xyfont'] if s in plot_kwargs]
+					fc_key = [s for s in ['fontcolour', 'fc'] if s in plot_kwargs]
+					if len(fs_key) > 0:
+						fs = plot_kwargs[fs_key[0]]
+					else:
+						fs = 14.
+					if len(pos_key) > 0:
+						xtext, ytext = plot_kwargs[pos_key[0]]
+						if 'transform' in plot_kwargs:
+							if plot_kwargs['transform'] == 'axes':
+								transform = plot_kwargs['ax'].transAxes
+						else:
+							transform = plot_kwargs['ax'].transData
+					else:
+						xtext, ytext = 0.05, 0.5
+						transform = plot_kwargs['ax'].transAxes
+					if len(fc_key) > 0:
+						fc = plot_kwargs[fc_key[0]]
+					else:
+						fc = 'k'
+
+					best_fit_str = [
+						r'$N_{0} = %.0f^{+%.0f}_{-%.0f}$'%(best[0],e_hi[0],e_lo[0]),
+						r'$S_{0} = %.1f^{+%.1f}_{-%.1f}$'%(best[1],e_hi[1],e_lo[1]),
+						r'$\gamma = %.1f^{+%.1f}_{-%.1f}$'%(best[2],e_hi[2],e_lo[2])
+						]
+					best_fit_str = '\n'.join(best_fit_str)
+					plot_kwargs['ax'].text(xtext, ytext, best_fit_str, color=fc, ha='left', va='top', fontsize=fs, transform=transform)
+
+	if return_sampler:
+		return best, e_lo, e_hi, sampler
+	else:
+		return best, e_lo, e_hi
 
 
 

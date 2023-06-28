@@ -401,8 +401,8 @@ def number_counts(
 	cc_dict['w_ALL'] = np.full(len(cumN_ALL), A_ALL)
 
 	#write the dictionaries to a file
-	nc_name = PATH_NC_DISTS + f'sample{idx}_{r_search:.1f}am.npz'
-	cc_name = PATH_CC_DISTS + f'sample{idx}_{r_search:.1f}am.npz'
+	nc_name = PATH_NC_DISTS + f'sample{idx}_{r_search:.1f}am_{gen.n_rq}rq.npz'
+	cc_name = PATH_CC_DISTS + f'sample{idx}_{r_search:.1f}am_{gen.n_rq}rq.npz'
 	np.savez_compressed(nc_name, **nc_dict)
 	np.savez_compressed(cc_name, **cc_dict)
 
@@ -693,8 +693,8 @@ if __name__ == '__main__':
 		print(gen.colour_string(f'Using {r:.1f} arcminute search radius.', 'orange'))
 
 		#names of the files containing the results from all iterations
-		nc_npz_file = PATH_NC_DISTS + f'All_samples_{r:.1f}am.npz'
-		cc_npz_file = PATH_CC_DISTS + f'All_samples_{r:.1f}am.npz'
+		nc_npz_file = PATH_NC_DISTS + f'All_samples_{r:.1f}am_{gen.n_rq}rq.npz'
+		cc_npz_file = PATH_CC_DISTS + f'All_samples_{r:.1f}am_{gen.n_rq}rq.npz'
 
 		#if this script has been run previously, load the results to determine how many iterations have been done
 		if os.path.exists(nc_npz_file) and os.path.exists(cc_npz_file):
@@ -824,8 +824,8 @@ if __name__ == '__main__':
 		
 
 		#names to give the files containing the final bin heights and unertainties
-		nc_npz_file_final = PATH_COUNTS + f'Differential_with_errs_{r:.1f}am.npz'
-		cc_npz_file_final = PATH_COUNTS + f'Cumulative_with_errs_{r:.1f}am.npz'
+		nc_npz_file_final = PATH_COUNTS + f'Differential_with_errs_{r:.1f}am_{gen.n_rq}rq.npz'
+		cc_npz_file_final = PATH_COUNTS + f'Cumulative_with_errs_{r:.1f}am_{gen.n_rq}rq.npz'
 
 		#set up dictionaries for these results
 		nc_final = {'bin_edges' : nc_dict_dists['bin_edges']}

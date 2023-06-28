@@ -228,5 +228,5 @@ for r in r_to_plot:
 	ax.set_ylim(1.5, 3.)
 	#minimise unnecesary whitespace
 	f.tight_layout()
-	figname = PATH_PLOTS + f'RQ_positions_with_search_areas{r:.1f}am.png'
+	figname = PATH_PLOTS + f'RQ_positions_with_search_areas{r:.1f}am_{gen.n_rq}rq.png'
 	f.savefig(figname, bbox_inches='tight', dpi=300)

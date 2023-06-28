@@ -37,7 +37,7 @@ PATH_DATA = PATH_RAGERS + 'Data/'
 #other settings
 r_search = 6.	#default search radius to use when finding submm counterparts
 r_search_all = [1., 2., 4., 6.]		#list of different radii to try
-n_rq = 2		#minimum number of RQ counterparts required per RL galaxy
+n_rq = 1		#minimum number of RQ counterparts required per RL galaxy
 sens_lim = 1.3	#SCUBA-2 sensitivity limit (mJy) for searching for submm companions 
 nsim = 10000	#number of simulated datasets to generate when constructing number counts
 Smin = 3.		#minimum flux density below which bins will be excluded for Schechter fits

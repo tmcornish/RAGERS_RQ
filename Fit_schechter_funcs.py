@@ -37,7 +37,7 @@ Smin = gen.Smin
 settings_print.append(f'Flux density limit for bin inclusion: {Smin} mJy')
 
 #datasets to which Schechter functions will be fitted
-data_to_fit = [f'zbin{i}' for i in range(1,5)] + [f'Mbin{i}' for i in range(1,4)] + ['ALL']
+data_to_fit = ['ALL'] #[f'zbin{i}' for i in range(1,5)] + [f'Mbin{i}' for i in range(1,4)]
 
 
 print(gen.colour_string('\n'.join(settings_print), 'white'))
@@ -47,7 +47,7 @@ print(gen.colour_string('\n'.join(settings_print), 'white'))
 #### FUNCTIONS ####
 ###################
 
-def perform_fits(xbins, ybins):
+def perform_fits(xbins, ybins, cumulative=False):
 
 	#retrieve the bin heights and uncertainties
 	y, ey_lo, ey_hi = ybins
@@ -56,15 +56,26 @@ def perform_fits(xbins, ybins):
 
 	#fit to the differential number counts, excluding any bins below the the flux density limit
 	masks = nc.mask_numcounts(xbins, y, limits=False, exclude_all_zero=False, Smin=Smin)
-	popt, epopt_lo, epopt_hi, sampler = nc.fit_schechter_mcmc(
-		xbins[masks[0]],
-		y[masks[0]],
-		ey[masks[0]],
-		nwalkers,
-		niter,
-		popt_initial,
-		offsets_init,
-		return_sampler=True)
+	if not cumulative:
+		popt, epopt_lo, epopt_hi, sampler = nc.fit_schechter_mcmc(
+			xbins[masks[0]],
+			y[masks[0]],
+			ey[masks[0]],
+			nwalkers,
+			niter,
+			popt_initial,
+			offsets_init,
+			return_sampler=True)
+	else:
+		popt, epopt_lo, epopt_hi, sampler = nc.fit_cumulative_mcmc(
+			xbins[masks[0]],
+			y[masks[0]],
+			ey[masks[0]],
+			nwalkers,
+			niter,
+			popt_initial,
+			offsets_init,
+			return_sampler=True)
 	#add the best-fit values and uncertainties to the dictionary in a 2D array
 	params = np.array([popt, epopt_lo, epopt_hi])
 	#add the sampler flatchain to the posteriors dictionary
@@ -107,28 +118,31 @@ nc_params_dict, cc_params_dict = {}, {}
 #destination files for the posterior distributions of each parameter
 nc_post_file = PATH_POSTS + f'Differential_bf.npz'
 cc_post_file = PATH_POSTS + f'Cumulative_bf.npz'
-#set up dictionaries for these results
-nc_post_dict, cc_post_dict = {}, {}
 
-#load the data for the differential and cumulative number counts
-nc_data = np.load(nc_file)
-cc_data = np.load(cc_file)
+#see if these data have been fitted previously
+if not os.path.exists(cc_post_file):
+	#set up dictionaries for these results
+	nc_post_dict, cc_post_dict = {}, {}
 
-#retrieve the bin edges and calculate the bin centres
-bin_edges = nc_data['bin_edges']
-bin_centres = (bin_edges[1:] + bin_edges[:-1]) / 2.
+	#load the data for the differential and cumulative number counts
+	nc_data = np.load(nc_file)
+	cc_data = np.load(cc_file)
 
-print(gen.colour_string('S2COSMOS', 'orange'))
+	#retrieve the bin edges and calculate the bin centres
+	bin_edges = nc_data['bin_edges']
+	bin_centres = (bin_edges[1:] + bin_edges[:-1]) / 2.
 
-#perform the fits and add the best-fit values and uncertainties to the dictionary in a 2D array
-nc_params_dict['S2COSMOS'], nc_post_dict['S2COSMOS'] = perform_fits(bin_centres, nc_data['S2COSMOS'])
-cc_params_dict['S2COSMOS'], cc_post_dict['S2COSMOS'] = perform_fits(bin_edges[:-1], cc_data['S2COSMOS'])
+	print(gen.colour_string('S2COSMOS', 'orange'))
 
-#save the created dictionaries in the destination files
-np.savez_compressed(nc_params_file, **nc_params_dict)
-np.savez_compressed(cc_params_file, **cc_params_dict)
-np.savez_compressed(nc_post_file, **nc_post_dict)
-np.savez_compressed(cc_post_file, **cc_post_dict)
+	#perform the fits and add the best-fit values and uncertainties to the dictionary in a 2D array
+	nc_params_dict['S2COSMOS'], nc_post_dict['S2COSMOS'] = perform_fits(bin_centres, nc_data['S2COSMOS'])
+	cc_params_dict['S2COSMOS'], cc_post_dict['S2COSMOS'] = perform_fits(bin_edges[:-1], cc_data['S2COSMOS'], cumulative=True)
+
+	#save the created dictionaries in the destination files
+	np.savez_compressed(nc_params_file, **nc_params_dict)
+	np.savez_compressed(cc_params_file, **cc_params_dict)
+	np.savez_compressed(nc_post_file, **nc_post_dict)
+	np.savez_compressed(cc_post_file, **cc_post_dict)
 
 ####################
 #### RQ RESULTS ####
@@ -139,8 +153,8 @@ print(gen.colour_string('Fitting to RQ results...', 'purple'))
 #get the radii used
 radii = gen.r_search_all
 #list the files containing results to plot
-nc_files = [PATH_COUNTS + f'Differential_with_errs_{r:.1f}am.npz' for r in radii]
-cc_files = [PATH_COUNTS + f'Cumulative_with_errs_{r:.1f}am.npz' for r in radii]
+nc_files = [PATH_COUNTS + f'Differential_with_errs_{r:.1f}am_{gen.n_rq}rq.npz' for r in radii]
+cc_files = [PATH_COUNTS + f'Cumulative_with_errs_{r:.1f}am_{gen.n_rq}rq.npz' for r in radii]
 
 #cycle through the radii
 for r, ncf, ccf in zip(radii, nc_files, cc_files):
@@ -148,14 +162,14 @@ for r, ncf, ccf in zip(radii, nc_files, cc_files):
 	print(gen.colour_string(f'Search radius = {r:.1f} arcminute', 'orange'))
 
 	#destination files for the best-fit parameters and uncertainties
-	nc_params_file = PATH_PARAMS + f'Differential_{r:.1f}am.npz'
-	cc_params_file = PATH_PARAMS + f'Cumulative_{r:.1f}am.npz'
+	nc_params_file = PATH_PARAMS + f'Differential_{r:.1f}am_{gen.n_rq}rq.npz'
+	cc_params_file = PATH_PARAMS + f'Cumulative_{r:.1f}am_{gen.n_rq}rq.npz'
 	#set up dictionaries for these results
 	nc_params_dict, cc_params_dict = {}, {}
 
 	#destination files for the posterior distributions of each parameter
-	nc_post_file = PATH_POSTS + f'Differential_{r:.1f}am.npz'
-	cc_post_file = PATH_POSTS + f'Cumulative_{r:.1f}am.npz'
+	nc_post_file = PATH_POSTS + f'Differential_{r:.1f}am_{gen.n_rq}rq.npz'
+	cc_post_file = PATH_POSTS + f'Cumulative_{r:.1f}am_{gen.n_rq}rq.npz'
 	#set up dictionaries for these results
 	nc_post_dict, cc_post_dict = {}, {}
 
@@ -174,7 +188,7 @@ for r, ncf, ccf in zip(radii, nc_files, cc_files):
 
 		#perform the fits and add the best-fit values and uncertainties to the dictionary in a 2D array
 		nc_params_dict[k], nc_post_dict[k] = perform_fits(bin_centres, nc_data[k])
-		cc_params_dict[k], cc_post_dict[k] = perform_fits(bin_edges[:-1], cc_data[k])
+		cc_params_dict[k], cc_post_dict[k] = perform_fits(bin_edges[:-1], cc_data[k], cumulative=True)
 
 
 	#save the created dictionaries in the destination files

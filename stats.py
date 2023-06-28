@@ -10,6 +10,21 @@ from multiprocessing import Pool, cpu_count
 import general as gen
 import warnings
 import random
+import pandas as pd
+import itertools
+
+#DataFrame containing key values of Delta Chi^2 corresponding to different sigma for different degrees
+#of freedom, k. NOTE: For testing goodness of fit, k = N_data - N_params, but for estimating paramter
+#uncertainties, k = N_params.
+chi2_dict = {
+	'k'	   : list(range(1,11)),
+	'1sig' : [1., 2.3, 3.53, 4.72, 5.89, 7.04, 8.18, 9.3, 10.42, 11.54],
+	'2sig' : [4., 6.18, 8.02, 9.72, 11.31, 12.85, 14.34, 15.79, 17.21, 18.61],
+	'3sig' : [9., 11.83, 14.16, 16.25, 18.21, 20.06, 21.85, 23.57, 25.26, 26.9],
+	'4sig' : [16., 19.33, 22.06, 24.50, 26.77, 28.91, 30.96, 32.93, 34.85, 36.72],
+	'5sig' : [25., 28.74, 31.81, 34.56, 37.09, 39.49, 41.78, 43.98, 46.12, 48.19]
+}
+chi2_df = pd.DataFrame(chi2_dict).set_index('k')
 
 def percentiles_nsig(n):
 	'''
@@ -359,7 +374,6 @@ def uncertainties_in_fit(x, y, yerr, func, initial, use_yerr_in_fit=True, nsim=1
 	return e_lo, e_hi, p_all, popt_all, chi2min_all
 
 
-
 def poisson_CI_1sig(N):
 	'''
 	Using the approximations from Gehrels (1986), calculates the bounds of the 1-sigma confidence
@@ -441,3 +455,251 @@ def vals_and_errs_from_dist(dist, axis=0):
 	ehi = val_hi - val
 
 	return val, elo, ehi
+
+
+def chi2_func(params, x, y, yerr, func):
+	ymodel = func(x, params)	
+	chi2 = np.sum(((ymodel - y)/yerr) ** 2.)
+	return chi2
+
+
+def view1D(a, b):
+	'''
+	When used in conjunction with setdiff_nd (see below), removes from an array any entries which
+	occur in another array.
+
+	Parameters
+	----------
+	a: array
+		Array from which elements are to be removed.
+
+	b: array
+		Array whose elements are to be excluded from array a.
+
+	
+	Returns
+	-------
+	1D versions of each array with flexible dtypes.
+
+	'''
+	a = np.ascontiguousarray(a)
+	b = np.ascontiguousarray(b)
+	void_dt = np.dtype((np.void, a.dtype.itemsize * a.shape[1]))
+	return a.view(void_dt).ravel(),  b.view(void_dt).ravel()
+
+
+def setdiff_nd(a,b):
+	'''
+	When used in conjunction with view1D (see above), removes from an array any entries which
+	occur in another array.
+
+	Parameters
+	----------
+	a: array
+		Array from which elements are to be removed.
+
+	b: array
+		Array whose elements are to be excluded from array a.
+
+	Returns
+	-------
+	Array a with any entries from array b removed.
+	'''
+
+	# a,b are the nD input arrays
+	A,B = view1D(a,b)    
+	return a[~np.isin(A,B)]
+
+
+
+def chi2_min_fit(x, y, yerr, func, initial, res, nsig=3, Nmax=10000000):
+	'''
+	Takes a function and performs chi-squared minimisation to determine the best-fit parameters
+	for a set of observations.
+
+	Parameters
+	----------
+	x: array-like
+		x-values at which the observations were taken.
+
+	y: array-like
+		y-values for each observation.
+
+	yerr: array-like or None
+		Uncertainties on each observed y-value. If a 2D array, assumed to contain the lower and
+		upper uncertainties.
+
+	func: callable
+		Function to be fitted. Must have the form func(x, params) where params is array-like and
+		comprises the function parameters.
+
+	initial: array-like
+		Initial guesses for the best-fit parameters (must have the same order as when they are fed
+		to the function).
+
+	res: float or array-like
+		Desired resolution for each parameter when exploring the parameter space. If a single value,
+		uses same resolution for all parameters.
+
+	nsig: int
+		The desired significance (in integer multiples of sigma) to be probed in the parameter space.
+
+	Nmax: int
+		The maximum number of entries to be allowed in any one given array when performing calculations
+		(to conserve memory).
+	'''	
+
+	def chisq_model(params, x_, y_, yerr_):
+		'''
+		Calculates chi-squared for the model function and a given dataset.
+
+		Parameters
+		----------
+		params: array-like
+			List/tuple/array containing the model function parameters.
+	
+		x_: array-like
+			x-values at which the observations were taken.
+
+		y_: array-like
+			y-values for each observation.
+
+		yerr_: array-like
+			Uncertainties on each observed y-value (assumed symmetric).
+
+		Returns
+		----------
+		chisq: float
+			The chi-squared value for the function.
+		'''
+		ymodel = func(x_, params)
+		chi2 = np.sum(((ymodel - y_)/yerr_) ** 2.)
+		return chi2
+
+	#get the number of parameters
+	N_param = len(initial)
+
+	#get the dimensions of yerr
+	ndim = gen.get_ndim(yerr)
+	#symmetrise the uncertainties if asymmetric uncertainties provided
+	if ndim == 2:
+		yerr = (yerr[0] + yerr[1]) / 2.
+
+	#find the value of Delta Chi^2 corresponding to the desired significance
+	dchi2_nsig = chi2_df.loc[N_param][f'{int(nsig)}sig']
+
+	#perform an initial chi-squared minimisation using an optimiser:
+	#reformat the chisq_model function so that it is compatible with scipy.optimize.minimize
+	nll = lambda *args : chisq_model(*args)
+	#run the optimisation to find the best-fit parameters that minimize chi squared
+	popt = opt.minimize(nll, x0=initial, args=(x, y, yerr))['x']
+
+	#set the maximum number of entries along each axis an array with N_params dimensions can have
+	#while still being smaller than Nmax
+	N_per_dim = int(Nmax ** (1./N_param))
+
+	#factors by which to scale the resolutions if the parameter space ends up being too small
+	res_factor = np.full(N_param,1.)
+	#convert the resolutions into an array if it is not one already
+	res = np.array(res)
+
+	#create an array to which all parameter combinations will be concatenated
+	params_tried = np.empty((0, N_param), dtype=float)
+	chi2_tried = np.empty(0, dtype=float)
+
+	n_tries = 0
+	while True:
+		scaled_res = res_factor * res
+		print(scaled_res)
+		#define a grid in the parameter space centred on this initial estimate, firstly with far worse
+		param_ranges = [
+			np.arange(
+				popt[i]-(N_per_dim/2)*scaled_res[i],
+				popt[i]+(N_per_dim/2)*scaled_res[i],
+				scaled_res[i]
+				)
+			for i in range(N_param)]
+		#all unique combinations of the paramters in these ranges
+		permut = np.array(list(itertools.product(*param_ranges)))
+		#remove any rounding errors
+		permut = permut - (permut % scaled_res)
+
+		#remove any permutations that occurred in previous iterations
+		permut = setdiff_nd(permut, params_tried)
+		print(len(permut))
+
+		'''
+		#if a previous iteration has been run, remove all permutations within the previously probed param space
+		if n_tries > 0:
+			for i in range(N_param):
+				p_mask_all = np.full(len(permut), False)
+				#only mask the permutations using this parameter if extending the parameter space along this axis
+				if not params_fine[i]:
+					p_min = params_tried[-1][:,i].min()
+					p_max = params_tried[-1][:,i].max()
+					p_mask = (permut[:,i] < p_min) | (permut[:,i] > p_max)
+					p_mask_all |= p_mask
+				permut = permut[p_mask_all]
+		'''
+		#calculate the model y values for these combinations of parameters
+		ymodel = func(x[:,None], permut.T)
+		#get rid of any parameter combinations resulting in NaN model values for any bins
+		params_keep = ~np.isnan(ymodel).all(axis=0)
+		permut = permut.T[:,params_keep].T
+		ymodel = ymodel[:,params_keep]
+		#calculate chi^2 for each combination
+		chi2 = np.sum(((ymodel - y[:,None]) / yerr[:,None]) ** 2., axis=0)
+
+		#append the parameter combinations and corresponding chi^2 values to the list
+		params_tried = np.concatenate([params_tried, permut])
+		chi2_tried = np.concatenate([chi2_tried, chi2])
+
+		#if previous iteration has been run, find min chi^2 across all iterations
+		chi2_min = chi2_tried.min()
+
+		#calculate Delta Chi^2
+		dchi2 = chi2 - chi2_min
+
+		#find where Delta Chi2 < the value corresponding to n sigma 
+		dchi2_mask = dchi2 < dchi2_nsig
+
+		print(dchi2_mask.sum(), len(chi2))
+
+		#if there are no parameter combinations with Delta Chi^2 below the desired value, break
+		if dchi2_mask.sum() == 0:
+			break
+
+		params_fine = []
+		#cycle through the parameters
+		for i in range(N_param):
+			if (permut[:,i].min() == permut[:,i][dchi2_mask].min()) or (permut[:,i].max() == permut[:,i][dchi2_mask].max()):
+				#res_factor[i] += 1.
+				params_fine.append(False)
+			else:
+				params_fine.append(True)
+
+
+		#add 1 to the number of attempts
+		n_tries += 1
+
+		if np.sum(params_fine) == N_param:
+			break
+		else:
+			res_factor *= 2.
+
+	'''
+	#concatenate the arrays of tested parameters and corresponding chi^2 values
+	if len(params_tried) > 1:
+		params_tried = np.concatenate(params_tried, axis=0)
+		chi2_tried = np.concatenate(chi2_tried)
+	else:
+		params_tried = params_tried[0]
+		chi2_tried = chi2_tried[0]
+	'''
+
+	return chi2_tried, params_tried
+
+
+
+
+
