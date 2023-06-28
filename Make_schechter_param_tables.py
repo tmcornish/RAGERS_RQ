@@ -16,7 +16,7 @@ import numpy as np
 padding = '0.5em'
 
 #filename to give to table
-tab_name = gen.PATH_TABLES + 'Schechter_params.tex'
+tab_name = gen.PATH_TABLES + f'Schechter_params_{gen.n_rq}rq.tex'
 #see if PATH_TABLES already exists, and make it if it doesn't
 if not os.path.exists(gen.PATH_TABLES):
 	os.system(f'mkdir -p {gen.PATH_TABLES}')
@@ -53,8 +53,8 @@ tab_lines.extend(title_lines)
 data_lines = []
 
 #data containing the best-fit parameters for the various radii
-nc_data = [np.load(gen.PATH_CATS + 'Schechter_params/' + f'Differential_{r:.1f}am.npz')['ALL'] for r in gen.r_search_all]
-cc_data = [np.load(gen.PATH_CATS + 'Schechter_params/' + f'Cumulative_{r:.1f}am.npz')['ALL'] for r in gen.r_search_all]
+nc_data = [np.load(gen.PATH_CATS + 'Schechter_params/' + f'Differential_{r:.1f}am_{gen.n_rq}rq.npz')['ALL'] for r in gen.r_search_all]
+cc_data = [np.load(gen.PATH_CATS + 'Schechter_params/' + f'Cumulative_{r:.1f}am_{gen.n_rq}rq.npz')['ALL'] for r in gen.r_search_all]
 
 #get the number of different radii used
 N_radii = len(gen.r_search_all)
