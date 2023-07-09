@@ -1073,10 +1073,10 @@ def plot_numcounts(x, y, xerr=None, yerr=None, ax=None, cumulative=False, masks=
 		return None
 
 
-def Gamma_integrand(t, s):
-	return t ** (s - 1.) * np.exp(-t)
+#def Gamma_integrand(t, s):
+#	return t ** (s - 1.) * np.exp(-t)
 
-def Gamma_upper(s, x):
+#def Gamma_upper(s, x):
 	'''
 	Upper incomplete gamma function.
 
@@ -1091,12 +1091,21 @@ def Gamma_upper(s, x):
 	'''
 	#return float(mpmath.gammainc(s, x))
 
-	G = quad(Gamma_integrand, x, np.inf, args=(s,))[0]
-	return G
+#	G = quad(Gamma_integrand, x, np.inf, args=(s,))[0]
+#	return G
 
 
 #create a new version of the above function that's compatible with numpy arrays
-Gamma_upper_vec = np.frompyfunc(Gamma_upper, 2, 1)
+#Gamma_upper_vec = np.frompyfunc(Gamma_upper, 2, 1)
+
+
+def gamma_upper(s, x):
+	return float(mpmath.gammainc(s, x, np.inf))
+
+gamma_upper_vec = np.frompyfunc(gamma_upper, 2, 1)
+
+def gamma_upper_vec_(s, x):
+	return gamma_upper_vec(s, x).astype(float)
 
 
 def cumulative_model(S, params):
@@ -1120,7 +1129,7 @@ def cumulative_model(S, params):
 
 	N0, S0, gamma = params
 	with np.errstate(all='ignore'):
-		y = N0 * Gamma_upper_vec(-gamma + 1., S / S0)
+		y = N0 * gamma_upper_vec_(-gamma + 1., S / S0)
 	return y
 
 
