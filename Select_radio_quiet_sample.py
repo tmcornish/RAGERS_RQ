@@ -15,10 +15,16 @@ import numpy as np
 from matplotlib import pyplot as plt
 import matplotlib as mpl
 import matplotlib.patches as patches
+from matplotlib.lines import Line2D
+from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 from photutils.aperture import CircularAperture, SkyCircularAperture, ApertureStats, aperture_photometry
+from scipy.interpolate import interp1d
+from scipy.ndimage import gaussian_filter
 import general as gen
 import plotstyle as ps
 import astrometry as ast
+import stats
+
 
 
 ##################
@@ -27,7 +33,8 @@ import astrometry as ast
 
 include_lims = False	#include radio-loud RAGERS galaxies with limiting stellar masses
 plot_selection = True	#visualise the sample selection in z-M* space
-plot_cosmos = False		#plot the whole COSMOS ditribution (requires plot_selection is also True)
+plot_cosmos = True		#plot the whole COSMOS ditribution (requires plot_selection is also True)
+sep_figure = True		#makes a separate figure for the COSMOS distribution (requires plot_selection and plot_cosmos are True)
 plot_N_per_RL = True	#plot the number of RQ counterparts per RL source
 plot_positions = True	#plot the positions of the RQ counterparts
 settings = [include_lims, plot_selection, plot_cosmos, plot_N_per_RL, plot_positions]
@@ -154,6 +161,7 @@ cols_keep = ['ALPHA_J2000', 'DELTA_J2000', 'ez_z_phot', 'ez_z160', 'ez_z840', 'e
 data_ref = data_ref[cols_keep]
 #create mask to remove all sources with no redshift or stellar mass
 mask = ~data_ref['ez_z_phot'].mask * ~data_ref['ez_mass'].mask
+mask *= (data_ref['ez_z_phot'] < 7.) * (data_ref['ez_mass'] < 13.)
 data_ref = data_ref[mask]
 #create a mask to select COSMOS2020 sources within the RA and Dec boundaries
 #coord_mask = (data_ref['ALPHA_J2000'] > RA_min) * (data_ref['ALPHA_J2000'] < RA_max) * (data_ref['DELTA_J2000'] > DEC_min) * (data_ref['DELTA_J2000'] < DEC_max)
@@ -164,10 +172,69 @@ if plot_selection and plot_cosmos:
 
 	print(gen.colour_string('Plotting COSMOS2020 Mstar vs z...', 'purple'))
 
-	#plot the full distribution of M* vs z for the COSMOS catalogue
-	to_plot = (data_ref['ez_z_phot'] >= xmin1) *  (data_ref['ez_z_phot'] <= xmax1) * (data_ref['ez_mass'] >= ymin1) *  (data_ref['ez_mass'] <= ymax1)
-	ax1.plot(data_ref['ez_z_phot'][to_plot], data_ref['ez_mass'][to_plot], marker='.', c=ps.grey, linestyle='none', ms=2., label='Full COSMOS2020 catalogue', alpha=0.05)
+	#contour levels to mark intervals of sigma
+	sig_levels = [1., 2., 3.]
+	#clevels = np.array([np.diff(stats.percentiles_nsig(i))[0] for i in sig_levels])[::-1] / 100.
+	clevels = np.arange(0.1, 1.1, 0.2)[::-1]
 
+	#create an inset panel
+	axins = inset_axes(ax1,
+		width="100%",
+		height="100%",
+		bbox_to_anchor=(.6, .6, .35, .35),
+		bbox_transform=ax1.transAxes)
+
+	#create a 2D histogram of all COSMO2020 sources in M*-z space
+	P, zbins, Mbins = np.histogram2d(data_ref['ez_z_phot'], data_ref['ez_mass'], 50)
+	#get the bin centres in x and y
+	zc = (zbins[1:] + zbins[:-1]) / 2.
+	Mc = (Mbins[1:] + Mbins[:-1]) / 2.
+	#get the extent for plotting the contours
+	ext = [min(zc), max(zc), min(Mc), max(Mc)]
+
+	#normalise the histogram so that it represents the 2D PDF
+	P = gaussian_filter(P, (1., 1.))
+	P /= P.sum()
+	#create an array of steps at which the PDF will be integrated
+	t = np.linspace(0, P.max(), 1000)
+	#integrate the PDF
+	integral = ((P >= t[:, None, None]) * P).sum(axis=(1,2))
+	#interpolate t with respect to the integral
+	f_int = interp1d(integral, t)
+	#find t at the value of each contour
+	t_contours = f_int(clevels)
+
+	#plot the contours
+	axins.contour(zc, Mc, P.T, levels=t_contours, colors=ps.grey, extent=None)
+
+	#plot the full distribution of M* vs z for the COSMOS catalogue
+	#to_plot = (data_ref['ez_z_phot'] >= xmin1) *  (data_ref['ez_z_phot'] <= xmax1) * (data_ref['ez_mass'] >= ymin1) *  (data_ref['ez_mass'] <= ymax1)
+	#ax1.plot(data_ref['ez_z_phot'][to_plot], data_ref['ez_mass'][to_plot], marker='.', c=ps.grey, linestyle='none', ms=2., label='Full COSMOS2020 catalogue', alpha=0.05)
+
+	#if told to make a separate figure, also plot the RAGERS positions and COSMOS2020 distribution on that
+	if sep_figure:
+		f_sep, ax_sep = plt.subplots(1, 1)
+		ax_sep.set_xlabel(r'$z$')
+		ax_sep.set_ylabel(r'log$_{10}$($M_{\star}$/M$_{\odot}$)')
+
+		ax_sep.contour(zc, Mc, P.T, levels=t_contours, colors=ps.grey, extent=None)
+
+		#plot the RAGERS galaxies
+		ax_sep.plot(z_rl, Mstar_rl, marker='o', linestyle='none', c='k', ms=5., label='RAGERS sample')
+
+		#retrieve the handles and labels for the legend so that one can be added for the contours
+		handles, labels = ax_sep.get_legend_handles_labels()
+		by_label = dict(zip(labels, handles))
+		by_label['COSMOS2020 catalogue'] = Line2D([0], [0], color=ps.grey)
+
+		ax_sep.legend([by_label[l] for l in by_label], [l for l in by_label])
+
+		ax_sep.set_xlim(0.4, 4.)
+		ax_sep.set_ylim(7., 12.6)
+
+		f_sep.tight_layout()
+		f_sep.savefig(PATH_PLOTS + 'RAGERS_RL_with_COSMOS_Mstar_z.png', dpi=300)
+exit()
 
 print(gen.colour_string('Loading VLA-COSMOS catalogue...', 'purple'))
 

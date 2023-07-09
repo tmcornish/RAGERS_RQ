@@ -31,7 +31,7 @@ plt.style.use(ps.styledict)
 nbins = 30
 
 #select a radius for which the results will be emphasised on the plot
-r_emph = 4.
+r_emph = 6.
 
 #######################################################
 ###############    START OF SCRIPT    #################

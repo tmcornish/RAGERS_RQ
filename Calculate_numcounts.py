@@ -545,7 +545,7 @@ if __name__ == '__main__':
 
 	#radii (arcmin) of search areas to use in the submm data
 	if many_radii:
-		radii = [1., 2., 4., 6.]
+		radii = gen.r_search_all
 	else:
 		radii = [gen.r_search]
 	settings_print.append(f'Radius used to search for RQ companions (arcmin): {", ".join(map(str, radii))}')
@@ -568,7 +568,7 @@ if __name__ == '__main__':
 		#bin edges and centres for the differential number counts
 		S850_bin_edges = gen.S19_bin_edges
 	else:
-		S850_bin_edges = np.array([2., 3., 5., 7., 9., 12., 15., 18., 22.])
+		S850_bin_edges = gen.bin_edges
 
 	if use_S19_bins_bf:
 		s2c_bin_edges = gen.S19_bin_edges
@@ -688,6 +688,7 @@ if __name__ == '__main__':
 
 	#get the number of CPUs available
 	ncpu_avail = cpu_count()
+
 
 	for r in radii:
 		print(gen.colour_string(f'Using {r:.1f} arcminute search radius.', 'orange'))
