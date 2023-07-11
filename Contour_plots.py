@@ -75,11 +75,11 @@ cycle_clr = [gen.scale_RGB_colour(cmap((j+1.)/N_radii)[:-1], scale_l=0.7) for j 
 ###############################
 
 #retrieve the best-fit differential and cumulative parameters for each radius
-nc_params_all = [np.load(PATH_PARAMS+f'Differential_{r:.1f}am_{gen.n_rq}{gen.gal_type}.npz')['ALL'] for r in gen.r_search_all]
-cc_params_all = [np.load(PATH_PARAMS+f'Cumulative_{r:.1f}am_{gen.n_rq}{gen.gal_type}.npz')['ALL'] for r in gen.r_search_all]
+nc_params_all = [np.load(PATH_PARAMS+f'Differential_{r:.1f}am_{gen.n_gal}{gen.gal_type}.npz')['ALL'] for r in gen.r_search_all]
+cc_params_all = [np.load(PATH_PARAMS+f'Cumulative_{r:.1f}am_{gen.n_gal}{gen.gal_type}.npz')['ALL'] for r in gen.r_search_all]
 #retrieve the posterior distributions from each MCMC fit
-nc_posts_all = [np.load(PATH_POSTS+f'Differential_{r:.1f}am_{gen.n_rq}{gen.gal_type}.npz')['ALL'] for r in gen.r_search_all]
-cc_posts_all = [np.load(PATH_POSTS+f'Cumulative_{r:.1f}am_{gen.n_rq}{gen.gal_type}.npz')['ALL'] for r in gen.r_search_all]
+nc_posts_all = [np.load(PATH_POSTS+f'Differential_{r:.1f}am_{gen.n_gal}{gen.gal_type}.npz')['ALL'] for r in gen.r_search_all]
+cc_posts_all = [np.load(PATH_POSTS+f'Cumulative_{r:.1f}am_{gen.n_gal}{gen.gal_type}.npz')['ALL'] for r in gen.r_search_all]
 
 #blank field parameters (S2COSMOS)
 nc_params_s2c = np.load(PATH_PARAMS+f'Differential_bf.npz')['S2COSMOS']
@@ -250,7 +250,7 @@ ax[2][1].set_ylim(1000., 14000.)
 
 f.tight_layout()
 
-figname = PATH_PLOTS + f'Schechter_contours_{gen.n_rq}{gen.gal_type}.png'
+figname = PATH_PLOTS + f'Schechter_contours_{gen.n_gal}{gen.gal_type}.png'
 if show_data:
 	figname = figname[:-4] + '_with_markers.png'
 f.savefig(figname, bbox_inches='tight', dpi=300)
