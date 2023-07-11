@@ -90,7 +90,7 @@ A_survey, smap_sel, (RAmax_smap, RAmin_smap, DECmin_smap, DECmax_smap) = ast.are
 ##########################
 
 #catalogue containing data for (radio-quiet) galaxies from COSMOS2020 matched in M* and z with the radio-loud sample
-RQ_CAT = PATH_CATS + 'RAGERS_COSMOS2020_matches_Mstar_z.fits'
+RQ_CAT = PATH_CATS + f'RAGERS_COSMOS2020_matches_Mstar_z_{gen.gal_type}.fits'
 data_rq = Table.read(RQ_CAT, format='fits')
 #get the RAs and DECs
 RA_rq = data_rq['ALPHA_J2000']
@@ -118,7 +118,7 @@ for ID in RAGERS_IDs:
 	#get the indices in the catalogue for RQ galaxies matched to the current RL galaxy
 	idx_matched = np.where(data_rq['RAGERS_ID'] == ID)[0]
 	#number of RQ galaxies to select for the current RL galaxy
-	N_sel_now = min(len(idx_matched), gen.n_rq)
+	N_sel_now = min(len(idx_matched), gen.n_gal)
 	#randomly select N_sel_now of these RQ galaxies
 	#np.random.seed(0)
 	idx_sel = np.random.choice(idx_matched, size=N_sel_now, replace=False)
@@ -139,7 +139,7 @@ data_rq_sub = vstack(data_rq_sub)
 
 if save_samp:
 	#save the subsample of RQ galaxies to a new file
-	data_rq_sub.write(PATH_CATS + 'subsamp_RAGERS_COSMOS2020_matches_Mstar_z.fits', overwrite=True)
+	data_rq_sub.write(PATH_CATS + f'subsamp_RAGERS_COSMOS2020_matches_Mstar_z_{gen.gal_type}.fits', overwrite=True)
 
 #create SkyCoord objects from the coordinates of all of these RQ galaxies
 coords_rq_sub = SkyCoord(data_rq_sub['ALPHA_J2000'], data_rq_sub['DELTA_J2000'], unit='deg')
@@ -228,5 +228,5 @@ for r in r_to_plot:
 	ax.set_ylim(1.5, 3.)
 	#minimise unnecesary whitespace
 	f.tight_layout()
-	figname = PATH_PLOTS + f'RQ_positions_with_search_areas{r:.1f}am_{gen.n_rq}rq.png'
+	figname = PATH_PLOTS + f'RQ_positions_with_search_areas{r:.1f}am_{gen.n_gal}{gen.gal_type}.png'
 	f.savefig(figname, bbox_inches='tight', dpi=300)

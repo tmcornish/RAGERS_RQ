@@ -48,7 +48,7 @@ bin_edges_all = [
 	]
 '''
 gal_type = 'rl'	#type of counterpart to be analysed (rq or rl)
-n_gal = 10		#minimum number of counterparts required per RL galaxy
+n_gal = 1		#minimum number of counterparts required per RL galaxy
 sens_lim = 1.3	#SCUBA-2 sensitivity limit (mJy) for searching for submm companions 
 nsim = 10000	#number of simulated datasets to generate when constructing number counts
 Smin = 3.		#minimum flux density below which bins will be excluded for Schechter fits
