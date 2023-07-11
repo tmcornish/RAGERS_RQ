@@ -91,11 +91,11 @@ if plot_selection:
 
 	#set the minimum and maximum redshifts and stellar masses for the plot
 	if plot_cosmos:
-		xmin1, xmax1 = ax1.set_xlim(0.4, 3.2)
-		ymin1, ymax1 = ax1.set_ylim(10.5, 12.2)
+		xmin1, xmax1 = ax1.set_xlim(0.88, 3.2)
+		ymin1, ymax1 = ax1.set_ylim(11.04, 12.2)
 	else:
 		xmin1, xmax1 = ax1.set_xlim(0.88, 3.2)
-		ymin1, ymax1 = ax1.set_ylim(11.04, 11.9)
+		ymin1, ymax1 = ax1.set_ylim(10.95, 11.9)
 	
 
 if plot_N_per_RL:
@@ -161,7 +161,7 @@ cols_keep = ['ALPHA_J2000', 'DELTA_J2000', 'ez_z_phot', 'ez_z160', 'ez_z840', 'e
 data_ref = data_ref[cols_keep]
 #create mask to remove all sources with no redshift or stellar mass
 mask = ~data_ref['ez_z_phot'].mask * ~data_ref['ez_mass'].mask
-mask *= (data_ref['ez_z_phot'] < 7.) * (data_ref['ez_mass'] < 13.)
+#mask *= (data_ref['ez_z_phot'] < 7.) * (data_ref['ez_mass'] < 13.)
 data_ref = data_ref[mask]
 #create a mask to select COSMOS2020 sources within the RA and Dec boundaries
 #coord_mask = (data_ref['ALPHA_J2000'] > RA_min) * (data_ref['ALPHA_J2000'] < RA_max) * (data_ref['DELTA_J2000'] > DEC_min) * (data_ref['DELTA_J2000'] < DEC_max)
@@ -181,8 +181,12 @@ if plot_selection and plot_cosmos:
 	axins = inset_axes(ax1,
 		width="100%",
 		height="100%",
-		bbox_to_anchor=(.6, .6, .35, .35),
+		bbox_to_anchor=(.65, .65, .3, .3),
 		bbox_transform=ax1.transAxes)
+
+	#label the axes
+	axins.set_xlabel(r'$z$', fontsize=14., labelpad=-5.)
+	axins.set_ylabel(r'log$_{10}$($M_{\star}$/M$_{\odot}$)', fontsize=14.)
 
 	#create a 2D histogram of all COSMO2020 sources in M*-z space
 	P, zbins, Mbins = np.histogram2d(data_ref['ez_z_phot'], data_ref['ez_mass'], 50)
@@ -205,7 +209,15 @@ if plot_selection and plot_cosmos:
 	t_contours = f_int(clevels)
 
 	#plot the contours
-	axins.contour(zc, Mc, P.T, levels=t_contours, colors=ps.grey, extent=None)
+	axins.contour(zc, Mc, P.T, levels=t_contours, colors=ps.grey, extent=None, linewidths=1.)
+	#plot the RAGERS galaxies
+	axins.plot(z_rl, Mstar_rl, marker='o', linestyle='none', c='k', ms=2.)
+
+	axins.set_xlim(0.4, 4.)
+	axins.set_ylim(7., 12.6)
+
+	#make the fontsize of the tick labels smaller
+	axins.tick_params(labelsize=14.)
 
 	#plot the full distribution of M* vs z for the COSMOS catalogue
 	#to_plot = (data_ref['ez_z_phot'] >= xmin1) *  (data_ref['ez_z_phot'] <= xmax1) * (data_ref['ez_mass'] >= ymin1) *  (data_ref['ez_mass'] <= ymax1)
@@ -234,7 +246,7 @@ if plot_selection and plot_cosmos:
 
 		f_sep.tight_layout()
 		f_sep.savefig(PATH_PLOTS + 'RAGERS_RL_with_COSMOS_Mstar_z.png', dpi=300)
-exit()
+
 
 print(gen.colour_string('Loading VLA-COSMOS catalogue...', 'purple'))
 
@@ -264,17 +276,24 @@ Mstar_ref = data_ref['ez_mass']
 
 #name to be given to catalogue of radio-quiet sources matched in M* and z to the radio-loud sample
 if include_lims:
-	MATCHED_CAT = PATH_CATS + 'RAGERS_COSMOS2020_matches_Mstar_z_incl_RL_limits.fits'
+	MATCHED_CAT_RQ = PATH_CATS + 'RAGERS_COSMOS2020_matches_Mstar_z_rq_incl_RAGERS_lims.fits'
+	MATCHED_CAT_RL = PATH_CATS + 'RAGERS_COSMOS2020_matches_Mstar_z_rl_incl_RAGERS_lims.fits'
 else:
-	MATCHED_CAT = PATH_CATS + 'RAGERS_COSMOS2020_matches_Mstar_z.fits'
+	MATCHED_CAT_RQ = PATH_CATS + 'RAGERS_COSMOS2020_matches_Mstar_z_rq.fits'
+	MATCHED_CAT_RL = PATH_CATS + 'RAGERS_COSMOS2020_matches_Mstar_z_rl.fits'
 #create lists which will later be converted to columns in the table for the RAGERS ID
-ragers_id_col = []
-ragers_z_col = []
-ragers_mstar_col = []
-#create another list to which the COSMOS data will be appended for each matched galaxy
-COSMOS_data_matched = []
+ragers_id_col_rq = []
+ragers_z_col_rq = []
+ragers_mstar_col_rq = []
+ragers_id_col_rl = []
+ragers_z_col_rl = []
+ragers_mstar_col_rl = []
+#create lists to which the COSMOS data will be appended for each matched RQ or RL galaxy
+COSMOS_data_matched_rq = []
+COSMOS_data_matched_rl = []
 #create one more list to which the number of matched sources will be appended for each RAGERS galaxy
-N_matches_all = []
+N_matches_all_rq = []
+N_matches_all_rl = []
 
 
 #################################
@@ -352,7 +371,8 @@ with open(N_matched_file, 'w') as file:
 	masked_cat_all_RQ = []
 	masked_cat_all_RL = []
 
-	print('Number of RQ counterparts:')
+	print('Number of counterparts:')
+	print(f'\t{gen.colour_string("RQ", "purple")}\t{gen.colour_string("RL", "cyan")}')
 
 	#now cycle through each RAGERS galaxy and identify galaxies with similar redshifts
 	for j in range(N_rl):
@@ -416,19 +436,25 @@ with open(N_matched_file, 'w') as file:
 		masked_cat_all_RL.append(masked_cat_RL)
 
 		#count the number of matched sources for this RAGERS galaxy
-		N_matches = len(masked_cat_RQ)
-		N_matches_all.append(N_matches)
-		print(ID, N_matches)
+		N_matches_rq = len(masked_cat_RQ)
+		N_matches_all_rq.append(N_matches_rq)
+		N_matches_rl = len(masked_cat_RL)
+		N_matches_all_rl.append(N_matches_rl)
+		print(f'{ID}\t'+gen.colour_string(f'{N_matches_rq}', 'purple')+'\t'+gen.colour_string(f'{N_matches_rl}', 'cyan'))
 
 		#extend the 'ragers_id_col', 'ragers_z_col' and 'ragers_mstar_col' lists by repeating the relevant value x N_matches
-		ragers_id_col.extend([ID]*N_matches)
-		ragers_z_col.extend([z]*N_matches)
-		ragers_mstar_col.extend([m]*N_matches)
+		ragers_id_col_rq.extend([ID]*N_matches_rq)
+		ragers_z_col_rq.extend([z]*N_matches_rq)
+		ragers_mstar_col_rq.extend([m]*N_matches_rq)
+		ragers_id_col_rl.extend([ID]*N_matches_rl)
+		ragers_z_col_rl.extend([z]*N_matches_rl)
+		ragers_mstar_col_rl.extend([m]*N_matches_rl)
 		#append the COSMOS2020 data for the matched galaxies to the relevant list
-		COSMOS_data_matched.append(masked_cat_RQ)
+		COSMOS_data_matched_rq.append(masked_cat_RQ)
+		COSMOS_data_matched_rl.append(masked_cat_RL)
 
 		#write the RAGERS ID and number of companions to the file
-		file.write(f'{ID}\t{N_matches}\n')
+		file.write(f'{ID}\t{N_matches_rq}\n')
 
 		if plot_selection:
 			#draw a box on Figure 1 representing this selection window
@@ -483,12 +509,18 @@ if plot_selection:
 
 
 #stack the data for the matched sources into one table
-COSMOS_data_matched = vstack(COSMOS_data_matched)
+COSMOS_data_matched_rq = vstack(COSMOS_data_matched_rq)
 #add the columns for the RAGERS galaxy ID, z and Mstar
-COSMOS_data_matched.add_columns([ragers_id_col, ragers_z_col, ragers_mstar_col], names=['RAGERS_ID', 'RAGERS_z', 'RAGERS_logMstar'], indexes=[0,0,0])
+COSMOS_data_matched_rq.add_columns([ragers_id_col_rq, ragers_z_col_rq, ragers_mstar_col_rq], names=['RAGERS_ID', 'RAGERS_z', 'RAGERS_logMstar'], indexes=[0,0,0])
 #write the catalogue to a file
-COSMOS_data_matched.write(MATCHED_CAT, overwrite=True)
+COSMOS_data_matched_rq.write(MATCHED_CAT_RQ, overwrite=True)
 
+#stack the data for the matched sources into one table
+COSMOS_data_matched_rl = vstack(COSMOS_data_matched_rl)
+#add the columns for the RAGERS galaxy ID, z and Mstar
+COSMOS_data_matched_rl.add_columns([ragers_id_col_rl, ragers_z_col_rl, ragers_mstar_col_rl], names=['RAGERS_ID', 'RAGERS_z', 'RAGERS_logMstar'], indexes=[0,0,0])
+#write the catalogue to a file
+COSMOS_data_matched_rl.write(MATCHED_CAT_RL, overwrite=True)
 
 
 ######################################
@@ -499,14 +531,14 @@ if plot_N_per_RL:
 	print(gen.colour_string('Plotting number of RQ counterparts...', 'purple'))
 
 	#plot the number of matches vs redshift in panel 1 of Figure 2
-	sc2a = ax2a.scatter(z_rl, N_matches_all, c=Mstar_rl, cmap=cmap)
+	sc2a = ax2a.scatter(z_rl, N_matches_all_rq, c=Mstar_rl, cmap=cmap)
 	#add a colourbar
 	cbar2a = f2.colorbar(sc2a, ax=ax2a)
 	cbar2a.ax.set_ylabel(r'log$_{10}$($M_{\star}$/M$_{\odot}$)')
 
 
 	#plot the number of matches vs redshift in panel 1 of Figure 2
-	sc2b = ax2b.scatter(Mstar_rl, N_matches_all, c=z_rl, cmap=cmap)
+	sc2b = ax2b.scatter(Mstar_rl, N_matches_all_rq, c=z_rl, cmap=cmap)
 	#add a colourbar
 	cbar2b = f2.colorbar(sc2b, ax=ax2b)
 	cbar2b.ax.set_ylabel(r'$z$')

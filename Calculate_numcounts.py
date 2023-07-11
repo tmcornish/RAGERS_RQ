@@ -135,7 +135,7 @@ def number_counts(
 		#get the indices in the catalogue for RQ galaxies matched to the current RL galaxy
 		idx_matched = np.where(data_rq_copy['RAGERS_ID'] == ID)[0]
 		#number of RQ galaxies to select for the current RL galaxy
-		n_rq_now = min(len(idx_matched), gen.n_rq)
+		n_rq_now = min(len(idx_matched), gen.n_gal)
 		#randomly select n_rq_now of these RQ galaxies
 		idx_sel = np.random.choice(idx_matched, size=n_rq_now, replace=False)
 		#create a table containing this subset of RQ galaxies and append it to the list defined prior to this loop
@@ -401,8 +401,8 @@ def number_counts(
 	cc_dict['w_ALL'] = np.full(len(cumN_ALL), A_ALL)
 
 	#write the dictionaries to a file
-	nc_name = PATH_NC_DISTS + f'sample{idx}_{r_search:.1f}am_{gen.n_rq}rq.npz'
-	cc_name = PATH_CC_DISTS + f'sample{idx}_{r_search:.1f}am_{gen.n_rq}rq.npz'
+	nc_name = PATH_NC_DISTS + f'sample{idx}_{r_search:.1f}am_{gen.n_gal}{gen.gal_type}.npz'
+	cc_name = PATH_CC_DISTS + f'sample{idx}_{r_search:.1f}am_{gen.n_gal}{gen.gal_type}.npz'
 	np.savez_compressed(nc_name, **nc_dict)
 	np.savez_compressed(cc_name, **cc_dict)
 
@@ -534,7 +534,7 @@ if __name__ == '__main__':
 			settings_print[i] += 'n'
 
 	#number of matched galaxies to use per RL galaxy when constructing the number counts
-	settings_print.append(f'Number of RQ galaxies per RL galaxy: {gen.n_rq}')
+	settings_print.append(f'Number of RQ galaxies per RL galaxy: {gen.n_gal}')
 
 	nsamples = 1000		#number of times to reselect RQ subsamples
 	if repeat_sel:
@@ -586,7 +586,7 @@ if __name__ == '__main__':
 	#######################################################
 
 	#catalogue containing data for (radio-quiet) galaxies from COSMOS2020 matched in M* and z with the radio-loud sample
-	RQ_CAT = gen.PATH_CATS + 'RAGERS_COSMOS2020_matches_Mstar_z.fits'
+	RQ_CAT = gen.PATH_CATS + f'RAGERS_COSMOS2020_matches_Mstar_z_{gen.gal_type}.fits'
 	data_rq = Table.read(RQ_CAT, format='fits')
 	#get the RAs and DECs
 	RA_rq = data_rq['ALPHA_J2000']
@@ -694,8 +694,8 @@ if __name__ == '__main__':
 		print(gen.colour_string(f'Using {r:.1f} arcminute search radius.', 'orange'))
 
 		#names of the files containing the results from all iterations
-		nc_npz_file = PATH_NC_DISTS + f'All_samples_{r:.1f}am_{gen.n_rq}rq.npz'
-		cc_npz_file = PATH_CC_DISTS + f'All_samples_{r:.1f}am_{gen.n_rq}rq.npz'
+		nc_npz_file = PATH_NC_DISTS + f'All_samples_{r:.1f}am_{gen.n_gal}{gen.gal_type}.npz'
+		cc_npz_file = PATH_CC_DISTS + f'All_samples_{r:.1f}am_{gen.n_gal}{gen.gal_type}.npz'
 
 		#if this script has been run previously, load the results to determine how many iterations have been done
 		if os.path.exists(nc_npz_file) and os.path.exists(cc_npz_file):
@@ -814,7 +814,7 @@ if __name__ == '__main__':
 				nc_dict_dists[wk] = np.array(nc_new_dict[wk])
 				cc_dict_dists[wk] = np.array(cc_new_dict[wk])
 
-		os.system(f'rm -f {PATH_NC_DISTS}/sample*.npz {PATH_CC_DISTS}/sample*.npz')
+		os.system(f'rm -f {PATH_NC_DISTS}/sample*{gen.n_gal}{gen.gal_type}.npz {PATH_CC_DISTS}/sample*{gen.n_gal}{gen.gal_type}.npz')
 
 		#save the number count dictionaries as compressed numpy archives
 		np.savez_compressed(nc_npz_file, **nc_dict_dists)
@@ -825,8 +825,8 @@ if __name__ == '__main__':
 		
 
 		#names to give the files containing the final bin heights and unertainties
-		nc_npz_file_final = PATH_COUNTS + f'Differential_with_errs_{r:.1f}am_{gen.n_rq}rq.npz'
-		cc_npz_file_final = PATH_COUNTS + f'Cumulative_with_errs_{r:.1f}am_{gen.n_rq}rq.npz'
+		nc_npz_file_final = PATH_COUNTS + f'Differential_with_errs_{r:.1f}am_{gen.n_gal}{gen.gal_type}.npz'
+		cc_npz_file_final = PATH_COUNTS + f'Cumulative_with_errs_{r:.1f}am_{gen.n_gal}{gen.gal_type}.npz'
 
 		#set up dictionaries for these results
 		nc_final = {'bin_edges' : nc_dict_dists['bin_edges']}
