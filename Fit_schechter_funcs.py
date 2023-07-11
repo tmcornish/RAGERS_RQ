@@ -152,8 +152,8 @@ print(gen.colour_string('Fitting to RQ results...', 'purple'))
 #get the radii used
 radii = gen.r_search_all
 #list the files containing results to plot
-nc_files = [PATH_COUNTS + f'Differential_with_errs_{r:.1f}am_{gen.n_rq}rq.npz' for r in radii]
-cc_files = [PATH_COUNTS + f'Cumulative_with_errs_{r:.1f}am_{gen.n_rq}rq.npz' for r in radii]
+nc_files = [PATH_COUNTS + f'Differential_with_errs_{r:.1f}am_{gen.n_gal}{gen.gal_type}.npz' for r in radii]
+cc_files = [PATH_COUNTS + f'Cumulative_with_errs_{r:.1f}am_{gen.n_gal}{gen.gal_type}.npz' for r in radii]
 
 #cycle through the radii
 for r, ncf, ccf in zip(radii, nc_files, cc_files):
@@ -161,14 +161,14 @@ for r, ncf, ccf in zip(radii, nc_files, cc_files):
 	print(gen.colour_string(f'Search radius = {r:.1f} arcminute', 'orange'))
 
 	#destination files for the best-fit parameters and uncertainties
-	nc_params_file = PATH_PARAMS + f'Differential_{r:.1f}am_{gen.n_rq}rq.npz'
-	cc_params_file = PATH_PARAMS + f'Cumulative_{r:.1f}am_{gen.n_rq}rq.npz'
+	nc_params_file = PATH_PARAMS + f'Differential_{r:.1f}am_{gen.n_gal}{gen.gal_type}.npz'
+	cc_params_file = PATH_PARAMS + f'Cumulative_{r:.1f}am_{gen.n_gal}{gen.gal_type}.npz'
 	#set up dictionaries for these results
 	nc_params_dict, cc_params_dict = {}, {}
 
 	#destination files for the posterior distributions of each parameter
-	nc_post_file = PATH_POSTS + f'Differential_{r:.1f}am_{gen.n_rq}rq.npz'
-	cc_post_file = PATH_POSTS + f'Cumulative_{r:.1f}am_{gen.n_rq}rq.npz'
+	nc_post_file = PATH_POSTS + f'Differential_{r:.1f}am_{gen.n_gal}{gen.gal_type}.npz'
+	cc_post_file = PATH_POSTS + f'Cumulative_{r:.1f}am_{gen.n_gal}{gen.gal_type}.npz'
 	#set up dictionaries for these results
 	nc_post_dict, cc_post_dict = {}, {}
 

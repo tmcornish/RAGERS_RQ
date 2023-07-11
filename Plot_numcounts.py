@@ -39,8 +39,8 @@ PATH_COUNTS = PATH_CATS + 'Number_counts/'
 radii = gen.r_search_all
 
 #list the files containing results to plot
-nc_files = [PATH_COUNTS + f'Differential_with_errs_{r:.1f}am_{gen.n_rq}rq.npz' for r in radii]
-cc_files = [PATH_COUNTS + f'Cumulative_with_errs_{r:.1f}am_{gen.n_rq}rq.npz' for r in radii]
+nc_files = [PATH_COUNTS + f'Differential_with_errs_{r:.1f}am_{gen.n_rq}{gen.gal_type}.npz' for r in radii]
+cc_files = [PATH_COUNTS + f'Cumulative_with_errs_{r:.1f}am_{gen.n_rq}{gen.gal_type}.npz' for r in radii]
 
 
 ######################
@@ -218,8 +218,8 @@ for i in range(n_rows):
 		)
 
 	#load the best-fit parameters for this radius
-	nc_params = np.load(PATH_PARAMS + f'Differential_{r:.1f}am_{gen.n_rq}rq.npz')
-	cc_params = np.load(PATH_PARAMS + f'Cumulative_{r:.1f}am_{gen.n_rq}rq.npz')
+	nc_params = np.load(PATH_PARAMS + f'Differential_{r:.1f}am_{gen.n_rq}{gen.gal_type}.npz')
+	cc_params = np.load(PATH_PARAMS + f'Cumulative_{r:.1f}am_{gen.n_rq}{gen.gal_type}.npz')
 
 	#retrieve the best-fit parameters
 	nc_popt, enc_popt_lo, enc_popt_hi = nc_params['ALL']
@@ -318,6 +318,6 @@ ax['ax1'].get_yaxis().set_major_formatter(mpl.ticker.StrMethodFormatter('{x:g}')
 ax['ax2'].get_yaxis().set_major_formatter(mpl.ticker.StrMethodFormatter('{x:g}'))
 #minimise unnecesary whitespace
 f.tight_layout()
-figname = PATH_PLOTS + f'S850_number_counts_by_radius_{gen.n_rq}rq.png'
+figname = PATH_PLOTS + f'S850_number_counts_by_radius_{gen.n_rq}{gen.gal_type}.png'
 f.savefig(figname, bbox_inches='tight', dpi=300)
 
