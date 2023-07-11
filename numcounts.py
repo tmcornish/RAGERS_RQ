@@ -759,17 +759,25 @@ def fit_schechter_mcmc(x, y, yerr, nwalkers, niter, initial, offsets=0.01, retur
 
 		return sampler, pos, prob, state
 
-	#use an optimiser to get a better initial estimate for the fit parameters
-	nll = lambda *args: -lnlike(*args)
-	result = opt.minimize(nll, x0=initial, args=(x, y, yerr))
-	initial = result['x']
-
+	#convert initial conditions to an array if not provided as one already
+	initial = np.asarray(initial)
+	offsets = np.asarray(offsets)
 	#number of parameters to be fitted
 	ndim = len(initial)
 
+	#use an optimiser to get a better initial estimate for the fit parameters
+	nll = lambda *args: -lnlike(*args)
+	#add an error catcher to reattempt with different initial conditions if first attempt fails
+	while True:
+		result = opt.minimize(nll, x0=initial, args=(x, y, yerr))
+		if result.success:
+			break
+		else:
+			initial = initial + offsets * np.random.randn(ndim)
+	initial = result['x']
+
 	#initial starting points for each walker in the MCMC
-	offsets = np.array(offsets)
-	p0 = [np.array(initial) + offsets * np.random.randn(ndim) for i in range(nwalkers)]
+	p0 = [initial + offsets * np.random.randn(ndim) for i in range(nwalkers)]
 
 	data = (x, y, yerr)
 	sampler, pos, prob, state = main(p0,nwalkers,niter,ndim,lnprob,data)
@@ -1332,6 +1340,7 @@ def fit_cumulative_mcmc(x, y, yerr, nwalkers, niter, initial, offsets=0.01, retu
 
 	#convert initial conditions to an array if not provided as one already
 	initial = np.asarray(initial)
+	offsets = np.asarray(offsets)
 	#number of parameters to be fitted
 	ndim = len(initial)
 	
@@ -1348,7 +1357,6 @@ def fit_cumulative_mcmc(x, y, yerr, nwalkers, niter, initial, offsets=0.01, retu
 	initial = result['x']
 
 	#initial starting points for each walker in the MCMC
-	offsets = np.array(offsets)
 	p0 = [initial + offsets * np.random.randn(ndim) for i in range(nwalkers)]
 
 	data = (x, y, yerr)
