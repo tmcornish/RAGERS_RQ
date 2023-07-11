@@ -187,7 +187,7 @@ for r, ncf, ccf in zip(radii, nc_files, cc_files):
 
 		#perform the fits and add the best-fit values and uncertainties to the dictionary in a 2D array
 		nc_params_dict[k], nc_post_dict[k] = perform_fits(bin_centres, nc_data[k])
-		#cc_params_dict[k], cc_post_dict[k] = perform_fits(bin_edges[:-1], cc_data[k], cumulative=True)
+		cc_params_dict[k], cc_post_dict[k] = perform_fits(bin_edges[:-1], cc_data[k], cumulative=True)
 
 
 	#save the created dictionaries in the destination files

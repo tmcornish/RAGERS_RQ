@@ -1073,10 +1073,10 @@ def plot_numcounts(x, y, xerr=None, yerr=None, ax=None, cumulative=False, masks=
 		return None
 
 
-#def Gamma_integrand(t, s):
-#	return t ** (s - 1.) * np.exp(-t)
+def Gamma_integrand(t, s):
+	return t ** (s - 1.) * np.exp(-t)
 
-#def Gamma_upper(s, x):
+def Gamma_upper(s, x):
 	'''
 	Upper incomplete gamma function.
 
@@ -1091,14 +1091,14 @@ def plot_numcounts(x, y, xerr=None, yerr=None, ax=None, cumulative=False, masks=
 	'''
 	#return float(mpmath.gammainc(s, x))
 
-#	G = quad(Gamma_integrand, x, np.inf, args=(s,))[0]
-#	return G
+	G = quad(Gamma_integrand, x, np.inf, args=(s,))[0]
+	return G
 
 
 #create a new version of the above function that's compatible with numpy arrays
-#Gamma_upper_vec = np.frompyfunc(Gamma_upper, 2, 1)
+Gamma_upper_vec = np.frompyfunc(Gamma_upper, 2, 1)
 
-
+'''
 def gamma_upper(s, x):
 	return float(mpmath.gammainc(s, x, np.inf))
 
@@ -1106,7 +1106,7 @@ gamma_upper_vec = np.frompyfunc(gamma_upper, 2, 1)
 
 def gamma_upper_vec_(s, x):
 	return gamma_upper_vec(s, x).astype(float)
-
+'''
 
 def cumulative_model(S, params):
 	'''
@@ -1129,7 +1129,7 @@ def cumulative_model(S, params):
 
 	N0, S0, gamma = params
 	with np.errstate(all='ignore'):
-		y = N0 * gamma_upper_vec_(-gamma + 1., S / S0)
+		y = N0 * Gamma_upper_vec(-gamma + 1., S / S0)
 	return y
 
 
@@ -1330,17 +1330,26 @@ def fit_cumulative_mcmc(x, y, yerr, nwalkers, niter, initial, offsets=0.01, retu
 
 		return sampler, pos, prob, state
 
-	#use an optimiser to get a better initial estimate for the fit parameters
-	nll = lambda *args: -lnlike(*args)
-	result = opt.minimize(nll, x0=initial, args=(x, y, yerr))
-	initial = result['x']
-
+	#convert initial conditions to an array if not provided as one already
+	initial = np.asarray(initial)
 	#number of parameters to be fitted
 	ndim = len(initial)
+	
+	#use an optimiser to get a better initial estimate for the fit parameters
+	nll = lambda *args: -lnlike(*args)
+	#add a catch for in case the initial conditions cause an error
+	while True:
+		try:
+			result = opt.minimize(nll, x0=initial, args=(x, y, yerr))
+			break
+		except TypeError:
+			initial = initial + offsets * np.random.randn(ndim)
+
+	initial = result['x']
 
 	#initial starting points for each walker in the MCMC
 	offsets = np.array(offsets)
-	p0 = [np.array(initial) + offsets * np.random.randn(ndim) for i in range(nwalkers)]
+	p0 = [initial + offsets * np.random.randn(ndim) for i in range(nwalkers)]
 
 	data = (x, y, yerr)
 	sampler, pos, prob, state = main(p0,nwalkers,niter,ndim,lnprob,data)
