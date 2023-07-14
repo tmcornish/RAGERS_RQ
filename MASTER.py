@@ -15,11 +15,11 @@ import general as gen
 #toggle `switches' for determining which scripts to run
 recreate_S19_comp = False	#recreate the completeness results from Simpson+19
 random_datasets = False		#generate random flux densities (and completeness values) from the S2COSMOS catalogue
-recreate_S19_nc = False		#recreate the number counts from Simpson+19
+recreate_S19_nc = True		#recreate the number counts from Simpson+19
 rq_sample = False			#select the sample of radio-quiet massive galaxies
 calc_numcounts = False		#calculate number counts
 plot_areas = False			#plot the areas searched for a given sample of RQ galaxies
-fit_schechter = True		#run MCMC to fit Schechter functions to the results
+fit_schechter = False		#run MCMC to fit Schechter functions to the results
 param_tables = False			#format best-fit results from MCMC into a LaTeX-style table
 plot_numcounts = False		#plot the number counts
 contour_plot = False			#make contour plots for the Schechter fit parameters

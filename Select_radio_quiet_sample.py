@@ -181,11 +181,11 @@ if plot_selection and plot_cosmos:
 	axins = inset_axes(ax1,
 		width="100%",
 		height="100%",
-		bbox_to_anchor=(.65, .65, .3, .3),
+		bbox_to_anchor=(.68, .68, .27, .27),
 		bbox_transform=ax1.transAxes)
 
 	#label the axes
-	axins.set_xlabel(r'$z$', fontsize=14., labelpad=-5.)
+	axins.set_xlabel(r'$z$', fontsize=14., labelpad=-2.)
 	axins.set_ylabel(r'log$_{10}$($M_{\star}$/M$_{\odot}$)', fontsize=14.)
 
 	#create a 2D histogram of all COSMO2020 sources in M*-z space

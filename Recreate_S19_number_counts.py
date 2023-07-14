@@ -308,7 +308,7 @@ if __name__ == '__main__':
 		if fit_schechter:
 			print(gen.colour_string('Fitting to Simpson+19 cumulative number counts...', 'purple'))
 			
-			popt, elo_popt, ehi_popt = nc.fit_schechter_mcmc(
+			popt, elo_popt, ehi_popt = nc.fit_cumulative_mcmc(
 				bin_edges[:-1],
 				bin_heights_c,
 				(e_upper_c+e_lower_c)/2.,
@@ -527,7 +527,7 @@ if __name__ == '__main__':
 
 		if plot_cumulative:
 
-			popt_cumul, elo_popt_cumul, ehi_popt_cumul, sampler_cumul = nc.fit_schechter_mcmc(
+			popt_cumul, elo_popt_cumul, ehi_popt_cumul, sampler_cumul = nc.fit_cumulative_mcmc(
 				bin_edges[:-1][plot_masks_c[0]], 
 				c[plot_masks_c[0]], 
 				(ec_hi+ec_lo)[plot_masks_c[0]]/2., 

@@ -782,11 +782,12 @@ def fit_schechter_mcmc(x, y, yerr, nwalkers, niter, initial, offsets=0.01, retur
 	data = (x, y, yerr)
 	sampler, pos, prob, state = main(p0,nwalkers,niter,ndim,lnprob,data)
 	samples = sampler.flatchain
-	#theta_max  = samples[np.argmax(sampler.flatlnprobability)]
+	theta_max  = samples[np.argmax(sampler.flatlnprobability)]
 
 	#get the median, 16th and 84th percentiles for each parameter
 	q = np.percentile(samples, [stats.p16, 50., stats.p84], axis=0)
-	best = q[1]
+	#best = q[1]
+	best = theta_max
 	uncert = np.diff(q, axis=0)
 	e_lo = uncert[0]
 	e_hi = uncert[1]
@@ -1362,11 +1363,12 @@ def fit_cumulative_mcmc(x, y, yerr, nwalkers, niter, initial, offsets=0.01, retu
 	data = (x, y, yerr)
 	sampler, pos, prob, state = main(p0,nwalkers,niter,ndim,lnprob,data)
 	samples = sampler.flatchain
-	#theta_max  = samples[np.argmax(sampler.flatlnprobability)]
+	theta_max  = samples[np.argmax(sampler.flatlnprobability)]
 
 	#get the median, 16th and 84th percentiles for each parameter
 	q = np.percentile(samples, [stats.p16, 50., stats.p84], axis=0)
-	best = q[1]
+	#best = q[1]
+	best = theta_max
 	uncert = np.diff(q, axis=0)
 	e_lo = uncert[0]
 	e_hi = uncert[1]
