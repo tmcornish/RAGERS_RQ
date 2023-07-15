@@ -785,12 +785,17 @@ def fit_schechter_mcmc(x, y, yerr, nwalkers, niter, initial, offsets=0.01, retur
 	theta_max  = samples[np.argmax(sampler.flatlnprobability)]
 
 	#get the median, 16th and 84th percentiles for each parameter
+	'''
 	q = np.percentile(samples, [stats.p16, 50., stats.p84], axis=0)
-	#best = q[1]
-	best = theta_max
+	best = q[1]
 	uncert = np.diff(q, axis=0)
 	e_lo = uncert[0]
 	e_hi = uncert[1]
+	'''
+	q = np.percentile(samples, [stats.p16, stats.p84], axis=0)
+	best = theta_max
+	e_lo = theta_max - q[0]
+	e_hi = q[1] - theta_max
 
 	if plot_on_axes:
 		#see if a set of axes has been provided - if not, give error message
@@ -1366,12 +1371,17 @@ def fit_cumulative_mcmc(x, y, yerr, nwalkers, niter, initial, offsets=0.01, retu
 	theta_max  = samples[np.argmax(sampler.flatlnprobability)]
 
 	#get the median, 16th and 84th percentiles for each parameter
+	'''
 	q = np.percentile(samples, [stats.p16, 50., stats.p84], axis=0)
-	#best = q[1]
-	best = theta_max
+	best = q[1]
 	uncert = np.diff(q, axis=0)
 	e_lo = uncert[0]
 	e_hi = uncert[1]
+	'''
+	q = np.percentile(samples, [stats.p16, stats.p84], axis=0)
+	best = theta_max
+	e_lo = theta_max - q[0]
+	e_hi = q[1] - theta_max
 
 	if plot_on_axes:
 		#see if a set of axes has been provided - if not, give error message
@@ -1417,7 +1427,7 @@ def fit_cumulative_mcmc(x, y, yerr, nwalkers, niter, initial, offsets=0.01, retu
 				x_range_plot = x_range[:]
 
 			#plot the line
-			plot_kwargs['ax'].plot(x_range_plot, schechter_model(x_range, best), c=c, linestyle=ls, linewidth=lw, label=label, zorder=zorder)
+			plot_kwargs['ax'].plot(x_range_plot, cumulative_model(x_range, best), c=c, linestyle=ls, linewidth=lw, label=label, zorder=zorder)
 
 			#see if told to also add text to the axes showing the best-fit values
 			if 'add_text' in plot_kwargs:
