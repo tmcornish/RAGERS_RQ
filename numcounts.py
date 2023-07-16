@@ -17,6 +17,7 @@ from matplotlib.ticker import AutoMinorLocator
 import emcee
 import plotstyle as ps
 import mpmath
+from scipy.special import gamma, gammaincc, expn 
 
 def FD_like(x, theta):
 	'''
@@ -1122,6 +1123,44 @@ def gamma_upper_vec_(s, x):
 	return gamma_upper_vec(s, x).astype(float)
 '''
 
+def gammainc_up(a, x):
+	'''
+	Upper incomplete gamma function, generalised to include a <= 0.
+
+	Parameters
+	----------
+	a: float
+		Lower bound of the integral used to compute the Gamma function.
+	
+	x: float or array-like
+		Controls the exponent of the variable in the integrand.
+
+	Returns
+	-------
+	G: float or array-like
+		Value(s) of the upper incomplete gamma function evaluated at x.
+	'''
+
+	#if a is positive, simply use scipy's functions to calculate the result
+	if a > 0:
+		return gammaincc(a,x) * gamma(a)
+	#if a = 0, use relation Gamma(0,x) = E1(x)
+	elif a == 0:
+		return expn(1, x)
+	#if a < 0, use recursion relation to calculate the result
+	else:
+		a_ = a - np.floor(a)
+		j = int(a_ - a)
+		if a_ == 0:
+			G = expn(1, x)
+		else:
+			G = gammaincc(a_, x) * gamma(a_)
+		for i in range(j):
+			a_ -= 1
+			G = (1/a_) * (G - x**(a_) * np.exp(-x))
+		return G
+
+
 def cumulative_model(S, params):
 	'''
 	Integral of a model Schechter function of the form used for number counts.
@@ -1143,7 +1182,8 @@ def cumulative_model(S, params):
 
 	N0, S0, gamma = params
 	with np.errstate(all='ignore'):
-		y = N0 * Gamma_upper_vec(-gamma + 1., S / S0)
+		#y = N0 * Gamma_upper_vec(-gamma + 1., S / S0)
+		y = N0 * gammainc_up(-gamma + 1., S / S0)
 	return y
 
 
@@ -1220,7 +1260,7 @@ def fit_cumulative_mcmc(x, y, yerr, nwalkers, niter, initial, offsets=0.01, retu
 		'''
 
 		N0, S0, gamma = theta
-		y = N0 * Gamma_upper_vec(-gamma + 1., S / S0)
+		y = N0 * gammainc_up(-gamma + 1., S / S0)
 		return y
 
 
