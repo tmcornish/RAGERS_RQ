@@ -290,6 +290,9 @@ if __name__ == '__main__':
 	#normalise the Schechter function so that the integral is equal to 1
 	P = np.asarray(P / P.sum())
 
+	#create lists for the minimum number of sources and corresponding number density for each radius
+	Nmin_all, density_all = [], []
+
 	#cycle through the radii used for making the number counts
 	for r in gen.r_search_all:
 		print(gen.colour_string(f'{r:.1f} arcminute', 'orange'))
@@ -404,5 +407,11 @@ if __name__ == '__main__':
 		np.savez_compressed(params_file, **params_dict)
 		np.savez_compressed(post_file, **post_dict)
 
+		#append the converged-upon number of galaxies and correpsonding surface density to the lists
+		Nmin_all.append(nsim)
+		density_all.append(nsim / A)
 
+	#put the results from each radius in a table and save to a file
+	t_results = Table([gen.r_search_all, Nmin_all, density_all], names=['r', 'N', 'density (deg^-2)'])
+	t_results.write(gen.PATH_CATS + 'Minimum_sources_required_for_signal.txt', format='ascii')
 
