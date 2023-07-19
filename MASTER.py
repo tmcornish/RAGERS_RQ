@@ -23,9 +23,10 @@ fit_schechter = False		#run MCMC to fit Schechter functions to the results
 param_tables = False			#format best-fit results from MCMC into a LaTeX-style table
 plot_numcounts = False		#plot the number counts
 contour_plot = False			#make contour plots for the Schechter fit parameters
-sig_test = True				#find density required to detect signal
-numcounts_mega = False		#number counts mega script
-apertures_test = False		#test the effect of different aperture sizes on the number counts
+sig_test = False				#find density required to detect signal
+backup = False				#backup selected directories to a folder marked with the current date
+#numcounts_mega = False		#number counts mega script
+#apertures_test = False		#test the effect of different aperture sizes on the number counts
 
 ##################
 
@@ -55,9 +56,10 @@ proc_names = [
 	'Making LaTeX tables of best-fit parameters',
 	'Plotting number counts',
 	'Making contour plots',
-	'Finding densities required to detect signal'
-	'Constructing number counts (mega script)',
-	'Test different apertures'
+	'Finding densities required to detect signal',
+	'Back up results',
+	#'Constructing number counts (mega script)',
+	#'Test different apertures'
 	]
 run_str = [
 	'python Recreate_S19_completeness.py',
@@ -70,9 +72,10 @@ run_str = [
 	'python Make_schechter_param_tables.py',
 	'python Plot_numcounts.py',
 	'python Contour_plots.py', 
-	'python Significance_test.py'
-	'python Submm_number_counts.py',
-	'python Test_search_radius.py'
+	'python Significance_test.py',
+	'python Backup_results.py'
+	#'python Submm_number_counts.py',
+	#'python Test_search_radius.py'
 	]
 
 print(gen.colour_string(gen.string_important('PROCESSES TO RUN')+'\n', 'cyan'))
