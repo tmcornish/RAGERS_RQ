@@ -467,7 +467,7 @@ def collate_results(results_dict, nmax, nsim, key):
 	#concatenate the results along the second axis to get distributions for each bin across all samples
 	results_final = np.concatenate(results_final, axis=1)
 	#calculate the median and uncertainties
-	N, eN_lo, eN_hi = stats.vals_and_errs_from_dist(results_iter, axis=1)
+	N, eN_lo, eN_hi = stats.vals_and_errs_from_dist(results_final, axis=1)
 	R = np.array([N, eN_lo, eN_hi])
 
 	#calculate the average weights in each bin
