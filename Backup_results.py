@@ -4,7 +4,7 @@
 
 from datetime import date
 import os
-
+import general as gen
 
 ##################
 #### SETTINGS ####
@@ -12,7 +12,7 @@ import os
 
 #choice of things to back up
 numcounts = True
-numcount_dists = True
+numcount_dists = False
 plots = False
 params = True
 posteriors = True
