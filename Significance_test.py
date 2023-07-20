@@ -110,7 +110,7 @@ def number_counts(S, bin_edges, weights, incl_poisson=True, cumulative=False):
 
 
 
-def collate_results(data, nmax, nsim):
+def collate_results(data, nsim):
 	'''
 	Takes the results for a given set of galaxies and combines them in such a way
 	that doesn't overload the memory of the device running it.
@@ -120,9 +120,6 @@ def collate_results(data, nmax, nsim):
 	data: array
 		The outputs from running number_counts many times; contains the heights and uncertainties
 		for each bin from each iteration.
-
-	nmax: int
-		The maximum number of simualted datasets that can be analysed at any one time.
 
 	nsim: int
 		The number of simulated values to create for each bin.
@@ -139,42 +136,27 @@ def collate_results(data, nmax, nsim):
 
 	#retrieve the data for this key, and the weights for each bin
 	ndata = len(data)
-	#determine how many iterations required after nmax is enforces
-	n_iter = int(np.ceil(ndata / nmax))
-
-	results_final = []
-	for n in range(n_iter):
-		results_iter = []
-		#generate distributions from the results for each sample
-		for i in range(n*nmax, min((n+1)*nmax,ndata)):
-			dists_now = [stats.random_asymmetric_gaussian(data[i][0][j], data[i][1][j], data[i][2][j], nsim) for j in range(len(data[i][0]))]
-			results_iter.append(dists_now)
-			del dists_now
-		#concatenate the results along the second axis to get distributions for each bin across all samples in this clump
-		results_iter = np.concatenate(results_iter, axis=1)
-		#calculate the median and uncertainties
-		N, eN_lo, eN_hi = stats.vals_and_errs_from_dist(results_iter, axis=1)
-		#generate a new distribution using these parameters
-		dists_iter = [stats.random_asymmetric_gaussian(N[j], eN_lo[j], eN_hi[j], nsim) for j in range(len(N))]
-		results_final.append(dists_iter)
-		del dists_iter
-
+	
+	dists = []
+	#generate distributions from the results for each sample
+	for i in range(ndata):
+		dists.append([stats.random_asymmetric_gaussian(data[i][0][j], data[i][1][j], data[i][2][j], nsim) for j in range(len(data[i][0]))])
 	#concatenate the results along the second axis to get distributions for each bin across all samples
-	results_final = np.concatenate(results_final, axis=1)
+	dists = np.concatenate(dists, axis=1)
 	#calculate the median and uncertainties
-	N, eN_lo, eN_hi = stats.vals_and_errs_from_dist(results_iter, axis=1)
+	N, eN_lo, eN_hi = stats.vals_and_errs_from_dist(dists, axis=1)
 
 	#return the key and the final results
 	return N, eN_lo, eN_hi
 
-
-def perform_fits(xbins, ybins, nwalkers=100, niter=10000, offsets_init=[10.,0.01,0.01,], popt_initial=[5000.,3.,1.6], cumulative=False):
+'''
+def perform_fits(xbins, ybins, permut, popt_initial=[5000., 3., 1.6], offsets_init=[10.,0.01,0.01], cumulative=False):
 
 	#retrieve the bin heights and uncertainties
 	y, ey_lo, ey_hi = ybins
 	#symmetrise the uncertainties
 	ey = (ey_lo + ey_hi) / 2.
-
+	
 	#fit to the differential number counts, excluding any bins below the the flux density limit
 	masks = nc.mask_numcounts(xbins, y, limits=False, exclude_all_zero=False, Smin=gen.Smin)
 	if not cumulative:
@@ -201,10 +183,39 @@ def perform_fits(xbins, ybins, nwalkers=100, niter=10000, offsets_init=[10.,0.01
 	params = np.array([popt, epopt_lo, epopt_hi])
 	#add the sampler flatchain to the posteriors dictionary
 	post = sampler.flatchain
+	
+	return N0, eN0_lo, eN0_hi
+'''
 
-	return params, post
+def fit_N0(xbins, ybins, permut, cumulative=False):
 
+	#retrieve the bin heights and uncertainties
+	y, ey_lo, ey_hi = ybins
+	#symmetrise the uncertainties
+	ey = (ey_lo + ey_hi) / 2.
 
+	#calculate model values for each permutation of parameter combinations
+	if cumulative:
+		ymodel = np.array([nc.cumulative_model(xbins, permut[i]) for i in range(len(permut))])
+	else:
+		ymodel = np.array([nc.schechter_model(xbins, permut[i]) for i in range(len(permut))])
+
+	#calculate chi^2
+	chi2 = np.sum(((ymodel - y)/ey) ** 2., axis=1)
+
+	#find the minimum chi^2 and where it occurs
+	idx_min = np.argmin(chi2)
+	chi2_min = chi2[idx_min]
+	#retrieve the corresponding parameters
+	N0 = permut[idx_min][0]
+
+	#find the solutions satisfying chi2 < chi2_min + 1 to get uncertainties on N0
+	chi2_mask = chi2 <= chi2_min + 1.
+	N0_masked = permut[:,0][chi2_mask]
+	eN0_lo = N0 - N0_masked.min()
+	eN0_hi = N0_masked.max() - N0
+
+	return N0, eN0_lo, eN0_hi
 
 
 if __name__ == '__main__':
@@ -214,7 +225,7 @@ if __name__ == '__main__':
 	##################
 
 	#toggle `switches' for additional functionality
-	make_plots = True			#make plots comparing the real number counts with the counts required for a signal
+	make_plots = False			#make plots comparing the real number counts with the counts required for a signal
 	cumulative = False			#use cumulative counts instead of differential
 	settings = [
 		make_plots,
@@ -251,13 +262,18 @@ if __name__ == '__main__':
 	PATH_COUNTS = gen.PATH_CATS + 'Number_counts/'
 	PATH_PARAMS = gen.PATH_CATS + 'Schechter_params/'
 	PATH_SIMS = gen.PATH_SIMS
+	
 	#directory in which the simulated number counts will be stored
 	PATH_RESULTS = gen.PATH_CATS + 'Significance_tests/'
+	if not os.path.exists(PATH_RESULTS):
+		os.system(f'mkdir -p {PATH_RESULTS}')
+	'''
 	PATH_POSTS = gen.PATH_SIMS + 'Schechter_posteriors/Significance_tests/'
 	PATH_PARAMS_NEW = PATH_PARAMS + 'Significance_tests/'
 	for PATH in [PATH_RESULTS, PATH_POSTS, PATH_PARAMS_NEW]: 
 		if not os.path.exists(PATH):
 				os.system(f'mkdir -p {PATH}')
+	'''
 
 	#directory for plots if told to make them
 	PATH_PLOTS = gen.PATH_PLOTS + 'Significance_tests/'
@@ -280,15 +296,43 @@ if __name__ == '__main__':
 	data_rand = np.load(rand_s2c_file)
 	S850_rand = data_rand['S850_rand']
 
+	#get the bin edges and centres used for the number counts
+	bin_edges = gen.bin_edges
+	bin_centres = (bin_edges[1:] + bin_edges[:-1]) / 2.
 	#calculate the bin widths used for the number counts
 	dS = gen.bin_edges[1:] - gen.bin_edges[:-1]
 
+	#calculate the blank field estimates
+	if cumulative:
+		X = bin_edges[:-1]
+		bf_est = nc.cumulative_model(bin_edges[:-1], params_bf[0])
+	else:
+		X = bin_centres
+		bf_est = nc.schechter_model(bin_centres, params_bf[0])
+	#index of the first bin above the flux limit
+	idx_lim = np.argwhere(X >= gen.Smin).min()
+
 	#use the blank-field Schechter parameters to create a probability distribution as a function of flux density
 	P = nc.schechter_model(S850, params_bf[0])
-	#limit source selection to above the flux density limit used for fitting Schechter functions
-	P[S850 < gen.Smin] = 0.
+	#limit source selection to within the bins used
+	P[S850 < gen.bin_edges.min()] = 0.
 	#normalise the Schechter function so that the integral is equal to 1
 	P = np.asarray(P / P.sum())
+
+	'''
+	#initial parameter guesses for Schechter fitting (use blank field as starting point)
+	popt_init = params_bf[0]
+	#minimum and maximum bound of the priors to use when fitting
+	priors_min = [10., 1., -1.]
+	priors_max = [1000000., 10., 6.]
+	'''
+
+
+	#parameter permutations to try when fitting
+	N0_range = np.arange(10, 200010, 10)
+	S0_range = np.full(len(N0_range), params_bf[0][1])
+	gamma_range = np.full(len(N0_range), params_bf[0][2])
+	permut = np.array([N0_range, S0_range, gamma_range]).T
 
 	#create lists for the minimum number of sources and corresponding number density for each radius
 	Nmin_all, density_all = [], []
@@ -313,23 +357,35 @@ if __name__ == '__main__':
 		#names of the files containing the results from all iterations
 		results_file = PATH_RESULTS + f'{count_type}_with_errs_{r:.1f}am.npz'
 		#destination file for the best-fit parameters and uncertainties
-		params_file = PATH_PARAMS_NEW + f'{count_type}_{r:.1f}am.npz'
+		#params_file = PATH_PARAMS_NEW + f'{count_type}_{r:.1f}am.npz'
 		#destination files for the posterior distributions of each parameter
-		post_file = PATH_POSTS + f'{count_type}_{r:.1f}am.npz'
+		#post_file = PATH_POSTS + f'{count_type}_{r:.1f}am.npz'
 
+		'''
 		#see if these files exist and load the results if they do
 		dicts_all = []
-		for file in [results_file, params_file, post_file]:
+		#for file in [results_file, params_file, post_file]:
+		for file in [results_file, params_file]:
 			if os.path.exists(file):
 				data = np.load(file)
 				dicts_all.append(dict(zip(data.files, [data[f] for f in data.files])))
 			else:
 				dicts_all.append({})
 		results_dict, params_dict, post_dict = dicts_all
+		'''
+		if os.path.exists(results_file):
+			results_dict = np.load(results_file)
+			results_dict = dict(zip(data.files, [data[f] for f in data.files]))
+		else:
+			results_dict = {}
+
 
 		#add the bin edges and weights to the results dictionary
 		results_dict['bin_edges'] = gen.bin_edges
 		results_dict['weights'] = weights
+
+		#also create lists for the best-fit values of N0 and uncertainties
+		N0_all, eN0_lo_all, eN0_hi_all = [], [], []
 
 		while True:
 
@@ -365,23 +421,39 @@ if __name__ == '__main__':
 				results_rand = np.asarray(pool.map(number_counts_p, [S850_rand[:,idx_sel[i]] for i in range(nsamples)]))
 
 			#combine the results from all iterations into one
-			results_final = collate_results(results_rand, 50, 10000)
+			results_final = collate_results(results_rand, 10000)
 
 			#add the results to the dictionary
 			results_dict[f'{nsim}gals'] = np.array(results_final)
 			print(np.array(results_final))
 
-			#fit a function to the results
-			if cumulative:
-				X = gen.bin_edges[:-1]
-			else:
-				X = (gen.bin_edges[:-1] + gen.bin_edges[1:]) / 2.
-			params, post = perform_fits(X, results_final, cumulative=cumulative)
-			params_dict[f'{nsim}gals'] = params
-			post_dict[f'{nsim}gals'] = post
+			'''
+			#use the results to change the initial guess for N0; use first bin above flux limit
+			corr_factor = results_final[0][idx_lim] / bf_est[idx_lim]
+			popt_init[0] *= corr_factor
+			
+			popt_N0 = popt_init[0] * corr_factor
+			#calculate difference from old initial guess
+			dN0 = popt_N0 - popt_init[0]
+			#shift the prior bounds accordingly
+			priors_min[0] *= corr_factor
+			priors_max[0] *= corr_factor
+			#update the initial guess
+			popt_init[0] = popt_N0
+			'''
+
+
+
+			N0, eN0_lo, eN0_hi = fit_N0(X, results_final, permut=permut, cumulative=cumulative)
+			#append these values to the lists
+			N0_all.append(N0)
+			eN0_lo_all.append(eN0_lo)
+			eN0_hi_all.append(eN0_hi)
+			#params_dict[f'{nsim}gals'] = params
+			#post_dict[f'{nsim}gals'] = post
 
 			#calculate the ratio of the N0 parameter to that of the blank field (with uncertainty) and subtract 1
-			N0_rand = stats.random_asymmetric_gaussian(params[0][0], params[1][0], params[2][0], 10000)
+			N0_rand = stats.random_asymmetric_gaussian(N0, eN0_lo, eN0_hi, 10000)
 			N0_bf_rand = stats.random_asymmetric_gaussian(params_bf[0][0], params_bf[1][0], params_bf[2][0], 10000)
 			delta = N0_rand / N0_bf_rand - 1.
 			#calculate the median and 1sigma percentiles
@@ -391,10 +463,10 @@ if __name__ == '__main__':
 			sig = deltamed / edelta_lo
 			results_dict[f'nsig_{nsim}gals'] = sig
 			if sig > 1:
-					nsim_new = (nsim_old + nsim) // 2
-					nsim_old = nsim
-					nsignal = nsim
-					nsim = nsim_new
+				nsim_new = (nsim_old + nsim) // 2
+				nsim_old = nsim
+				nsignal = nsim
+				nsim = nsim_new
 			else:
 				nsim_old = nsim
 				if nsignal == np.inf:
@@ -402,16 +474,20 @@ if __name__ == '__main__':
 				else:
 					nsim = (nsim + nsignal) // 2
 
-		#save the various dictionaries
-		np.savez_compressed(results_file, **results_dict)
-		np.savez_compressed(params_file, **params_dict)
-		np.savez_compressed(post_file, **post_dict)
+			#save the various dictionaries
+			np.savez_compressed(results_file, **results_dict)
+			#np.savez_compressed(params_file, **params_dict)
+			#np.savez_compressed(post_file, **post_dict)
 
 		#append the converged-upon number of galaxies and correpsonding surface density to the lists
 		Nmin_all.append(nsim)
 		density_all.append(nsim / A)
 
+		#save the best-fit values of N0 and uncertainties to a table, along with the blank-field S0 and gamma values
+		t_N0 = Table([N0_all, eN0_lo_all, eN0_hi_all, np.full(len(N0_all),S0_range[0]), np.full(len(N0_all),gamma_range[0])], names=['N0', 'eN0_lo', 'eN0_hi', 'S0', 'gamma'])
+		t_N0.write(PATH_RESULTS + 'N0_fits_to_simulated_data.txt', format='ascii')
+
 	#put the results from each radius in a table and save to a file
 	t_results = Table([gen.r_search_all, Nmin_all, density_all], names=['r', 'N', 'density (deg^-2)'])
-	t_results.write(gen.PATH_CATS + 'Minimum_sources_required_for_signal.txt', format='ascii')
+	t_results.write(PATH_RESULTS + 'Minimum_sources_required_for_signal.txt', format='ascii')
 

@@ -50,7 +50,7 @@ print(gen.colour_string('\n'.join(settings_print), 'white'))
 
 #retrieve today's date and format it as 'yyyymmdd'
 today = date.today()
-today_str = today.strftime('%y%m%d')
+today_str = today.strftime(f'{today.year}{today.month}{today.day}')
 
 #create a list of directories
 dirs = []

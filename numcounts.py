@@ -563,7 +563,7 @@ def cumulative_numcounts(counts=None, S=None, bin_edges=None, A=1., comp=None, i
 
 
 
-def fit_schechter_mcmc(x, y, yerr, nwalkers, niter, initial, offsets=0.01, return_sampler=False, plot_on_axes=False, **plot_kwargs):
+def fit_schechter_mcmc(x, y, yerr, nwalkers, niter, initial, offsets=0.01, return_sampler=False,  priors_min=[1000., 1., -1.], priors_max=[15000., 10., 6.],  plot_on_axes=False, **plot_kwargs):
 	'''
 	Uses MCMC to fit a Schechter function to data.
 
@@ -685,7 +685,7 @@ def fit_schechter_mcmc(x, y, yerr, nwalkers, niter, initial, offsets=0.01, retur
 		'''
 
 		N0, S0, gamma = theta
-		if (1000. <= N0 <= 15000.) and (1. <= S0 <= 10.) and (-1. <= gamma <= 6.):
+		if (priors_min[0] <= N0 <= priors_max[0]) and (priors_min[1] <= S0 <= priors_max[1]) and (priors_min[2] <= gamma <= priors_max[2]):
 			return 0.
 		else:
 			return -np.inf
