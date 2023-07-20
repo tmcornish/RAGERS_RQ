@@ -824,15 +824,15 @@ if __name__ == '__main__':
 			cc_dict_dists,
 			gen.nsim)
 
-		'''
-		#collate_results memory usage (for 10000 draws) scales as approx. 0.2*nbins + 2.5; use to decide how many CPUs
+		
+		#collate_results memory usage (for 10000 draws) scales as approx. 0.15*nbins + 2.5; use to decide how many CPUs
 		mem_avail = (psutil.virtual_memory().available + psutil.swap_memory().free) / (1000**3)
-		mem_usage = max(3., 0.2 * len(nc_dict_dists['bin_edges']) + 2.5)
+		mem_usage = max(3., 0.15 * len(nc_dict_dists['bin_edges']) + 2.5)
 		ncpu = min(int(mem_avail / mem_usage), ncpu_avail-1)
-		'''
+
 
 		#create a Pool with the specified number of processes
-		with Pool(ncpu_avail) as pool:
+		with Pool(ncpu) as pool:
 			results_nc = pool.map(collate_results_nc, nc_keys)
 			results_cc = pool.map(collate_results_cc, nc_keys)
 			#results_files = list(pool.imap_unordered(number_counts_star, nc_args))
