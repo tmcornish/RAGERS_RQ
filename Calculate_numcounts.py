@@ -412,7 +412,7 @@ def number_counts(
 
 
 
-def collate_results(results_dict, nmax, nsim, key):
+def collate_results(results_dict, nsim, key):
 	'''
 	Takes the results for a given RQ galaxy or set of galaxies and combines them in such a way
 	that doesn't overload the memory of the device running it.
@@ -421,9 +421,6 @@ def collate_results(results_dict, nmax, nsim, key):
 	----------
 	results_dict: dict
 		Dictionary containing the results for all galaxies from a given sample.
-
-	nmax: int
-		The maximum number of simualted datasets that can be analysed at any one time.
 
 	nsim: int
 		The number of simulated values to create for each bin.
@@ -444,30 +441,15 @@ def collate_results(results_dict, nmax, nsim, key):
 	data = results_dict[key]
 	weights = results_dict['w_'+key]
 	ndata = len(data)
-	#determine how many iterations required after nmax is enforces
-	n_iter = int(np.ceil(ndata / nmax))
 
-	results_final = []
-	for n in range(n_iter):
-		results_iter = []
-		#generate distributions from the results for each sample
-		for i in range(n*nmax, min((n+1)*nmax,ndata)):
-			dists_now = [stats.random_asymmetric_gaussian(data[i][0][j], data[i][1][j], data[i][2][j], nsim) for j in range(len(data[i][0]))]
-			results_iter.append(dists_now)
-			del dists_now
-		#concatenate the results along the second axis to get distributions for each bin across all samples in this clump
-		results_iter = np.concatenate(results_iter, axis=1)
-		#calculate the median and uncertainties
-		N, eN_lo, eN_hi = stats.vals_and_errs_from_dist(results_iter, axis=1)
-		#generate a new distribution using these parameters
-		dists_iter = [stats.random_asymmetric_gaussian(N[j], eN_lo[j], eN_hi[j], nsim) for j in range(len(N))]
-		results_final.append(dists_iter)
-		del dists_iter
-
+	dists = []
+	#generate distributions from the results for each sample
+	for i in range(ndata):
+		dists.append([stats.random_asymmetric_gaussian(data[i][0][j], data[i][1][j], data[i][2][j], nsim) for j in range(len(data[i][0]))])
 	#concatenate the results along the second axis to get distributions for each bin across all samples
-	results_final = np.concatenate(results_final, axis=1)
+	dists = np.concatenate(dists, axis=1)
 	#calculate the median and uncertainties
-	N, eN_lo, eN_hi = stats.vals_and_errs_from_dist(results_final, axis=1)
+	N, eN_lo, eN_hi = stats.vals_and_errs_from_dist(dists, axis=1)
 	R = np.array([N, eN_lo, eN_hi])
 
 	#calculate the average weights in each bin
@@ -836,16 +818,19 @@ if __name__ == '__main__':
 		collate_results_nc = partial(
 			collate_results,
 			nc_dict_dists,
-			50,
 			gen.nsim)
 		collate_results_cc = partial(
 			collate_results,
 			cc_dict_dists,
-			50,
 			gen.nsim)
 
+		#collate_results memory usage (for 10000 draws) scales as approx. 0.2*nbins + 2.5; use to decide how many CPUs
+		mem_avail = (psutil.virtual_memory().available + psutil.swap_memory().free) / (1000**3)
+		mem_usage = max(3., 0.2 * len(nc_dict_dists['bin_edges']) + 2.5)
+		ncpu = min(int(mem_avail / mem_usage), ncpu_avail-1)
+
 		#create a Pool with the specified number of processes
-		with Pool(ncpu_avail-1) as pool:
+		with Pool(ncpu) as pool:
 			results_nc = pool.map(collate_results_nc, nc_keys)
 			results_cc = pool.map(collate_results_cc, nc_keys)
 			#results_files = list(pool.imap_unordered(number_counts_star, nc_args))
