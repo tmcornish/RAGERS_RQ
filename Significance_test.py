@@ -344,6 +344,14 @@ if __name__ == '__main__':
 	#create lists for the minimum number of sources and corresponding number density for each radius
 	Nmin_all, density_all = [], []
 
+	#filename for the table containing the minimum number of galaxies required for a signal 
+	results_tab_file = PATH_RESULTS + 'Min_gals_for_signal.txt'
+	if os.path.exists(results_tab_file):
+		t_results = Table.read(results_tab_file, format='ascii')
+	else:
+		t_results = Table(names=['r', 'Nmin', 'surface_density', 'N0', 'eN0_lo', 'eN0_hi', 'nsigma'])
+
+
 	#cycle through the radii used for making the number counts
 	for r in gen.r_search_all:
 		print(gen.colour_string(f'{r:.1f} arcminute', 'orange'))
@@ -363,7 +371,6 @@ if __name__ == '__main__':
 
 		#names of the files containing the results from all iterations
 		results_file = PATH_RESULTS + f'{count_type}_with_errs_{r:.1f}am.npz'
-		results_tab_file = PATH_RESULTS + 'Minimum_sources_required_for_signal.txt'
 		#destination file for the best-fit parameters and uncertainties
 		#params_file = PATH_PARAMS_NEW + f'{count_type}_{r:.1f}am.npz'
 		#destination files for the posterior distributions of each parameter
@@ -385,16 +392,20 @@ if __name__ == '__main__':
 		if os.path.exists(results_file):
 			data = np.load(results_file)
 			results_dict = dict(zip(data.files, [data[f] for f in data.files]))
-			#also load the Table containing the results summary
-			t_results = Table.read(results_tab_file, format='ascii')
 		else:
 			results_dict = {}
-			t_results = Table(names=['r', 'N', 'density (deg^-2)', 'N0', 'eN0_lo', 'eN0_hi', 'nsigma'])
 
 
 		#add the bin edges and weights to the results dictionary
 		results_dict['bin_edges'] = gen.bin_edges
 		results_dict['weights'] = weights
+
+		#set up a table for containing the minimum required galaxies for each radius
+		results_file_r = PATH_RESULTS + f'Significance_test_results_{r:.1f}am.txt'
+		if os.path.exists(results_file_r):
+			t_results_r = Table.read(results_file_r, format='ascii')
+		else:
+			t_results_r = Table(names=['r', 'N', 'surface_density'])
 
 		while True:
 
@@ -402,6 +413,7 @@ if __name__ == '__main__':
 
 			#test for convergence
 			if nsim_old == nsim:
+				t_results.add_row([r, nsim, nsim/A])
 				break
 
 			#if this radius and nsim has been run previously, load the results to determine if it gave a signal
@@ -478,7 +490,7 @@ if __name__ == '__main__':
 			#calculate the ratio of the N0 parameter to that of the blank field (with uncertainty) and subtract 1
 			N0_rand = stats.random_asymmetric_gaussian(N0, eN0_lo, eN0_hi, 10000)
 			N0_bf_rand = stats.random_asymmetric_gaussian(params_bf[0][0], params_bf[1][0], params_bf[2][0], 10000)
-			delta = N0_rand / N0_bf_rand - 1.
+			delta = (N0_rand / N0_bf_rand) - 1.
 			#calculate the median and 1sigma percentiles
 			deltamed, edelta_lo, edelta_hi = stats.vals_and_errs_from_dist(delta)
 
@@ -512,7 +524,9 @@ if __name__ == '__main__':
 		Nmin_all.append(nsim)
 		density_all.append(nsim / A)
 
+		t_results_r.write(results_file_r, format='ascii', overwrite=True)
+
 
 	#put the results from each radius in a table and save to a file
-	t_results.write(PATH_RESULTS + 'Significance_test_results.txt', format='ascii', overwrite=True)
+	t_results.write(results_tab_file, format='ascii', overwrite=True)
 
