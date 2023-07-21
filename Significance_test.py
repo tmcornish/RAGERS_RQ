@@ -45,6 +45,8 @@ import plotstyle as ps
 from astropy.table import Table
 from multiprocessing import Pool, cpu_count
 from functools import partial
+from memory_profiler import memory_usage
+import psutil
 
 
 def number_counts(S, bin_edges, weights, incl_poisson=True, cumulative=False):
