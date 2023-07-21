@@ -374,7 +374,7 @@ if __name__ == '__main__':
 		results_dict, params_dict, post_dict = dicts_all
 		'''
 		if os.path.exists(results_file):
-			results_dict = np.load(results_file)
+			data = np.load(results_file)
 			results_dict = dict(zip(data.files, [data[f] for f in data.files]))
 		else:
 			results_dict = {}
