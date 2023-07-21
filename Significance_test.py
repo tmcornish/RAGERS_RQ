@@ -49,7 +49,7 @@ from memory_profiler import memory_usage
 import psutil
 
 
-def number_counts(S, bin_edges, weights, incl_poisson=True, cumulative=False):
+def number_counts(j, Srand, idx_sel, bin_edges, weights, incl_poisson=True, cumulative=False):
 	'''
 	Constructs differential number counts for a given set of flux densities. Optionally also
 	randomises the flux densities according to their uncertainties to get an estimate of the
@@ -57,17 +57,20 @@ def number_counts(S, bin_edges, weights, incl_poisson=True, cumulative=False):
 
 	Parameters
 	----------
-	S: array-like 
-		Flux density values to be binned.
+	j: int
+		Which row of idx_sel to use for this iteration.
+
+	Srand: array
+		Randomly drawn flux density values to be binned.
+
+	idx_sel: array
+		Randomly drawn indices corresponding to the specific flux densities to use for this iteration.
 
 	bin_edges: array_like
 		Edges of the bins to be used for constructing the number counts (includes rightmost edge).
 
-	A: float or array-like
-		Area probed for all flux density bins, or for each individual bin.
-
-	idx: int
-		Integer indicator to help keep track of processes if using multiprocessing.
+	weights: array-like
+		Weights to apply to each bin.
 
 	incl_poisson: bool
 		Whether to include Poissonian uncertainties in the errorbars. 
@@ -85,6 +88,8 @@ def number_counts(S, bin_edges, weights, incl_poisson=True, cumulative=False):
 
 	'''
 
+	#retrieve only the desired flux densities
+	S = Srand[:, idx_sel[j]]
 	#calculate the bin widths
 	dS = bin_edges[1:] - bin_edges[:-1]
 
@@ -358,6 +363,7 @@ if __name__ == '__main__':
 
 		#names of the files containing the results from all iterations
 		results_file = PATH_RESULTS + f'{count_type}_with_errs_{r:.1f}am.npz'
+		results_tab_file = PATH_RESULTS + 'Minimum_sources_required_for_signal.txt'
 		#destination file for the best-fit parameters and uncertainties
 		#params_file = PATH_PARAMS_NEW + f'{count_type}_{r:.1f}am.npz'
 		#destination files for the posterior distributions of each parameter
@@ -375,19 +381,20 @@ if __name__ == '__main__':
 				dicts_all.append({})
 		results_dict, params_dict, post_dict = dicts_all
 		'''
+		#if the results file exists, load it
 		if os.path.exists(results_file):
 			data = np.load(results_file)
 			results_dict = dict(zip(data.files, [data[f] for f in data.files]))
+			#also load the Table containing the results summary
+			t_results = Table.read(results_tab_file, format='ascii')
 		else:
 			results_dict = {}
+			t_results = Table(names=['r', 'N', 'density (deg^-2)', 'N0', 'eN0_lo', 'eN0_hi', 'nsigma'])
 
 
 		#add the bin edges and weights to the results dictionary
 		results_dict['bin_edges'] = gen.bin_edges
 		results_dict['weights'] = weights
-
-		#also create lists for the best-fit values of N0 and uncertainties
-		N0_all, eN0_lo_all, eN0_hi_all = [], [], []
 
 		while True:
 
@@ -417,13 +424,13 @@ if __name__ == '__main__':
 			idx_sel = np.random.choice(idx_submm, (nsamples, nsim), p=P)
 
 			#create a partial version of the number counts function
-			number_counts_p = partial(number_counts, bin_edges=gen.bin_edges, weights=weights, incl_poisson=True, cumulative=cumulative)
+			number_counts_p = partial(number_counts, Srand=S850_rand, idx_sel=idx_sel, bin_edges=gen.bin_edges, weights=weights, incl_poisson=True, cumulative=cumulative)
 
 			#if using the Linux machine, need to conserve memory to avoid the Pool hanging
 			if gen.pf == 'Linux':
 				#calculate max memory usage when running number_counts to decide how many processes to run
 				print(gen.colour_string('Testing memory usage of number_counts function...', 'purple'))
-				mem_usage = memory_usage((number_counts_p, (S850_rand[:,idx_sel[0]],)))
+				mem_usage = memory_usage((number_counts_p, (0,)))
 				mem_usage = max(mem_usage) / 1000
 				print(gen.colour_string(f'Memory used by number_counts (GB): {mem_usage}', 'blue'))
 				mem_avail = (psutil.virtual_memory().available + psutil.swap_memory().free) / (1000**3)
@@ -432,9 +439,10 @@ if __name__ == '__main__':
 			else:
 				ncpu = ncpu_avail
 
+			print(gen.colour_string(f'Assigning {ncpu} CPUs to run number_counts.', 'blue'))
 
 			with Pool(ncpu) as pool:
-				results_rand = np.asarray(pool.map(number_counts_p, [S850_rand[:,idx_sel[i]] for i in range(nsamples)]))
+				results_rand = np.asarray(pool.map(number_counts_p, range(nsamples)))
 
 			#combine the results from all iterations into one
 			results_final = collate_results(results_rand, 10000)
@@ -475,9 +483,14 @@ if __name__ == '__main__':
 			#calculate the median and 1sigma percentiles
 			deltamed, edelta_lo, edelta_hi = stats.vals_and_errs_from_dist(delta)
 
+
 			#see if the result is >1sigma greater than 0
 			sig = deltamed / edelta_lo
 			results_dict[f'nsig_{nsim}gals'] = sig
+
+			#add a row to the Table summarising the results
+			t_results.add_row([r, nsim, nsim/A, N0, eN0_lo, eN0_hi, sig])
+
 			if sig > 1:
 				nsim_new = (nsim_old + nsim) // 2
 				nsim_old = nsim
@@ -495,15 +508,12 @@ if __name__ == '__main__':
 			#np.savez_compressed(params_file, **params_dict)
 			#np.savez_compressed(post_file, **post_dict)
 
+
 		#append the converged-upon number of galaxies and correpsonding surface density to the lists
 		Nmin_all.append(nsim)
 		density_all.append(nsim / A)
 
-		#save the best-fit values of N0 and uncertainties to a table, along with the blank-field S0 and gamma values
-		t_N0 = Table([N0_all, eN0_lo_all, eN0_hi_all, np.full(len(N0_all),S0_range[0]), np.full(len(N0_all),gamma_range[0])], names=['N0', 'eN0_lo', 'eN0_hi', 'S0', 'gamma'])
-		t_N0.write(PATH_RESULTS + f'N0_fits_to_simulated_data_{r:.1f}am.txt', format='ascii', overwrite=True)
 
 	#put the results from each radius in a table and save to a file
-	t_results = Table([gen.r_search_all, Nmin_all, density_all], names=['r', 'N', 'density (deg^-2)'])
-	t_results.write(PATH_RESULTS + 'Minimum_sources_required_for_signal.txt', format='ascii', overwrite=True)
+	t_results.write(PATH_RESULTS + 'Significance_test_results.txt', format='ascii', overwrite=True)
 
