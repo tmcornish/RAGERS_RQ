@@ -485,9 +485,9 @@ if __name__ == '__main__':
 
 		#save the best-fit values of N0 and uncertainties to a table, along with the blank-field S0 and gamma values
 		t_N0 = Table([N0_all, eN0_lo_all, eN0_hi_all, np.full(len(N0_all),S0_range[0]), np.full(len(N0_all),gamma_range[0])], names=['N0', 'eN0_lo', 'eN0_hi', 'S0', 'gamma'])
-		t_N0.write(PATH_RESULTS + 'N0_fits_to_simulated_data.txt', format='ascii')
+		t_N0.write(PATH_RESULTS + f'N0_fits_to_simulated_data_{r:.1f}am.txt', format='ascii', overwrite=True)
 
 	#put the results from each radius in a table and save to a file
 	t_results = Table([gen.r_search_all, Nmin_all, density_all], names=['r', 'N', 'density (deg^-2)'])
-	t_results.write(PATH_RESULTS + 'Minimum_sources_required_for_signal.txt', format='ascii')
+	t_results.write(PATH_RESULTS + 'Minimum_sources_required_for_signal.txt', format='ascii', overwrite=True)
 
