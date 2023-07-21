@@ -349,7 +349,7 @@ if __name__ == '__main__':
 	if os.path.exists(results_tab_file):
 		t_results = Table.read(results_tab_file, format='ascii')
 	else:
-		t_results = Table(names=['r', 'Nmin', 'surface_density', 'N0', 'eN0_lo', 'eN0_hi', 'nsigma'])
+		t_results = Table(names=['r', 'Nmin', 'surface_density'])
 
 
 	#cycle through the radii used for making the number counts
@@ -405,7 +405,7 @@ if __name__ == '__main__':
 		if os.path.exists(results_file_r):
 			t_results_r = Table.read(results_file_r, format='ascii')
 		else:
-			t_results_r = Table(names=['r', 'N', 'surface_density'])
+			t_results_r = Table(names=['r', 'N', 'surface_density', 'N0', 'eN0_lo', 'eN0_hi', 'nsigma'])
 
 		while True:
 
@@ -500,7 +500,7 @@ if __name__ == '__main__':
 			results_dict[f'nsig_{nsim}gals'] = sig
 
 			#add a row to the Table summarising the results
-			t_results.add_row([r, nsim, nsim/A, N0, eN0_lo, eN0_hi, sig])
+			t_results_r.add_row([r, nsim, nsim/A, N0, eN0_lo, eN0_hi, sig])
 
 			if sig > 1:
 				nsim_new = (nsim_old + nsim) // 2
