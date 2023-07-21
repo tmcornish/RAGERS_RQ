@@ -469,12 +469,11 @@ if __name__ == '__main__':
 
 
 			N0, eN0_lo, eN0_hi = fit_N0(X, results_final, permut=permut, cumulative=cumulative)
+			'''
 			#append these values to the lists
-			N0_all.append(N0)
-			eN0_lo_all.append(eN0_lo)
-			eN0_hi_all.append(eN0_hi)
 			#params_dict[f'{nsim}gals'] = params
 			#post_dict[f'{nsim}gals'] = post
+			'''
 
 			#calculate the ratio of the N0 parameter to that of the blank field (with uncertainty) and subtract 1
 			N0_rand = stats.random_asymmetric_gaussian(N0, eN0_lo, eN0_hi, 10000)
