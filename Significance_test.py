@@ -250,7 +250,7 @@ if __name__ == '__main__':
 	#######################################################
 
 	nsamples = 1000			#number of iterations to run per search radius
-	ncpu = cpu_count()-1	#number of CPUs to use when multiprocessing
+	ncpu_avail = cpu_count()-1	#number of CPUs to use when multiprocessing
 
 	#string to use for differential vs cumulative counts
 	if cumulative:
@@ -417,7 +417,21 @@ if __name__ == '__main__':
 			#create a partial version of the number counts function
 			number_counts_p = partial(number_counts, bin_edges=gen.bin_edges, weights=weights, incl_poisson=True, cumulative=cumulative)
 
-			with Pool(cpu_count()-1) as pool:
+			#if using the Linux machine, need to conserve memory to avoid the Pool hanging
+			if gen.pf == 'Linux':
+				#calculate max memory usage when running number_counts to decide how many processes to run
+				print(gen.colour_string('Testing memory usage of number_counts function...', 'purple'))
+				mem_usage = memory_usage((number_counts_p, (S850_rand[:,idx_sel[0]],)))
+				mem_usage = max(mem_usage) / 1000
+				print(gen.colour_string(f'Memory used by number_counts (GB): {mem_usage}', 'blue'))
+				mem_avail = (psutil.virtual_memory().available + psutil.swap_memory().free) / (1000**3)
+				print(gen.colour_string(f'Available memory (GB): {mem_avail}', 'blue'))
+				ncpu = min(int(mem_avail / mem_usage), ncpu_avail)
+			else:
+				ncpu = ncpu_avail
+
+
+			with Pool(ncpu) as pool:
 				results_rand = np.asarray(pool.map(number_counts_p, [S850_rand[:,idx_sel[i]] for i in range(nsamples)]))
 
 			#combine the results from all iterations into one
