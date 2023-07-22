@@ -786,17 +786,18 @@ def fit_schechter_mcmc(x, y, yerr, nwalkers, niter, initial, offsets=0.01, retur
 	theta_max  = samples[np.argmax(sampler.flatlnprobability)]
 
 	#get the median, 16th and 84th percentiles for each parameter
-	'''
 	q = np.percentile(samples, [stats.p16, 50., stats.p84], axis=0)
 	best = q[1]
 	uncert = np.diff(q, axis=0)
 	e_lo = uncert[0]
 	e_hi = uncert[1]
 	'''
-	q = np.percentile(samples, [stats.p16, stats.p84], axis=0)
+	#q = np.percentile(samples, [stats.p16, stats.p84], axis=0)
+	q = np.array([stats.hpd(samples[:,i], (stats.p84-stats.p16)/100.) for i in range(ndim)]).T
 	best = theta_max
 	e_lo = theta_max - q[0]
 	e_hi = q[1] - theta_max
+	'''
 
 	if plot_on_axes:
 		#see if a set of axes has been provided - if not, give error message
@@ -1187,7 +1188,7 @@ def cumulative_model(S, params):
 	return y
 
 
-def fit_cumulative_mcmc(x, y, yerr, nwalkers, niter, initial, offsets=0.01, return_sampler=False, plot_on_axes=False, **plot_kwargs):
+def fit_cumulative_mcmc(x, y, yerr, nwalkers, niter, initial, offsets=0.01, return_sampler=False,  priors_min=[10., 1., -1.], priors_max=[15000., 10., 6.], plot_on_axes=False, **plot_kwargs):
 	'''
 	Uses MCMC to fit a renormalised incomplete Gamma function to data. (Used for cumulative number counts.)
 
@@ -1309,7 +1310,7 @@ def fit_cumulative_mcmc(x, y, yerr, nwalkers, niter, initial, offsets=0.01, retu
 		'''
 
 		N0, S0, gamma = theta
-		if (1000. <= N0 <= 15000.) and (1. <= S0 <= 10.) and (-1. <= gamma <= 6.):
+		if (priors_min[0] <= N0 <= priors_max[0]) and (priors_min[1] <= S0 <= priors_max[1]) and (priors_min[2] <= gamma <= priors_max[2]):
 			return 0.
 		else:
 			return -np.inf
@@ -1411,18 +1412,18 @@ def fit_cumulative_mcmc(x, y, yerr, nwalkers, niter, initial, offsets=0.01, retu
 	theta_max  = samples[np.argmax(sampler.flatlnprobability)]
 
 	#get the median, 16th and 84th percentiles for each parameter
-	'''
 	q = np.percentile(samples, [stats.p16, 50., stats.p84], axis=0)
 	best = q[1]
 	uncert = np.diff(q, axis=0)
 	e_lo = uncert[0]
 	e_hi = uncert[1]
 	'''
-	q = np.percentile(samples, [stats.p16, stats.p84], axis=0)
+	#q = np.percentile(samples, [stats.p16, stats.p84], axis=0)
+	q = np.array([stats.hpd(samples[:,i], (stats.p84-stats.p16)/100.) for i in range(ndim)]).T
 	best = theta_max
 	e_lo = theta_max - q[0]
 	e_hi = q[1] - theta_max
-
+	'''
 	if plot_on_axes:
 		#see if a set of axes has been provided - if not, give error message
 		if 'ax' in plot_kwargs:

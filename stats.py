@@ -424,6 +424,47 @@ def poisson_errs_1sig(N):
 	return elo, ehi
 
 
+
+def hpd(trace, mass_frac) :
+	'''
+	Returns highest probability density region given by
+	a set of samples.
+
+	Parameters
+	----------
+	trace : array
+		1D array of MCMC samples for a single variable
+
+	mass_frac : float with 0 < mass_frac <= 1
+		The fraction of the probability to be included in
+		the HPD.  For example, `massfrac` = 0.95 gives a
+		95% HPD.
+
+	Returns
+	-------
+	output : array, shape (2,)
+		The bounds of the HPD
+	'''
+	# Get sorted list
+	d = np.sort(np.copy(trace))
+
+	# Number of total samples taken
+	n = len(trace)
+
+	# Get number of samples that should be included in HPD
+	n_samples = np.floor(mass_frac * n).astype(int)
+
+	# Get width (in units of data) of all intervals with n_samples samples
+	int_width = d[n_samples:] - d[:n-n_samples]
+
+	# Pick out minimal interval
+	min_int = np.argmin(int_width)
+
+	# Return interval
+	return np.array([d[min_int], d[min_int+n_samples]])
+
+
+
 def vals_and_errs_from_dist(dist, axis=0):
 	'''
 	Given a distribution of values, calculates the median along with upper and lower uncertainties.
@@ -822,7 +863,4 @@ def chi2_min_fit_simple(x, y, yerr, func, initial, res, nsig=3, Nmax=10000000):
 
 
 	return chi2, permut
-
-
-
 
