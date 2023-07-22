@@ -502,12 +502,16 @@ if __name__ == '__main__':
 			#add a row to the Table summarising the results
 			t_results_r.add_row([r, nsim, nsim/A, N0, eN0_lo, eN0_hi, sig])
 
+			print(f'Significance of signal: {sig}')
+
 			if sig > 1:
+				print('Lowering number of galaxies...')
 				nsim_new = (nsim_old + nsim) // 2
 				nsim_old = nsim
 				nsignal = nsim
 				nsim = nsim_new
 			else:
+				print('Increasing number of galaxies...')
 				nsim_old = nsim
 				if nsignal == np.inf:
 					nsim *= 2
