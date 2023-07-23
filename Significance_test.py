@@ -365,9 +365,10 @@ if __name__ == '__main__':
 			weights = 1. / (A * dS)
 
 		#number of simulated sources to use for generating number counts
+		nsim_min = 0
 		nsim_old = 0
 		nsim = int(10 * r ** 2.)
-		nsignal = np.inf
+		nsim_max = np.inf
 
 		#names of the files containing the results from all iterations
 		results_file = PATH_RESULTS + f'{count_type}_with_errs_{r:.1f}am.npz'
@@ -419,16 +420,19 @@ if __name__ == '__main__':
 			#if this radius and nsim has been run previously, load the results to determine if it gave a signal
 			if f'nsig_{nsim}gals' in results_dict:
 				if results_dict[f'nsig_{nsim}gals'] > 1.:
-					nsim_new = (nsim_old + nsim) // 2
+					print('Lowering number of galaxies...')
+					nsim_new = (nsim_min + nsim) // 2
 					nsim_old = nsim
-					nsignal = nsim
+					nsim_max = nsim
 					nsim = nsim_new
 				else:
+					print('Increasing number of galaxies...')
 					nsim_old = nsim
-					if nsignal == np.inf:
+					nsim_min = nsim
+					if nsim_max == np.inf:
 						nsim *= 2
 					else:
-						nsim = (nsim + nsignal) // 2
+						nsim = (nsim + nsim_max) // 2
 				continue
 		
 
@@ -506,17 +510,18 @@ if __name__ == '__main__':
 
 			if sig > 1:
 				print('Lowering number of galaxies...')
-				nsim_new = (nsim_old + nsim) // 2
+				nsim_new = (nsim_min + nsim) // 2
 				nsim_old = nsim
-				nsignal = nsim
+				nsim_max = nsim
 				nsim = nsim_new
 			else:
 				print('Increasing number of galaxies...')
 				nsim_old = nsim
-				if nsignal == np.inf:
+				nsim_min = nsim
+				if nsim_max == np.inf:
 					nsim *= 2
 				else:
-					nsim = (nsim + nsignal) // 2
+					nsim = (nsim + nsim_max) // 2
 
 			#save the various dictionaries
 			np.savez_compressed(results_file, **results_dict)
