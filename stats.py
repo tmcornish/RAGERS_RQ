@@ -864,3 +864,58 @@ def chi2_min_fit_simple(x, y, yerr, func, initial, res, nsig=3, Nmax=10000000):
 
 	return chi2, permut
 
+
+
+
+
+def chisq_fit(x, y, yerr, func, params_min, params_max, params_res):
+	'''
+	Parameters
+	----------
+	x: array-like
+		Independent variable values at which the model is to be evaluated.
+
+	y: array-like
+		Observed values of the dependent variable at x.
+
+	yerr: array-like
+		Uncertainties in the observed values of y. Asymmetric uncertainties can be provided in a
+		single array/list of the for [yerr_lo, yerr_hi].
+
+	func: callable
+		The model function. Should have the form func(x, params) where params is an array-like
+		variable containing the function parameters. Function should also be able to take vector
+		arguments for params.
+
+	params_min: array-like
+		Minimum values for each parameter in the model. Parameter space beyond these bounds will
+		not be explored.
+
+	params_max: array-like
+		Minimum values for each parameter in the model. Parameter space beyond these bounds will
+		not be explored.
+
+	params_res: array-like
+		Desired resolution for each parameter.
+
+	order: int
+		By default (order=0) 
+
+	PLAN:
+		- Calculate model values using func(x, params).
+		- Create array of all possible parameter combinations within the bounds defined by the arguments.
+		- Calculate chi^2 for each parameter combination.
+			- If asymmetric uncertainties provided, use lower uncertainty if ymodel < y, and use upper uncertainty if ymodel > y.
+	  	- Find parameter combo with min chi^2.
+	  	- For parameter uncertainties:
+	  		- Convert chi^2 into probability values using P \propto exp(-chi^2 / 2) and normalise.
+	  		- At each value for the current parameter, sum probabilities across all possible values of other params.
+	  		- Turn this into a CDF.
+	  		- Find values of parameter where CDF = 0.16, 0.84.
+	'''
+
+
+
+
+
+

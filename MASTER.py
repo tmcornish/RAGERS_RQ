@@ -19,11 +19,12 @@ recreate_S19_nc = False		#recreate the number counts from Simpson+19
 rq_sample = False			#select the sample of radio-quiet massive galaxies
 calc_numcounts = False		#calculate number counts
 plot_areas = False			#plot the areas searched for a given sample of RQ galaxies
-fit_schechter = True		#run MCMC to fit Schechter functions to the results
-param_tables = True			#format best-fit results from MCMC into a LaTeX-style table
-plot_numcounts = True		#plot the number counts
-contour_plot = True			#make contour plots for the Schechter fit parameters
+fit_schechter = False		#run MCMC to fit Schechter functions to the results
+param_tables = False			#format best-fit results from MCMC into a LaTeX-style table
+plot_numcounts = False		#plot the number counts
+contour_plot = False			#make contour plots for the Schechter fit parameters
 sig_test = False				#find density required to detect signal
+density_hists = True		#construct histograms comparing the SMG density in different environments
 backup = False				#backup selected directories to a folder marked with the current date
 #numcounts_mega = False		#number counts mega script
 #apertures_test = False		#test the effect of different aperture sizes on the number counts
@@ -42,7 +43,8 @@ settings = [
 	plot_numcounts,
 	contour_plot,
 	sig_test,
-	backup,
+	density_hists,
+	backup
 	#numcounts_mega,
 	#apertures_test
 	]
@@ -58,7 +60,8 @@ proc_names = [
 	'Plotting number counts',
 	'Making contour plots',
 	'Finding densities required to detect signal',
-	'Back up results',
+	'Constructing SMG density histograms',
+	'Back up results'
 	#'Constructing number counts (mega script)',
 	#'Test different apertures'
 	]
@@ -74,6 +77,7 @@ run_str = [
 	'python Plot_numcounts.py',
 	'python Contour_plots.py', 
 	'python Significance_test.py',
+	'python Density_histograms.py',
 	'python Backup_results.py'
 	#'python Submm_number_counts.py',
 	#'python Test_search_radius.py'
