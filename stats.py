@@ -13,6 +13,7 @@ import random
 import pandas as pd
 import itertools
 from functools import reduce
+from scipy.interpolate import interp1d
 
 #DataFrame containing key values of Delta Chi^2 corresponding to different sigma for different degrees
 #of freedom, k. NOTE: For testing goodness of fit, k = N_data - N_params, but for estimating paramter
@@ -892,7 +893,19 @@ def chi2_min_fit_simple(x, y, yerr, func, initial, res, nsig=3, Nmax=10000000):
 
 
 
-def chisq_fit(x, y, yerr, func, params_min, params_max, params_res, Nmax=10000000):
+def chisq_fit(
+	x,
+	y,
+	yerr,
+	func,
+	params_min,
+	params_max,
+	params_res,
+	Nmax=10000000,
+	save_output=False,
+	output_name='chi2_results.npz',
+	param_names=None,
+	evaluate_errs=True):
 	'''
 	Parameters
 	----------
@@ -925,6 +938,18 @@ def chisq_fit(x, y, yerr, func, params_min, params_max, params_res, Nmax=1000000
 	Nmax: int
 		The maximum number of entries to be allowed in any one given array when performing calculations
 		(to conserve memory).
+
+	save_output: bool
+		Save the parameter combinations and chi^2 values to a .npz file.
+
+	output_name: str
+		Path to the output file if told to make one.
+
+	param_names: list or None
+		If not None, a list that contains the names of each parameter for the sake of saving to a file.
+
+	evaluate_errs: bool
+		Find the uncertainty on each parameter through marginalisation.
 
 	PLAN:
 		- Calculate model values using func(x, params).
@@ -967,7 +992,7 @@ def chisq_fit(x, y, yerr, func, params_min, params_max, params_res, Nmax=1000000
 	for chunk in chunks(permut, Nmax):
 		permut_now = np.array(list(chunk))
 		#calculate chi^2 for these parameter combinations
-		ymodel = nc.schechter_model(x[:,None], permut_now.T).T
+		ymodel = func(x[:,None], permut_now.T).T
 		chi2 = np.zeros(ymodel.shape)
 		#identify all model values that are above/below the observed values
 		mask_lo = ymodel < y
@@ -985,6 +1010,44 @@ def chisq_fit(x, y, yerr, func, params_min, params_max, params_res, Nmax=1000000
 	chi2_min = results_all[idx_min][-1]
 	#retrieve the best-fit parameters
 	popt = results_all[idx_min][:-1]
+
+	if save_output:
+		#set up a dictionary for the results
+		d_results = {}
+		for i in range(N_param):
+			if param_names is not None:
+				d_results[param_names[i]] = results_all[:,i]
+			else:
+				d_results[f'param{i+1}'] = results_all[:,i]
+		np.savez_compressed(output_name, **d_results)
+		del d_results
+
+
+	if evaluate_errs:
+		#convert chi^2 values to probabilities and normalise
+		P = np.exp(-results_all[:,-1] / 2.)
+		P /= P.sum()
+		#lists for the lower and upper uncertainties on each parameter
+		errs_lo, errs_hi = [], []
+		#cycle through the parameters
+		for i in range(N_param):
+			#get the unique parameter values
+			param_u = param_ranges[i]
+			#sum the marginalised probabilities at each unique value of the current parameter
+			P_m = np.array([np.sum(P[np.abs(results_all[:,i] - p) < params_res[i]*1E-10]) for p in param_u])
+			#convert this into a CDF
+			CDF = np.cumsum(P_m)
+			#interpolate the parameter values w.r.t. the CDF
+			p_from_cdf = interp1d(CDF, param_u)
+			#retrieve the 16th and 84th percentiles
+			p_lo, p_hi = p_from_cdf([p16/100., p84/100.])
+			#use these to calculate the uncertainties
+			errs_lo.append(popt[i] - p_lo)
+			errs_hi.append(p_hi - popt[i])
+		errs_lo = np.array(errs_lo)
+		errs_hi = np.array(errs_hi)
+		return popt, chi2_min, errs_lo, errs_hi
+
 
 	return popt, chi2_min
 

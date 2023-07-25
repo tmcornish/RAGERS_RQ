@@ -1212,7 +1212,7 @@ def cumulative_model(S, params):
 		#results for a < 0 still missing a factor of N0 at this stage
 		G[a < 0] *= N0[:,None][a < 0]
 
-	return G
+	return G.T
 
 
 def fit_cumulative_mcmc(x, y, yerr, nwalkers, niter, initial, offsets=0.01, return_sampler=False,  priors_min=[10., 1., -1.], priors_max=[15000., 10., 6.], plot_on_axes=False, **plot_kwargs):
