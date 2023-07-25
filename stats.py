@@ -12,6 +12,7 @@ import warnings
 import random
 import pandas as pd
 import itertools
+from functools import reduce
 
 #DataFrame containing key values of Delta Chi^2 corresponding to different sigma for different degrees
 #of freedom, k. NOTE: For testing goodness of fit, k = N_data - N_params, but for estimating paramter
@@ -733,6 +734,29 @@ def chi2_min_fit(x, y, yerr, func, initial, res, nsig=3, Nmax=10000000):
 
 
 
+def chunks(iterable, size=10):
+	'''
+	Function for breaking a generator object into smaller chunks.
+
+	Parameters
+	----------
+	iterable: generator
+		Generator to split into chunks.
+
+	size: int
+		Size of each chunk.
+
+
+	Yields
+	------
+	The next chunk in the sequence.
+
+	'''
+	iterator = iter(iterable)
+	for first in iterator:
+		yield itertools.chain([first], itertools.islice(iterator, size - 1))
+
+
 
 def chi2_min_fit_simple(x, y, yerr, func, initial, res, nsig=3, Nmax=10000000):
 	'''
@@ -868,7 +892,7 @@ def chi2_min_fit_simple(x, y, yerr, func, initial, res, nsig=3, Nmax=10000000):
 
 
 
-def chisq_fit(x, y, yerr, func, params_min, params_max, params_res):
+def chisq_fit(x, y, yerr, func, params_min, params_max, params_res, Nmax=10000000):
 	'''
 	Parameters
 	----------
@@ -898,8 +922,9 @@ def chisq_fit(x, y, yerr, func, params_min, params_max, params_res):
 	params_res: array-like
 		Desired resolution for each parameter.
 
-	order: int
-		By default (order=0) 
+	Nmax: int
+		The maximum number of entries to be allowed in any one given array when performing calculations
+		(to conserve memory).
 
 	PLAN:
 		- Calculate model values using func(x, params).
@@ -913,6 +938,57 @@ def chisq_fit(x, y, yerr, func, params_min, params_max, params_res):
 	  		- Turn this into a CDF.
 	  		- Find values of parameter where CDF = 0.16, 0.84.
 	'''
+
+	#get the number of parameters
+	N_param = len(params_min)
+	#set the maximum number of entries along each axis an array with N_params dimensions can have
+	#while still being smaller than Nmax
+	N_per_dim = int(Nmax ** (1./N_param))
+
+	#get the dimensions of yerr
+	ndim = gen.get_ndim(yerr)
+	#retrieve upper and lower uncertainties if yerr is 2D
+	if ndim == 2:
+		yerr_lo, yerr_hi = yerr
+	else:
+		yerr_lo, yerr_hi = [yerr, yerr]
+
+	#create parameter ranges given the provided minima, maxima and resolutions
+	param_ranges = [np.arange(pmin, pmax+pres, pres) for pmin,pmax,pres in zip(params_min, params_max, params_res)]
+	#get the total number of permutations
+	N_permut = reduce(lambda x,y: x*y, [len(p) for p in param_ranges])
+	#use this to figure out how many steps the calculation of chi-squared should be broken into
+	N_iter = int(np.ceil(N_permut / Nmax))
+
+	#all unique combinations of the paramters in these ranges
+	permut = itertools.product(*param_ranges)
+
+	results_all = []
+	for chunk in chunks(permut, Nmax):
+		permut_now = np.array(list(chunk))
+		#calculate chi^2 for these parameter combinations
+		ymodel = nc.schechter_model(x[:,None], permut_now.T).T
+		chi2 = np.zeros(ymodel.shape)
+		#identify all model values that are above/below the observed values
+		mask_lo = ymodel < y
+		mask_hi = ymodel >= y
+		chi2[mask_lo] = ((ymodel - y)/yerr_lo)[mask_lo] ** 2.
+		chi2[mask_hi] = ((ymodel - y)/yerr_hi)[mask_hi] ** 2.
+		#take the sum across all bins to get the chi^2 values
+		chi2 = np.sum(chi2, axis=1)
+		results_all.append(np.concatenate([permut_now, chi2[:,None]], axis=1))
+	#combine the results from all chunks
+	results_all = np.vstack(results_all)
+
+	#find the minimum chi^2 value
+	idx_min = np.argmin(results_all[:,-1])
+	chi2_min = results_all[idx_min][-1]
+	#retrieve the best-fit parameters
+	popt = results_all[idx_min][:-1]
+
+	return popt, chi2_min
+
+
 
 
 

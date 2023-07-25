@@ -1181,11 +1181,38 @@ def cumulative_model(S, params):
 		Model Schechter function values evaluated at the specified flux densities.
 	'''
 
-	N0, S0, gamma = params
-	with np.errstate(all='ignore'):
-		#y = N0 * Gamma_upper_vec(-gamma + 1., S / S0)
-		y = N0 * gammainc_up(-gamma + 1., S / S0)
-	return y
+	N0, S0, g = params
+	
+	#if only single values of the parameters provided, calculation is simple use of upper incomplete gamma function
+	if gen.get_ndim(N0) == 0:
+		a = -g + 1.
+		x = (S / S0)
+		G = N0 * gammainc_up(a, x)
+	#if multiple values provided for each parameter, need to some array manipulation
+	else:
+		a = -g + 1.
+		x = (S / S0).T
+		G = np.zeros(x.shape)
+		#for a >= 0, can simply use the relevant scipy functions
+		G[a > 0] = N0[:,None][a > 0] * (gammaincc(a[:,None],x) * gamma(a[:,None]))[a > 0]
+		G[a == 0] = N0[:,None][a == 0] * expn(1, x)[a == 0]
+
+		#for a < 0, need to use recursion relation, making sure to only apply it to the relevant entries
+		a_ = a - np.floor(a)
+		j = (a_ - a).astype(int)
+		#due to rounding errors, a_ might not equal 0 when it should; use inequality instead of a_ == 0
+		ineq = (np.abs(a_) < np.diff(np.unique(a)).mean() * 1E-10)
+		G[(a < 0) * ineq] = expn(1, x)[(a < 0) * ineq]
+		G[(a < 0) * ~ineq] = (gammaincc(a_[:,None],x) * gamma(a_[:,None]))[(a < 0) * ~ineq]
+		#begin applying recursion relations
+		while (j > 0).sum() > 0:
+			a_ -= 1.
+			G[(a < 0) * (j > 0)] = ((1./a_[:,None]) * (G - (x ** (a_[:,None])) * np.exp(-x)))[(a < 0) * (j > 0)]
+			j -= 1
+		#results for a < 0 still missing a factor of N0 at this stage
+		G[a < 0] *= N0[:,None][a < 0]
+
+	return G
 
 
 def fit_cumulative_mcmc(x, y, yerr, nwalkers, niter, initial, offsets=0.01, return_sampler=False,  priors_min=[10., 1., -1.], priors_max=[15000., 10., 6.], plot_on_axes=False, **plot_kwargs):

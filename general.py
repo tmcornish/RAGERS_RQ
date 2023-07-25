@@ -274,7 +274,7 @@ def get_ndim(x):
 	xtype = type(x)
 
 	#if the variable is a single integer, float or string, set ndim = 0
-	if xtype in [int, float, str]:
+	if xtype in [int, float, str, np.float32, np.float64, np.int32, np.int64]:
 		ndim = 0
 	#otherwise, attempt to convert to an array then find the number of dimensions
 	else:
