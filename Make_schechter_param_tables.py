@@ -45,6 +45,7 @@ titles = ['', r'Radius [$\arcmin$]', r'$N_{0}$', r'$S_{0}$', r'$\gamma$']
 title_lines.append(r' & '.join(titles) + r'\\')
 title_lines.append(r'\hline')
 title_lines.append(r'\hline')
+title_lines.append(r'\vspace{0.5em}')
 title_lines = ['\t\t' + s for s in title_lines]
 #append these to the list of lines
 tab_lines.extend(title_lines)
@@ -73,16 +74,11 @@ for counttype, data in zip(['Differential', 'Cumulative'], [nc_data, cc_data]):
 		for i in range(len(data[j][0])):
 			#parameter and errors
 			pe = data[j][:,i]
-			#figure out how many significant figures the parameter and uncertainties should be quoted to
-			order_p = int(np.floor(np.log10(pe[0])))
-			order_err = int(np.floor(np.log10(min(pe[1:]))))
-			if order_p == order_err:
-				Nsf_p = Nsf_err = 1
+			pe = [gen.round_sigfigs(x, 2) for x in pe]
+			if pe[0] > 100:
+				params_all.append(r'$%g_{-%g}^{+%g}$'%tuple(pe))
 			else:
-				Nsf_p = order_p - order_err + 1
-				Nsf_err = 1
-			pe = [gen.round_sigfigs(x, n) for x,n in zip(pe, [Nsf_p, Nsf_err, Nsf_err])]
-			params_all.append(r'$%g_{-%g}^{+%g}$'%tuple(pe))
+				params_all.append(r'$%.1f_{-%.1f}^{+%.1f}$'%tuple(pe))
 		'''
 		if r == gen.r_search_all[-1]:
 			data_lines.append(' & '.join(params_all) + r'\\' + '\n\t\t' + r'\hline' + '\n\t\t' + r'\vspace{%s}'%padding)
@@ -98,16 +94,11 @@ for counttype, data in zip(['Differential', 'Cumulative'], [nc_data, cc_data]):
 	for i in range(len(bf_data[0])):
 		#parameter and errors
 		pe = bf_data[:,i]
-		#figure out how many significant figures the parameter and uncertainties should be quoted to
-		order_p = int(np.floor(np.log10(pe[0])))
-		order_err = int(np.floor(np.log10(min(pe[1:]))))
-		if order_p == order_err:
-			Nsf_p = Nsf_err = 1
+		pe = [gen.round_sigfigs(x, 2) for x in pe]
+		if pe[0] > 100:
+			params_all.append(r'$%g_{-%g}^{+%g}$'%tuple(pe))
 		else:
-			Nsf_p = order_p - order_err + 1
-			Nsf_err = 1
-		pe = [gen.round_sigfigs(x, n) for x,n in zip(pe, [Nsf_p, Nsf_err, Nsf_err])]
-		params_all.append(r'$%g_{-%g}^{+%g}$'%tuple(pe))
+			params_all.append(r'$%.1f_{-%.1f}^{+%.1f}$'%tuple(pe))
 	data_lines.append(' & '.join(params_all) + r'\\' + '\n\t\t' + r'\hline' + '\n\t\t'+ r'\vspace{%s}'%padding)
 
 
