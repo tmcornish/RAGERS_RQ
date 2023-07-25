@@ -37,7 +37,7 @@ from matplotlib.colors import LinearSegmentedColormap
 ##################
 
 #toggle `switches' for additional functionality
-incl_rl = True			#make histograms for the environments of RL analogues as well
+incl_rl = False			#make histograms for the environments of RL analogues as well
 all_fig = False			#make a figure showing all histograms on one set of axes
 settings = [
 	incl_rl
@@ -140,7 +140,7 @@ coords_submm = SkyCoord(*coords, unit='deg')
 #create a Table with these coordinates
 t = Table([*coords], names=['RA', 'DEC'])
 #make a regions file
-ast.table_to_DS9_regions(t, 'RA', 'DEC', output_name=gen.PATH_CATS+'S2COSMOS_SNR_peaks.reg', radius='10"')
+ast.table_to_DS9_regions(t, 'RA', 'DEC', output_name=gen.PATH_CATS+f'S2COSMOS_SNR_peaks_SNR{SNR_thresh:.1f}.reg', radius='10"')
 
 
 
@@ -222,7 +222,7 @@ ylabel = r'Normalised counts'
 ncols = 2
 nrows = int(np.ceil(len(gen.r_search_all)/2))
 f, ax = plt.subplots(nrows, ncols, figsize=(ncols*ps.x_size, 0.7*nrows*ps.y_size))
-figname = gen.PATH_PLOTS + f'Density_histograms.png'
+figname = gen.PATH_PLOTS + f'Density_histograms_SNR{SNR_thresh:.1f}.png'
 
 #to label axes with common labels, create a big subplot, make it invisible, and label its axes
 ax_big = f.add_subplot(111, frameon=False)
@@ -244,7 +244,7 @@ if all_fig:
 	ax_rq.set_xlabel(xlabel)
 	ax_rq.set_ylabel(ylabel)
 	#filename for the figure
-	figname_rq = gen.PATH_PLOTS + 'Density_histograms_all_rq.png'
+	figname_rq = gen.PATH_PLOTS + f'Density_histograms_all_rq_SNR{SNR_thresh:.1f}.png'
 
 	if incl_rl:
 		#set up the figure anf label the axes
@@ -252,7 +252,7 @@ if all_fig:
 		ax_rl.set_xlabel(xlabel)
 		ax_rl.set_ylabel(ylabel)
 		#filename for the figure
-		figname_rl = gen.PATH_PLOTS + 'Density_histograms_all_rl.png'
+		figname_rl = gen.PATH_PLOTS + f'Density_histograms_all_rl_SNR{SNR_thresh:.1f}.png'
 
 	#set up lists for the legend labels
 	labels_ord_com = []
@@ -270,8 +270,8 @@ t_rq = Table.read(gen.PATH_CATS + 'RAGERS_COSMOS2020_matches_Mstar_z_rq.fits')
 t_rl = Table.read(gen.PATH_CATS + 'RAGERS_COSMOS2020_matches_Mstar_z_rl.fits')
 
 #files containing the SMG density information for all RQ and RL counterparts
-rq_file = gen.PATH_CATS + 'RQ_SMG_densities.npz'
-rl_file = gen.PATH_CATS + 'RL_SMG_densities.npz'
+rq_file = gen.PATH_CATS + f'RQ_SMG_densities_SNR{SNR_thresh:.1f}.npz'
+rl_file = gen.PATH_CATS + f'RL_SMG_densities_SNR{SNR_thresh:.1f}.npz'
 dicts_rq_rl = []
 for file,t in zip([rq_file, rl_file], [t_rq, t_rl]):
 	if os.path.exists(file):
@@ -420,7 +420,7 @@ if incl_rl:
 	t_ks = Table([gen.r_search_all, p_rq, p_rl], names=['r', 'p_rq', 'p_rl'])
 else:
 	t_ks = Table([gen.r_search_all, p_rq], names=['r', 'p_rq'])
-ks_filename = gen.PATH_CATS + 'KS_test_pvalues.txt'
+ks_filename = gen.PATH_CATS + f'KS_test_pvalues_SNR{SNR_thresh:.1f}.txt'
 t_ks.write(ks_filename, format='ascii', overwrite=True)
 
 
