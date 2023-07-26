@@ -345,7 +345,7 @@ if __name__ == '__main__':
 	Nmin_all, density_all = [], []
 
 	#filename for the table containing the minimum number of galaxies required for a signal 
-	results_tab_file = PATH_RESULTS + 'Min_gals_for_signal.txt'
+	results_tab_file = PATH_RESULTS + f'{count_type}_min_gals_for_signal.txt'
 	if os.path.exists(results_tab_file):
 		t_results = Table.read(results_tab_file, format='ascii')
 	else:
@@ -402,7 +402,7 @@ if __name__ == '__main__':
 		results_dict['weights'] = weights
 
 		#set up a table for containing the minimum required galaxies for each radius
-		results_file_r = PATH_RESULTS + f'Significance_test_results_{r:.1f}am.txt'
+		results_file_r = PATH_RESULTS + f'{count_type}_sig_test_results_{r:.1f}am.txt'
 		if os.path.exists(results_file_r):
 			t_results_r = Table.read(results_file_r, format='ascii')
 		else:
@@ -530,8 +530,8 @@ if __name__ == '__main__':
 
 
 		#append the converged-upon number of galaxies and correpsonding surface density to the lists
-		Nmin_all.append(nsim)
-		density_all.append(nsim / A)
+		Nmin_all.append(nsim_max)
+		density_all.append(nsim_max / A)
 
 		t_results_r.write(results_file_r, format='ascii', overwrite=True)
 
