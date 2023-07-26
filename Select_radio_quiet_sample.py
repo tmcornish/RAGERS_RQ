@@ -251,7 +251,7 @@ if plot_selection and plot_cosmos:
 print(gen.colour_string('Loading VLA-COSMOS catalogue...', 'purple'))
 
 #path to the catalogue containing data for VLA sources with COSMOS2015 counterparts
-VLA_CAT = PATH_CATS + 'VLA_3GHz_counterpart_array_20170210_paper_smolcic_et_al.fits'
+VLA_CAT = PATH_CATS + 'VLA_3GHz_counterpart_array_20170210_paper_smolcic_et_al_with_L500MHz.fits'
 data_vla = Table.read(VLA_CAT, format='fits')
 #remove multi-component radio sources and sources with high probability of being falsely matched
 vla_keep = (data_vla['MULTI'] == 0) * (data_vla['P_FALSE'] < 0.2)

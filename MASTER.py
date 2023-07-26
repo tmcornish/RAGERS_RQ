@@ -13,10 +13,11 @@ import general as gen
 ##################
 
 #toggle `switches' for determining which scripts to run
+update_vla_cat = False		#estimates L_500MHz for VLA-COSMOS galaxies
 recreate_S19_comp = False	#recreate the completeness results from Simpson+19
 random_datasets = False		#generate random flux densities (and completeness values) from the S2COSMOS catalogue
 recreate_S19_nc = False		#recreate the number counts from Simpson+19
-rq_sample = False			#select the sample of radio-quiet massive galaxies
+rq_sample = True			#select the sample of radio-quiet massive galaxies
 calc_numcounts = False		#calculate number counts
 plot_areas = False			#plot the areas searched for a given sample of RQ galaxies
 fit_schechter = False		#run MCMC to fit Schechter functions to the results
@@ -24,7 +25,7 @@ param_tables = False			#format best-fit results from MCMC into a LaTeX-style tab
 plot_numcounts = False		#plot the number counts
 contour_plot = False			#make contour plots for the Schechter fit parameters
 sig_test = False				#find density required to detect signal
-density_hists = True		#construct histograms comparing the SMG density in different environments
+density_hists = False		#construct histograms comparing the SMG density in different environments
 backup = False				#backup selected directories to a folder marked with the current date
 #numcounts_mega = False		#number counts mega script
 #apertures_test = False		#test the effect of different aperture sizes on the number counts
@@ -32,6 +33,7 @@ backup = False				#backup selected directories to a folder marked with the curre
 ##################
 
 settings = [
+	update_vla_cat,
 	recreate_S19_comp,
 	random_datasets,
 	recreate_S19_nc, 
@@ -49,6 +51,7 @@ settings = [
 	#apertures_test
 	]
 proc_names = [
+	'Estimating L_500MHz for VLA-COSMOS galaxies',
 	'Recreating Simpson+19 completeness',
 	'Generating random datasets',
 	'Recreating Simpson+19 number counts', 
@@ -66,6 +69,7 @@ proc_names = [
 	#'Test different apertures'
 	]
 run_str = [
+	'python Update_VLA_COSMOS_cat.py',
 	'python Recreate_S19_completeness.py',
 	'python Generate_random_datasets.py',
 	'python Recreate_S19_number_counts.py',
