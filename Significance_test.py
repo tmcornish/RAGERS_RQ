@@ -233,7 +233,7 @@ if __name__ == '__main__':
 
 	#toggle `switches' for additional functionality
 	make_plots = False			#make plots comparing the real number counts with the counts required for a signal
-	cumulative = False			#use cumulative counts instead of differential
+	cumulative = True			#use cumulative counts instead of differential
 	settings = [
 		make_plots,
 		cumulative
