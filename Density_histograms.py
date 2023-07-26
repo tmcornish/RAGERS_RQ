@@ -53,7 +53,9 @@ for i in range(len(settings_print)):
 	else:
 		settings_print[i] += 'n'
 
-SNR_thresh = 2.		#SNR threshold to use for peak finding
+SNR_thresh = 3.		#SNR threshold to use for peak finding
+#bin_edges = np.arange(0., 9000., 500.)
+nbins = 10			#number of bins to use for the smallest radius
 N_aper_bf = 10000	#number of apertures to use for measuring the blank field
 settings_print.extend([
 	f'SNR threshold: {SNR_thresh}',
@@ -151,7 +153,7 @@ ast.table_to_DS9_regions(t, 'RA', 'DEC', output_name=gen.PATH_CATS+f'S2COSMOS_SN
 print(gen.colour_string(f'Defining {N_aper_bf} blank-field apertures...', 'purple'))
 
 #file for containing the blank field aperture information
-bf_apers_file = gen.PATH_SIMS + 'Blank_field_aper_coords.npz'
+bf_apers_file = gen.PATH_SIMS + f'Blank_field_aper_coords_SNR{SNR_thresh:.1f}.npz'
 #see if the file exists
 if os.path.exists(bf_apers_file):
 	bf_apers_data = np.load(bf_apers_file)
@@ -285,8 +287,8 @@ coords_rq = SkyCoord(rq_dict['RA'], rq_dict['DEC'], unit='deg')
 coords_rl = SkyCoord(rl_dict['RA'], rl_dict['DEC'], unit='deg')
 
 
-#set up lists for containing the p-values from KS tests
-p_rq, p_rl = [], []
+#set up lists for containing the d- and p-values from KS tests
+d_rq, p_rq, d_rl, p_rl = [], [], [], []
 
 #cycle through the search radii
 nclr = 0
@@ -294,6 +296,8 @@ for i in range(len(gen.r_search_all)):
 
 	r = gen.r_search_all[i]
 	print(gen.colour_string(f'R = {r:.1f} arcmin', 'cyan'))
+
+	nbins_now = int(nbins * (1. + i * 0.2))
 
 	#choose axes in main figure on which to plot
 	nrow = i // ncols
@@ -333,11 +337,11 @@ for i in range(len(gen.r_search_all)):
 
 	#plot the histogram of densities
 	weights_bf = np.ones_like(density_bf)/float(len(density_bf))
-	counts_bf, bins_bf, _ = ax[nrow,ncol].hist(density_bf, weights=weights_bf, color=ps.crimson, alpha=0.5, linestyle='--', label=bf_label, histtype='step')
+	counts_bf, bins_bf, _ = ax[nrow,ncol].hist(density_bf, weights=weights_bf, bins=nbins_now, color=ps.crimson, alpha=0.5, linestyle='--', label=bf_label, histtype='step')
 	if all_fig and r == r_emph:
-		ax_rq.hist(density_bf, weights=weights_bf, color=ps.crimson, alpha=0.5, linestyle='--', label=bf_label, histtype='step')
+		ax_rq.hist(density_bf, weights=weights_bf, bins=bins_bf, color=ps.crimson, alpha=0.5, linestyle='--', label=bf_label, histtype='step')
 		if incl_rl:
-			ax_rl.hist(density_bf, weights=weights_bf, color=ps.crimson, alpha=0.5, linestyle='--', label=bf_label, histtype='step')
+			ax_rl.hist(density_bf, weights=weights_bf, bins=bins_bf, color=ps.crimson, alpha=0.5, linestyle='--', label=bf_label, histtype='step')
 
 
 	print(gen.colour_string(f'Creating RQ histograms...', 'white'))
@@ -359,15 +363,16 @@ for i in range(len(gen.r_search_all)):
 
 	#plot the histogram of densities
 	weights_rq = np.ones_like(density_rq)/float(len(density_rq))
-	counts_rq, bins_rq, _ = ax[nrow,ncol].hist(density_rq, weights=weights_rq, color='k', label=rq_label, histtype='step')
+	counts_rq, bins_rq, _ = ax[nrow,ncol].hist(density_rq, weights=weights_rq, bins=bins_bf, color='k', label=rq_label, histtype='step')
 	if all_fig:
-		ax_rq.hist(density_rq, weights=weights_rq, color=c_now, alpha=alpha, label=label, histtype='step')
+		ax_rq.hist(density_rq, weights=weights_rq, bins=bins_bf, color=c_now, alpha=alpha, label=label, histtype='step')
 
 	#add a label to show the current radius
 	ax[nrow,ncol].text(0.05, 0.95, r'$R = %.0f^{\prime}$'%r, transform=ax[nrow,ncol].transAxes, ha='left', va='top')
 
 	#perform a 2-sample KS test and retrieve the p-value
 	ks_rq = ks_2samp(density_bf, density_rq)
+	d_rq.append(ks_rq.statistic)
 	p_rq.append(ks_rq.pvalue)
 
 
@@ -390,13 +395,15 @@ for i in range(len(gen.r_search_all)):
 
 		#plot the histogram of densities
 		weights_rl = np.ones_like(density_rl)/float(len(density_rl))
-		counts_rl, bins_rl, _ = ax[nrow,ncol].hist(density_rl, weights=weights_rl, color=ps.dark_blue, linestyle=':', label=rl_label, histtype='step')
+		counts_rl, bins_rl, _ = ax[nrow,ncol].hist(density_rl, weights=weights_rl, bins=bins_bf, color=ps.dark_blue, linestyle=':', label=rl_label, histtype='step')
 		if all_fig:
-			ax_rl.hist(density_rl, weights=weights_rl, color=c_now, alpha=alpha, label=label, histtype='step')
+			ax_rl.hist(density_rl, weights=weights_rl, bins=bins_bf, color=c_now, alpha=alpha, label=label, histtype='step')
 
 		#perform a 2-sample KS test and retrieve the p-value
 		ks_rl = ks_2samp(density_bf, density_rl)
+		d_rl.append(ks_rl.statistic)
 		p_rl.append(ks_rl.pvalue)
+
 
 #legend formatting
 handles, labels = ax[0,0].get_legend_handles_labels()
@@ -417,9 +424,9 @@ np.savez_compressed(rl_file, **rl_dict)
 
 #make a Table containing the p-values
 if incl_rl:
-	t_ks = Table([gen.r_search_all, p_rq, p_rl], names=['r', 'p_rq', 'p_rl'])
+	t_ks = Table([gen.r_search_all, d_rq, p_rq, d_rl, p_rl], names=['r', 'D_rq', 'p_rq', 'D_rl', 'p_rl'])
 else:
-	t_ks = Table([gen.r_search_all, p_rq], names=['r', 'p_rq'])
+	t_ks = Table([gen.r_search_all, d_rq, p_rq], names=['r', 'D_rq', 'p_rq'])
 ks_filename = gen.PATH_CATS + f'KS_test_pvalues_SNR{SNR_thresh:.1f}.txt'
 t_ks.write(ks_filename, format='ascii', overwrite=True)
 
