@@ -23,7 +23,7 @@ settings_print = []
 
 #number of walkers and iterations to use in MCMC fitting
 nwalkers = 100
-niter = 10000
+niter = 100000
 #offsets for the initial walker positions from the initial guess values
 offsets_init = [10., 0.01, 0.01]
 #initial guesses for the parameters

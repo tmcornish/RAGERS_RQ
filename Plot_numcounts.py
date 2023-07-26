@@ -18,6 +18,9 @@ import matplotlib as mpl
 #### SETTINGS ####
 ##################
 
+#toggle `switches' for varying functionality
+plot_sims = True		#plot the simulated number counts required to detect overdensity 
+
 #formatting of plots
 plt.style.use(ps.styledict)
 
@@ -34,6 +37,8 @@ PATH_PLOTS = gen.PATH_PLOTS
 PATH_SIMS = gen.PATH_SIMS
 PATH_PARAMS = PATH_CATS + 'Schechter_params/'
 PATH_COUNTS = PATH_CATS + 'Number_counts/'
+#directory containing the simulated number counts (relevant only if plot_sims = True)
+PATH_SIM_NC = PATH_CATS + 'Significance_tests/'
 
 #get the radii used
 radii = gen.r_search_all
@@ -42,6 +47,15 @@ radii = gen.r_search_all
 nc_files = [PATH_COUNTS + f'Differential_with_errs_{r:.1f}am_{gen.n_gal}{gen.gal_type}.npz' for r in radii]
 cc_files = [PATH_COUNTS + f'Cumulative_with_errs_{r:.1f}am_{gen.n_gal}{gen.gal_type}.npz' for r in radii]
 
+#if told to plot the simulated number counts, load the tables containing the relevant information
+if plot_sims:
+	nc_min_gals = Table.read(PATH_SIM_NC + 'Differential_min_gals_for_signal.txt', format='ascii')
+	cc_min_gals = Table.read(PATH_SIM_NC + 'Cumulative_min_gals_for_signal.txt', format='ascii')
+	#also define a suffix to add to the figure name if simulated counts included
+	sim_suffix = '_with_sim_od'
+else:
+	sim_suffix = ''
+plot_offset_sim = -0.01
 
 ######################
 #### FIGURE SETUP ####
@@ -274,6 +288,72 @@ for i in range(n_rows):
 	ax_cc.plot(x_range, nc.cumulative_model(x_range, cc_popt_S19), c=ps.crimson, alpha=0.5, linestyle='--')
 
 
+	#################################
+	#### SIMULATED NUMBER COUNTS ####
+	#################################
+
+	if plot_sims:
+		#load the differential and cumulative simulated number counts for this radius
+		nc_sim_data = np.load(PATH_SIM_NC + f'Differential_with_errs_{r:.1f}am.npz')
+		cc_sim_data = np.load(PATH_SIM_NC + f'Cumulative_with_errs_{r:.1f}am.npz')
+		#get the minimum numbers of galaxies required to generate a signal in each
+		Nmin_nc = int(nc_min_gals[nc_min_gals['r'] == r]['Nmin'][-1])
+		Nmin_cc = int(cc_min_gals[cc_min_gals['r'] == r]['Nmin'][-1])
+		#load the table containing the best-fit N0 values for each simulated number counts
+		t_N0_nc = Table.read(PATH_SIM_NC + f'Differential_sig_test_results_{r:.1f}am.txt', format='ascii')
+		t_N0_cc = Table.read(PATH_SIM_NC + f'Cumulative_sig_test_results_{r:.1f}am.txt', format='ascii')
+		#get the best-fit value of N0
+		N0_nc = t_N0_nc[t_N0_nc['N'] == Nmin_nc]['N0'][0]
+		N0_cc = t_N0_cc[t_N0_cc['N'] == Nmin_cc]['N0'][0]
+		#get the number counts bin info
+		sim_bin_edges = nc_sim_data['bin_edges']
+		sim_bin_centres = (sim_bin_edges[1:] + sim_bin_edges[:-1]) / 2.
+
+
+		#settings to plot the results as green squares with errorbars
+		label = 'Simulated overdensities'
+		labels_ord.append(label)
+		data_kwargs = dict(color=ps.green, label=label, linestyle='none', marker='s', ms=8., zorder=3, alpha=0.5)
+		ebar_kwargs = dict(ecolor=ps.green, zorder=2, alpha=0.5)
+
+		#retrieve the results for the combined dataset
+		y_nc, ey_nc_lo, ey_nc_hi = nc_sim_data[f'{Nmin_nc}gals']
+		#create masks for the sake of visualisation
+		plot_masks_nc = nc.mask_numcounts(sim_bin_centres, y_nc, limits=False, exclude_all_zero=False, Smin=Smin)
+		nc.plot_numcounts(
+			sim_bin_centres,
+			y_nc,
+			yerr=(ey_nc_lo, ey_nc_hi),
+			ax=ax_nc,
+			offset=plot_offset_sim,
+			masks=plot_masks_nc,
+			data_kwargs=data_kwargs,
+			ebar_kwargs=ebar_kwargs
+			)
+		#plot the best fit
+		nc_popt_sim = [N0_nc, *nc_popt_S19[1:]]
+		ax_nc.plot(x_range, nc.schechter_model(x_range, nc_popt_sim), c=ps.green, alpha=0.5, linestyle=':')
+
+
+		#retrieve the results for the combined dataset
+		y_cc, ey_cc_lo, ey_cc_hi = cc_sim_data[f'{Nmin_cc}gals']
+		#create masks for the sake of visualisation
+		plot_masks_cc = nc.mask_numcounts(sim_bin_edges[:-1], y_cc, limits=False, exclude_all_zero=False, Smin=Smin)
+		nc.plot_numcounts(
+			sim_bin_edges[:-1],
+			y_cc,
+			yerr=(ey_cc_lo, ey_cc_hi),
+			ax=ax_cc,
+			offset=plot_offset_sim,
+			masks=plot_masks_cc,
+			data_kwargs=data_kwargs,
+			ebar_kwargs=ebar_kwargs
+			)
+		#plot the best fit
+		cc_popt_sim = [N0_cc, *cc_popt_S19[1:]]
+		ax_cc.plot(x_range, nc.cumulative_model(x_range, cc_popt_sim), c=ps.green, alpha=0.5, linestyle=':')
+
+
 	############################
 	#### FORMATTING OF AXES ####
 	############################
@@ -318,6 +398,6 @@ ax['ax1'].get_yaxis().set_major_formatter(mpl.ticker.StrMethodFormatter('{x:g}')
 ax['ax2'].get_yaxis().set_major_formatter(mpl.ticker.StrMethodFormatter('{x:g}'))
 #minimise unnecesary whitespace
 f.tight_layout()
-figname = PATH_PLOTS + f'S850_number_counts_by_radius_{gen.n_gal}{gen.gal_type}.png'
+figname = PATH_PLOTS + f'S850_number_counts_by_radius_{gen.n_gal}{gen.gal_type}{sim_suffix}.png'
 f.savefig(figname, bbox_inches='tight', dpi=300)
 

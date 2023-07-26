@@ -233,7 +233,7 @@ if __name__ == '__main__':
 
 	#toggle `switches' for additional functionality
 	make_plots = False			#make plots comparing the real number counts with the counts required for a signal
-	cumulative = True			#use cumulative counts instead of differential
+	cumulative = False			#use cumulative counts instead of differential
 	settings = [
 		make_plots,
 		cumulative
@@ -344,6 +344,11 @@ if __name__ == '__main__':
 	#create lists for the minimum number of sources and corresponding number density for each radius
 	#Nmin_all, density_all = [], []
 
+
+	#get the number of RAGERS galaxies
+	t_analogues = Table.read(gen.PATH_CATS + 'RAGERS_COSMOS2020_matches_Mstar_z_rq.fits')
+	n_RAGERS = len(np.unique(t_analogues['RAGERS_ID']))
+
 	#filename for the table containing the minimum number of galaxies required for a signal 
 	results_tab_file = PATH_RESULTS + f'{count_type}_min_gals_for_signal.txt'
 	if os.path.exists(results_tab_file):
@@ -357,7 +362,7 @@ if __name__ == '__main__':
 		print(gen.colour_string(f'{r:.1f} arcminute', 'orange'))
 
 		#calculate the area of the aperture (in deg^-2)
-		A = np.pi * (r/60.) ** 2.
+		A = n_RAGERS * np.pi * (r/60.) ** 2.
 		#calculate the weights to be applied to each bin
 		if cumulative:
 			weights = 1. / A
@@ -367,7 +372,7 @@ if __name__ == '__main__':
 		#number of simulated sources to use for generating number counts
 		nsim_min = 0
 		nsim_old = 0
-		nsim = int(10 * r ** 2.)
+		nsim = n_ragers * int(5 * r ** 2.)
 		nsim_max = np.inf
 
 		#names of the files containing the results from all iterations
