@@ -362,7 +362,7 @@ if __name__ == '__main__':
 		print(gen.colour_string(f'{r:.1f} arcminute', 'orange'))
 
 		#calculate the area of the aperture (in deg^-2)
-		A = n_RAGERS * np.pi * (r/60.) ** 2.
+		A = n_ragers * np.pi * (r/60.) ** 2.
 		#calculate the weights to be applied to each bin
 		if cumulative:
 			weights = 1. / A
