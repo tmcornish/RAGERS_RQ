@@ -347,7 +347,7 @@ if __name__ == '__main__':
 
 	#get the number of RAGERS galaxies
 	t_analogues = Table.read(gen.PATH_CATS + 'RAGERS_COSMOS2020_matches_Mstar_z_rq.fits')
-	n_RAGERS = len(np.unique(t_analogues['RAGERS_ID']))
+	n_ragers = len(np.unique(t_analogues['RAGERS_ID']))
 
 	#filename for the table containing the minimum number of galaxies required for a signal 
 	results_tab_file = PATH_RESULTS + f'{count_type}_min_gals_for_signal.txt'
