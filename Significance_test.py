@@ -342,7 +342,7 @@ if __name__ == '__main__':
 	permut = np.array([N0_range, S0_range, gamma_range]).T
 
 	#create lists for the minimum number of sources and corresponding number density for each radius
-	Nmin_all, density_all = [], []
+	#Nmin_all, density_all = [], []
 
 	#filename for the table containing the minimum number of galaxies required for a signal 
 	results_tab_file = PATH_RESULTS + f'{count_type}_min_gals_for_signal.txt'
@@ -414,7 +414,7 @@ if __name__ == '__main__':
 
 			#test for convergence
 			if nsim_old == nsim:
-				t_results.add_row([r, nsim, nsim/A])
+				t_results.add_row([r, nsim_max, nsim_max/A])
 				break
 
 			#if this radius and nsim has been run previously, load the results to determine if it gave a signal
@@ -530,8 +530,8 @@ if __name__ == '__main__':
 
 
 		#append the converged-upon number of galaxies and correpsonding surface density to the lists
-		Nmin_all.append(nsim_max)
-		density_all.append(nsim_max / A)
+		#Nmin_all.append(nsim_max)
+		#density_all.append(nsim_max / A)
 
 		t_results_r.write(results_file_r, format='ascii', overwrite=True)
 
