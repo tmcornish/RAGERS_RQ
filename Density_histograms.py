@@ -30,7 +30,7 @@ from scipy.stats import ks_2samp
 import general as gen
 import plotstyle as ps
 from matplotlib.colors import LinearSegmentedColormap
-
+import stats
 
 ##################
 #### SETTINGS ####
@@ -53,7 +53,7 @@ for i in range(len(settings_print)):
 	else:
 		settings_print[i] += 'n'
 
-SNR_thresh = 3.		#SNR threshold to use for peak finding
+SNR_thresh = 2.		#SNR threshold to use for peak finding
 #bin_edges = np.arange(0., 9000., 500.)
 nbins = 10			#number of bins to use for the smallest radius
 N_aper_bf = 10000	#number of apertures to use for measuring the blank field
@@ -297,7 +297,7 @@ for i in range(len(gen.r_search_all)):
 	r = gen.r_search_all[i]
 	print(gen.colour_string(f'R = {r:.1f} arcmin', 'cyan'))
 
-	nbins_now = int(nbins * (1. + i * 0.2))
+	nbins_now = int(nbins * (1. + i * 0.4))
 
 	#choose axes in main figure on which to plot
 	nrow = i // ncols
@@ -338,6 +338,11 @@ for i in range(len(gen.r_search_all)):
 	#plot the histogram of densities
 	weights_bf = np.ones_like(density_bf)/float(len(density_bf))
 	counts_bf, bins_bf, _ = ax[nrow,ncol].hist(density_bf, weights=weights_bf, bins=nbins_now, color=ps.crimson, alpha=0.5, linestyle='--', label=bf_label, histtype='step')
+	#plot the median and shade the region between the 16th and 84th percentiles
+	p16, p50, p84 = np.percentile(density_bf, [stats.p16, 50, stats.p84])
+	ax[nrow,ncol].axvline(p50, linestyle='--', color=ps.crimson, alpha=0.5)
+	ax[nrow,ncol].axvspan(p16, p84, color=ps.crimson, hatch='\\', alpha=0.1)
+
 	if all_fig and r == r_emph:
 		ax_rq.hist(density_bf, weights=weights_bf, bins=bins_bf, color=ps.crimson, alpha=0.5, linestyle='--', label=bf_label, histtype='step')
 		if incl_rl:
@@ -364,16 +369,30 @@ for i in range(len(gen.r_search_all)):
 	#plot the histogram of densities
 	weights_rq = np.ones_like(density_rq)/float(len(density_rq))
 	counts_rq, bins_rq, _ = ax[nrow,ncol].hist(density_rq, weights=weights_rq, bins=bins_bf, color='k', label=rq_label, histtype='step')
+	#plot the median and shade the region between the 16th and 84th percentiles
+	p16, p50, p84 = np.percentile(density_rq, [stats.p16, 50, stats.p84])
+	ax[nrow,ncol].axvline(p50, color='k', alpha=0.5)
+	ax[nrow,ncol].axvspan(p16, p84, color='k', hatch='/', alpha=0.1)
 	if all_fig:
 		ax_rq.hist(density_rq, weights=weights_rq, bins=bins_bf, color=c_now, alpha=alpha, label=label, histtype='step')
 
 	#add a label to show the current radius
-	ax[nrow,ncol].text(0.05, 0.95, r'$R = %.0f^{\prime}$'%r, transform=ax[nrow,ncol].transAxes, ha='left', va='top')
+	ax[nrow,ncol].text(0.95, 0.8, r'$R = %.0f^{\prime}$'%r, transform=ax[nrow,ncol].transAxes, ha='right', va='top')
 
 	#perform a 2-sample KS test and retrieve the p-value
 	ks_rq = ks_2samp(density_bf, density_rq)
 	d_rq.append(ks_rq.statistic)
 	p_rq.append(ks_rq.pvalue)
+
+	results_str = r'$D = %f$'%gen.round_sigfigs(ks_rq.statistic, 6)
+	results_str += '\n'
+	if ks_rq.pvalue < 1E-6:
+		pow10 = int(np.floor(np.log10(ks_rq.pvalue)))
+		pval = ks_rq.pvalue / 10. ** pow10
+		results_str += r'$p = %.1f\times10^{%i}$'%(gen.round_sigfigs(pval, 2), pow10)
+	else:
+		results_str += r'$p = %f$'%gen.round_sigfigs(ks_rq.pvalue, 6)
+	ax[nrow,ncol].text(0.95, 0.6, results_str, transform=ax[nrow,ncol].transAxes, ha='right', va='top', fontsize=18.)
 
 
 	if incl_rl:
@@ -396,6 +415,10 @@ for i in range(len(gen.r_search_all)):
 		#plot the histogram of densities
 		weights_rl = np.ones_like(density_rl)/float(len(density_rl))
 		counts_rl, bins_rl, _ = ax[nrow,ncol].hist(density_rl, weights=weights_rl, bins=bins_bf, color=ps.dark_blue, linestyle=':', label=rl_label, histtype='step')
+		#plot the median and shade the region between the 16th and 84th percentiles
+		p16, p50, p84 = np.percentile(density_rl, [stats.p16, 50, stats.p84])
+		ax[nrow,ncol].axvline(p50, color=ps.dark_blue, alpha=0.5)
+		ax[nrow,ncol].axvspan(p16, p84, color=ps.dark_blue, hatch='|', alpha=0.1)
 		if all_fig:
 			ax_rl.hist(density_rl, weights=weights_rl, bins=bins_bf, color=c_now, alpha=alpha, label=label, histtype='step')
 
