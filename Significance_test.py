@@ -47,6 +47,17 @@ from multiprocessing import Pool, cpu_count
 from functools import partial
 from memory_profiler import memory_usage
 import psutil
+import pandas as pd
+
+
+
+def shuffle_along_axis(a, axis):
+	'''
+	Shuffles an array along the specified axis.
+	'''
+	idx = np.random.rand(*a.shape).argsort(axis=axis)
+	return np.take_along_axis(a,idx,axis=axis)
+
 
 
 def number_counts(j, Srand, idx_sel, bin_edges, weights, incl_poisson=True, cumulative=False):
@@ -90,6 +101,8 @@ def number_counts(j, Srand, idx_sel, bin_edges, weights, incl_poisson=True, cumu
 
 	#retrieve only the desired flux densities
 	S = Srand[:, idx_sel[j]]
+	#shuffle the array to ensure maximum randomness
+	S = shuffle_along_axis(S, axis=0)
 	#calculate the bin widths
 	dS = bin_edges[1:] - bin_edges[:-1]
 
@@ -225,6 +238,8 @@ def fit_N0(xbins, ybins, permut, cumulative=False):
 	return N0, eN0_lo, eN0_hi
 
 
+
+
 if __name__ == '__main__':
 	
 	##################
@@ -294,37 +309,28 @@ if __name__ == '__main__':
 
 	#retrieve the flux densities of sources in the S2COSMOS catalogue
 	data_submm = Table.read(gen.S19_cat)
-	S850, *_ = gen.get_relevant_cols_S19(data_submm, main_only=gen.main_only)
+	S850, eS850_lo, eS850_hi, *_ = gen.get_relevant_cols_S19(data_submm, main_only=gen.main_only)
 	#assign numbers to each source based on their position in the table
 	idx_submm = np.arange(len(S850))
 
-	#retrieve the randomly generated flux densities for the S2COSMOS sources
-	rand_s2c_file = PATH_SIMS + 'S2COSMOS_randomised_S850.npz'
-	data_rand = np.load(rand_s2c_file)
-	S850_rand = data_rand['S850_rand']
+	#convert the S850 column into a pandas Series
+	S850_s = pd.Series(S850)
+	#split the flux densities into bins with approximately equal height
+	nbins = 20
+	S850_binned, S850_bins = pd.qcut(S850_s, nbins, retbins=True, labels=False)
+	eS850_lo_med = [np.median(eS850_lo[S850_binned == i]) for i in range(nbins)]
+	eS850_hi_med = [np.median(eS850_hi[S850_binned == i]) for i in range(nbins)]
+	#calculate the bin centres
+	S850_bin_centres = (S850_bins[1:] + S850_bins[:-1]) / 2.
 
-	#get the bin edges and centres used for the number counts
-	bin_edges = gen.bin_edges
-	bin_centres = (bin_edges[1:] + bin_edges[:-1]) / 2.
-	#calculate the bin widths used for the number counts
-	dS = gen.bin_edges[1:] - gen.bin_edges[:-1]
-
-	#calculate the blank field estimates
-	if cumulative:
-		X = bin_edges[:-1]
-		bf_est = nc.cumulative_model(bin_edges[:-1], params_bf[0])
-	else:
-		X = bin_centres
-		bf_est = nc.schechter_model(bin_centres, params_bf[0])
-	#index of the first bin above the flux limit
-	idx_lim = np.argwhere(X >= gen.Smin).min()
-
-	#use the blank-field Schechter parameters to create a probability distribution as a function of flux density
-	P = nc.schechter_model(S850, params_bf[0])
-	#limit source selection to within the bins used
-	P[S850 < gen.bin_edges.min()] = 0.
+	#calulate probabilities for selecting each bin centre sing the blank-field Schechter function
+	P = nc.schechter_model(S850_bin_centres, params_bf[0])
 	#normalise the Schechter function so that the integral is equal to 1
 	P = np.asarray(P / P.sum())
+
+	#use the uncertainties to generate random flux densities
+	S850_rand = np.array([stats.random_asymmetric_gaussian(S850_bin_centres[i], eS850_lo_med[i], eS850_hi_med[i], 10000) for i in range(nbins)]).T
+
 
 	'''
 	#initial parameter guesses for Schechter fitting (use blank field as starting point)
@@ -334,6 +340,19 @@ if __name__ == '__main__':
 	priors_max = [1000000., 10., 6.]
 	'''
 
+	#get the bin edges and centres used for the number counts
+	bin_edges = gen.bin_edges#[gen.bin_edges >= gen.Smin]
+	bin_centres = (bin_edges[1:] + bin_edges[:-1]) / 2.
+	#calculate the bin widths used for the number counts
+	dS = bin_edges[1:] - bin_edges[:-1]
+
+	#calculate the blank field estimates
+	if cumulative:
+		X = bin_edges[:-1]
+		bf_est = nc.cumulative_model(X, params_bf[0])
+	else:
+		X = bin_centres
+		bf_est = nc.schechter_model(X, params_bf[0])
 
 	#parameter permutations to try when fitting
 	N0_range = np.arange(10, 200010, 10)
@@ -442,10 +461,10 @@ if __name__ == '__main__':
 		
 
 			#use the blank-field probability distribution to randomly select nsim S2COSMOS sources
-			idx_sel = np.random.choice(idx_submm, (nsamples, nsim), p=P)
+			idx_sel = np.random.choice(range(nbins), (nsamples, nsim), p=P)
 
 			#create a partial version of the number counts function
-			number_counts_p = partial(number_counts, Srand=S850_rand, idx_sel=idx_sel, bin_edges=gen.bin_edges, weights=weights, incl_poisson=True, cumulative=cumulative)
+			number_counts_p = partial(number_counts, Srand=S850_rand, idx_sel=idx_sel, bin_edges=bin_edges, weights=weights, incl_poisson=True, cumulative=cumulative)
 
 			#if using the Linux machine, need to conserve memory to avoid the Pool hanging
 			if gen.pf == 'Linux':
