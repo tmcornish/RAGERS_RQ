@@ -271,7 +271,7 @@ if __name__ == '__main__':
 	###############    START OF SCRIPT    #################
 	#######################################################
 
-	nsamples = 1000			#number of iterations to run per search radius
+	nsamples = 100			#number of iterations to run per search radius
 	ncpu_avail = cpu_count()-1	#number of CPUs to use when multiprocessing
 
 	#string to use for differential vs cumulative counts
@@ -313,6 +313,7 @@ if __name__ == '__main__':
 	#assign numbers to each source based on their position in the table
 	idx_submm = np.arange(len(S850))
 
+	'''
 	#convert the S850 column into a pandas Series
 	S850_s = pd.Series(S850)
 	#split the flux densities into bins with approximately equal height
@@ -330,7 +331,7 @@ if __name__ == '__main__':
 
 	#use the uncertainties to generate random flux densities
 	S850_rand = np.array([stats.random_asymmetric_gaussian(S850_bin_centres[i], eS850_lo_med[i], eS850_hi_med[i], 10000) for i in range(nbins)]).T
-
+	'''
 
 	'''
 	#initial parameter guesses for Schechter fitting (use blank field as starting point)
@@ -345,6 +346,8 @@ if __name__ == '__main__':
 	bin_centres = (bin_edges[1:] + bin_edges[:-1]) / 2.
 	#calculate the bin widths used for the number counts
 	dS = bin_edges[1:] - bin_edges[:-1]
+	nbins = len(dS)
+
 
 	#calculate the blank field estimates
 	if cumulative:
@@ -353,6 +356,17 @@ if __name__ == '__main__':
 	else:
 		X = bin_centres
 		bf_est = nc.schechter_model(X, params_bf[0])
+
+	idx_bins = np.digitize(S850, bin_edges)
+	eS850_lo_med = [np.median(eS850_lo[idx_bins == i]) for i in range(1,nbins+1)]
+	eS850_hi_med = [np.median(eS850_hi[idx_bins == i]) for i in range(1,nbins+1)]
+	#calulate probabilities for selecting each bin centre sing the blank-field Schechter function
+	P = nc.schechter_model(bin_centres, params_bf[0])
+	#normalise the Schechter function so that the integral is equal to 1
+	P = np.asarray(P / P.sum())
+	#use the uncertainties to generate random flux densities
+	S850_rand = np.array([stats.random_asymmetric_gaussian(bin_centres[i], eS850_lo_med[i], eS850_hi_med[i], 10000) for i in range(nbins)]).T
+
 
 	#parameter permutations to try when fitting
 	N0_range = np.arange(10, 200010, 10)
