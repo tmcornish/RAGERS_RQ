@@ -905,7 +905,8 @@ def chisq_fit(
 	save_output=False,
 	output_name='chi2_results.npz',
 	param_names=None,
-	evaluate_errs=True):
+	evaluate_errs=True,
+	return_dist=False):
 	'''
 	Parameters
 	----------
@@ -951,17 +952,6 @@ def chisq_fit(
 	evaluate_errs: bool
 		Find the uncertainty on each parameter through marginalisation.
 
-	PLAN:
-		- Calculate model values using func(x, params).
-		- Create array of all possible parameter combinations within the bounds defined by the arguments.
-		- Calculate chi^2 for each parameter combination.
-			- If asymmetric uncertainties provided, use lower uncertainty if ymodel < y, and use upper uncertainty if ymodel > y.
-	  	- Find parameter combo with min chi^2.
-	  	- For parameter uncertainties:
-	  		- Convert chi^2 into probability values using P \propto exp(-chi^2 / 2) and normalise.
-	  		- At each value for the current parameter, sum probabilities across all possible values of other params.
-	  		- Turn this into a CDF.
-	  		- Find values of parameter where CDF = 0.16, 0.84.
 	'''
 
 	#get the number of parameters
@@ -1046,13 +1036,58 @@ def chisq_fit(
 			errs_hi.append(p_hi - popt[i])
 		errs_lo = np.array(errs_lo)
 		errs_hi = np.array(errs_hi)
-		return popt, chi2_min, errs_lo, errs_hi
+		if return_dist:
+			return popt, chi2_min, errs_lo, errs_hi, results_all
+		else:
+			return popt, chi2_min, errs_lo, errs_hi
+
+	if return_dist:
+		return popt, chi2_min, results_all
+	else:
+		return popt, chi2_min
 
 
-	return popt, chi2_min
 
 
+def sample_walkers(X, func, flattened_chain, nsamples):
+	'''
+	Takes the output from an MCMC fit (specifically the sampler.flatchain) and randomly draws
+	a selection of parameter combinations. It then calculates the model values for each combination,
+	and calculates the 1-sigma confidence region based on those values.
 
+	Parameters
+	----------
+	func: callable
+		The model function. Should have the form func(x, params) where params is an array-like
+		variable containing the function parameters. Function should also be able to take vector
+		arguments for params.
+
+	nsamples: int
+		Number of parameter combinations to be drawn.
+
+	flattened_chain: array
+		The sampler.flatchain output from the MCMC code -- essentially, all parameter combinations
+		that were tested during the MCMC.
+
+	X: array-like
+		Independent variable values at which the model is to be evaluated.
+
+	
+	Returns
+	-------
+	med_model, spread_lo, spread_hi: array-like
+		50th, 16th and 84th percentiles, respectively, of the model values for each value of X.
+	'''
+	models = []
+	draw = np.floor(np.random.uniform(0,len(flattened_chain),size=nsamples)).astype(int)
+	thetas = flattened_chain[draw]
+	for i in thetas:
+	    mod = func(X, i)
+	    models.append(mod)
+	spread_hi = np.percentile(models,p84,axis=0)
+	spread_lo = np.percentile(models,p16,axis=0)
+	med_model = np.median(models,axis=0)
+	return med_model,spread_lo,spread_hi
 
 
 

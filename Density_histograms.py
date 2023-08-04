@@ -24,7 +24,7 @@ from astropy.table import Table, vstack
 import astrometry as ast
 from astropy.coordinates import SkyCoord
 from astropy import units as u
-from photutils.aperture import CircularAperture, aperture_photometry
+from photutils.aperture import CircularAperture, aperture_photometry, ApertureStats, SkyCircularAperture
 from photutils.detection import find_peaks
 from scipy.stats import ks_2samp
 import general as gen
@@ -53,7 +53,7 @@ for i in range(len(settings_print)):
 	else:
 		settings_print[i] += 'n'
 
-SNR_thresh = 2.		#SNR threshold to use for peak finding
+SNR_thresh = 3.0		#SNR threshold to use for peak finding
 #bin_edges = np.arange(0., 9000., 500.)
 nbins = 10			#number of bins to use for the smallest radius
 N_aper_bf = 10000	#number of apertures to use for measuring the blank field
@@ -79,6 +79,13 @@ cmap = LinearSegmentedColormap.from_list('name', colors)
 #choose N colours from this map, where N is the number of radii used minus any that are to be emphasised
 N_clr = len([r for r in gen.r_search_all if r != r_emph])
 cycle_clr = [gen.scale_RGB_colour(cmap((j+1.)/N_radii)[:-1], scale_l=0.7) for j in range(N_clr)]
+
+
+#for plotting overdensity lower limits
+if SNR_thresh == 4.:
+	#retrieve the data from the files summarising the minimum densities required for a signal
+	t_od_nc = Table.read(gen.PATH_CATS + 'Significance_tests/Differential_min_gals_for_signal.txt', format='ascii')
+	t_od_cc = Table.read(gen.PATH_CATS + 'Significance_tests/Cumulative_min_gals_for_signal.txt', format='ascii')
 
 #######################################################
 ###############    START OF SCRIPT    #################
@@ -125,7 +132,7 @@ smap_sel[smap_data[0] <= gen.sens_lim] = 1.
 smap_sel_bool = smap_sel.astype(bool)
 
 #reset to 0 any pixels outside the desired sensitivity range
-peak_grid[~smap_sel_bool] = 0.
+#peak_grid[~smap_sel_bool] = 0.
 
 
 ################################
@@ -139,10 +146,32 @@ coords = w.wcs_pix2world(peaks_masked[:,0], peaks_masked[:,1], 0)
 #make SkyCoord objects from these coordinates
 coords_submm = SkyCoord(*coords, unit='deg')
 
+#get the pixel scale (''/pix) of the SNR map
+pixscale = (wcs.utils.proj_plane_pixel_scales(w) * 3600.).mean()
+#calculate the radius in pixels of the largest aperture used for number counts
+r_pix_max = max(gen.r_search_all) * 60. / pixscale
+#area of apertures with this radius (in pix^2)
+A_pix = np.pi * r_pix_max ** 2.
+'''
+#remove any peaks for which the average sensitivity is <1sigma above the sensitivity limit in a maximum-radius aperture
+apers = SkyCircularAperture(coords_submm, max(gen.r_search_all)*u.arcmin)
+t_apers = aperture_photometry(smap_sel, apers, method='center', wcs=w)
+within_area = t_apers['aperture_sum'] > 0.99 * A_pix
+coords_submm = coords_submm[within_area]
+'''
+'''
+aperstats = ApertureStats(smap_data[0], apers, wcs=w)
+rms_maxes = aperstats.mean + aperstats.std
+coords_submm = coords_submm[rms_maxes <= gen.sens_lim]
+'''
+
 #create a Table with these coordinates
-t = Table([*coords], names=['RA', 'DEC'])
+t = Table([coords_submm.ra, coords_submm.dec], names=['RA', 'DEC'])
 #make a regions file
-ast.table_to_DS9_regions(t, 'RA', 'DEC', output_name=gen.PATH_CATS+f'S2COSMOS_SNR_peaks_SNR{SNR_thresh:.1f}.reg', radius='10"')
+regname = gen.PATH_CATS + f'S2COSMOS_SNR_peaks_SNR{SNR_thresh:.1f}.reg'
+if os.path.exists(regname):
+	os.system(f'rm -f {regname}')
+ast.table_to_DS9_regions(t, 'RA', 'DEC', output_name=regname, radius='10"')
 
 
 
@@ -163,12 +192,6 @@ if os.path.exists(bf_apers_file):
 	DEC_bf = bf_apers_data['DEC']
 	del bf_apers_data
 else:
-	#get the pixel scale (''/pix) of the SNR map
-	pixscale = (wcs.utils.proj_plane_pixel_scales(w) * 3600.).mean()
-	#calculate the radius in pixels of the largest aperture used for number counts
-	r_pix_max = max(gen.r_search_all) * 60. / pixscale
-	#area of apertures with this radius (in pix^2)
-	A_pix = np.pi * r_pix_max ** 2.
 	#set up arrays for containing the coordinates of pixels within the sensitivity limit
 	#X_bf, Y_bf = [np.empty((0,), dtype=int) for _ in range(2)]
 	#set up a list for the tables of the blank field aperture information
@@ -177,15 +200,18 @@ else:
 	N_done = 0
 	while N_done < N_aper_bf:
 		#calculate number of apertures still required
-		N_todo = N_aper_bf - N_done
+		N_todo = min(500,N_aper_bf - N_done)
 		#randomly choose X and Y coordinates
 		X = np.random.rand(N_todo) * smap_hdr['NAXIS1']
 		Y = np.random.rand(N_todo) * smap_hdr['NAXIS2']
 		#place maximum-sized apertures on the smap_sel array and sum the pixel values
 		apers = CircularAperture(np.array([X,Y]).T, r_pix_max)
-		t_apers = aperture_photometry(smap_sel, apers, method='center')
+		t_apers = aperture_photometry(smap_sel, apers)#, method='center')
+		aperstats = ApertureStats(smap_data[0], apers)
+		rms_maxes = aperstats.mean + aperstats.std
 		#find all apertures for which the sum is equal to the area
-		within_area = t_apers['aperture_sum'] > 0.99 * A_pix
+		#within_area = t_apers['aperture_sum'] > 0.99 * A_pix
+		within_area = rms_maxes <= gen.sens_lim
 		#append these sources to the list of Tables
 		t_apers_bf_all.append(t_apers[within_area])
 		N_done += within_area.sum()
@@ -205,7 +231,16 @@ else:
 	}
 	#np.savez_compressed(bf_apers_file, **apers_bf_dict)
 
-	del t_apers_bf_all, coords_bf
+	#del t_apers_bf_all, coords_bf
+
+t_apers_bf_all = Table([apers_bf_dict[k] for k in apers_bf_dict], names=[k for k in apers_bf_dict])
+#t_apers_bf_all['RA'] = RA_bf
+#t_apers_bf_all['DEC'] = DEC_bf
+regname = gen.PATH_CATS + f'S2COSMOS_bf_apers_SNR{SNR_thresh:.1f}.reg'
+if os.path.exists(regname):
+	os.system(f'rm -f {regname}')
+ast.table_to_DS9_regions(t_apers_bf_all, 'RA', 'DEC', output_name=regname, radius="6'", color='cyan')
+
 
 #make SkyCoord objects from the aperture coordinates
 coords_bf = SkyCoord(RA_bf, DEC_bf, unit='deg')
@@ -426,6 +461,19 @@ for i in range(len(gen.r_search_all)):
 		ks_rl = ks_2samp(density_bf, density_rl)
 		d_rl.append(ks_rl.statistic)
 		p_rl.append(ks_rl.pvalue)
+
+
+	#####################
+	# Overdensity limit #
+	#####################
+
+	if SNR_thresh == 4.:
+		#retrieve the overdensity limits for the current radius
+		od_lim_nc = t_od_nc['surface_density'][i]
+		od_lim_cc = t_od_cc['surface_density'][i]
+		ax[nrow,ncol].axvline(od_lim_nc, color=ps.teal, alpha=0.5, linestyle=':')
+		ax[nrow,ncol].axvline(od_lim_cc, color=ps.teal, alpha=0.5, linestyle='-.')
+
 
 
 #legend formatting

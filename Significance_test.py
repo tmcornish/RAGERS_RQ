@@ -48,7 +48,8 @@ from functools import partial
 from memory_profiler import memory_usage
 import psutil
 import pandas as pd
-
+from scipy.interpolate import interp1d
+from scipy.integrate import quad
 
 
 def shuffle_along_axis(a, axis):
@@ -313,6 +314,20 @@ if __name__ == '__main__':
 	#assign numbers to each source based on their position in the table
 	idx_submm = np.arange(len(S850))
 
+	#retrieve the blank-field number counts
+	data_bf_file = PATH_COUNTS + f'{count_type}_with_errs_bf.npz'
+	data_bf = np.load(data_bf_file)
+	bin_edges_bf = data_bf['bin_edges']
+	bin_centres_bf = (bin_edges_bf[1:] + bin_edges_bf[:-1]) / 2.
+	dS_bf = bin_edges_bf[1:] - bin_edges_bf[:-1]
+	data_s2c = data_bf['S2COSMOS']
+	weights_bf = data_bf['w_S2COSMOS']
+
+	#retrieve the blank-field MCMC outputs
+	post_bf_file = PATH_SIMS + f'Schechter_posteriors/{count_type}_bf.npz'
+	post_bf = np.load(post_bf_file)
+	post_s2c = post_bf['S2COSMOS']
+
 	'''
 	#convert the S850 column into a pandas Series
 	S850_s = pd.Series(S850)
@@ -384,10 +399,7 @@ if __name__ == '__main__':
 
 	#filename for the table containing the minimum number of galaxies required for a signal 
 	results_tab_file = PATH_RESULTS + f'{count_type}_min_gals_for_signal.txt'
-	if os.path.exists(results_tab_file):
-		t_results = Table.read(results_tab_file, format='ascii')
-	else:
-		t_results = Table(names=['r', 'Nmin', 'surface_density'])
+	t_results = Table(names=['r', 'Nmin', 'surface_density', 'delta', 'edelta_lo', 'edelta_hi'])
 
 
 	#cycle through the radii used for making the number counts
@@ -452,7 +464,70 @@ if __name__ == '__main__':
 
 			#test for convergence
 			if nsim_old == nsim:
-				t_results.add_row([r, nsim_max, nsim_max/A])
+				#convert the convergent density into the `delta' typically used in the literature
+				if cumulative:
+					#for cumulative counts, compare the faintest bin with that of the blank field
+					mask_bright_bf = bin_edges_bf[:-1] >= gen.Smin
+					N_bf, eN_bf_lo, eN_bf_hi = data_s2c.T[mask_bright_bf][0]
+					N_bf_rand = stats.random_asymmetric_gaussian(N_bf, eN_bf_lo, eN_bf_hi, 10000)
+
+					#get the corresponding bin from the simulated number counts
+					mask_bright = bin_edges[:-1] >= gen.Smin
+					N_sim, eN_sim_lo, eN_sim_hi = results_dict[f'{nsim_max}gals'].T[mask_bright][0]
+					N_sim_rand = stats.random_asymmetric_gaussian(N_sim, eN_sim_lo, eN_sim_hi, 10000)
+
+					
+					#calcualte delta
+					delta_rand = (N_sim_rand / N_bf_rand) - 1.
+					deltamed, edelta_lo, edelta_hi = stats.vals_and_errs_from_dist(delta_rand)
+					'''
+					deltamed = (N_sim / N_bf) - 1.
+					edelta_hi = edelta_lo = (N_sim - N_bf) / (N_bf ** 0.5)
+					'''
+
+				else:
+					'''
+					#for differential counts, compare the blank field integral with the sum in all bins
+					Smin, Smax = gen.Smin, bin_edges.max()
+					Srange = np.linspace(Smin, Smax, 1000)
+					counts_bf_med, counts_bf_lo, counts_bf_hi = stats.sample_walkers(Srange, nc.schechter_model, post_s2c, 100000)
+					counts_bf_med_f, counts_bf_lo_f, counts_bf_hi_f = [interp1d(Srange, func) for func in [counts_bf_med, counts_bf_lo, counts_bf_hi]]
+					#integrate the blank field functions
+					n_bf_med, n_bf_lo, n_bf_hi = [quad(func, Smin, Smax)[0] for func in [counts_bf_med_f, counts_bf_lo_f, counts_bf_hi_f]]
+					#generate 10000 random values for the integral
+					n_bf_rand = stats.random_asymmetric_gaussian(n_bf_med, n_bf_med-n_bf_lo, n_bf_hi-n_bf_med, 10000)
+					#multiply by the survey area
+					N_bf_rand = n_bf_rand * gen.A_s2c
+					'''
+					mask_bright_bf = bin_centres_bf >= gen.Smin
+					n_bf, en_bf_lo, en_bf_hi = data_s2c[:,mask_bright_bf]
+					w_bf = dS_bf[mask_bright_bf]
+					#generate random values for each bin and divide by the weights
+					N_bf_rand = np.array([stats.random_asymmetric_gaussian(n_bf[i], en_bf_lo[i], en_bf_hi[i], 10000) / w_bf[i] for i in range(len(n_bf))])
+					#take the sum for each bin
+					N_bf_rand = np.sum(N_bf_rand, axis=0)
+
+					#get the simulated number counts
+					mask_bright = bin_centres >= gen.Smin
+					n_sim, en_sim_lo, en_sim_hi = results_dict[f'{nsim_max}gals'][:,mask_bright]
+					w_sim = dS[mask_bright]
+					#generate random values for each bin and divide by the weights
+					N_sim_rand = np.array([stats.random_asymmetric_gaussian(n_sim[i], en_sim_lo[i], en_sim_hi[i], 10000) / w_sim[i] for i in range(len(n_sim))])
+					#take the sum for each bin
+					N_sim_rand = np.sum(N_sim_rand, axis=0)
+
+					
+					#calculate delta
+					delta_rand = (N_sim_rand / N_bf_rand) - 1.
+					deltamed, edelta_lo, edelta_hi = stats.vals_and_errs_from_dist(delta_rand)
+					'''
+					N_bf = (n_bf / w_bf).sum()
+					N_sim = (n_sim / w_sim).sum()
+					deltamed = (N_sim / N_bf) - 1.
+					edelta_hi = edelta_lo = (N_sim - N_bf) / (N_bf ** 0.5)
+					'''
+
+				t_results.add_row([r, nsim_max, nsim_max/A, deltamed, edelta_lo, edelta_hi])
 				break
 
 			#if this radius and nsim has been run previously, load the results to determine if it gave a signal
@@ -532,13 +607,13 @@ if __name__ == '__main__':
 			#calculate the ratio of the N0 parameter to that of the blank field (with uncertainty) and subtract 1
 			N0_rand = stats.random_asymmetric_gaussian(N0, eN0_lo, eN0_hi, 10000)
 			N0_bf_rand = stats.random_asymmetric_gaussian(params_bf[0][0], params_bf[1][0], params_bf[2][0], 10000)
-			delta = (N0_rand / N0_bf_rand) - 1.
+			Q = (N0_rand / N0_bf_rand) - 1.
 			#calculate the median and 1sigma percentiles
-			deltamed, edelta_lo, edelta_hi = stats.vals_and_errs_from_dist(delta)
+			Qmed, eQ_lo, eQ_hi = stats.vals_and_errs_from_dist(Q)
 
 
 			#see if the result is >1sigma greater than 0
-			sig = deltamed / edelta_lo
+			sig = Qmed / eQ_lo
 			results_dict[f'nsig_{nsim}gals'] = sig
 
 			#add a row to the Table summarising the results

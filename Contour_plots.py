@@ -31,7 +31,7 @@ plt.style.use(ps.styledict)
 nbins = 30
 
 #select a radius for which the results will be emphasised on the plot
-r_emph = 6.
+r_emph = 4.
 
 #######################################################
 ###############    START OF SCRIPT    #################
@@ -165,6 +165,7 @@ for j in range(len(ax[0])):
 				alpha = 1.
 				mkr_now = 'o'
 				ms = 11.
+				lw = 2.
 				label = r'$\mathbf{R = %.1f^{\prime}}$'%gen.r_search_all[k]
 			else:
 				c_now = cycle_clr[nclr]
@@ -172,6 +173,7 @@ for j in range(len(ax[0])):
 				label = r'$R = %.1f^{\prime}$'%gen.r_search_all[k]
 				mkr_now = ps.cycle_mkr[k]
 				ms = 8.
+				lw = 1.
 				nclr += 1
 
 			#retrieve the data to bin for this subplot
@@ -199,7 +201,7 @@ for j in range(len(ax[0])):
 			#find t at the value of each contour
 			t_contours = f_int(clevels)
 			#plot the contours
-			ax[i][j].contour(xc, yc, z.T, levels=t_contours, colors=[c_now], extent=None, alpha=alpha)
+			ax[i][j].contour(xc, yc, z.T, levels=t_contours, colors=[c_now], linewidths=lw, extent=None, alpha=alpha)
 
 			if show_data:
 				#retrieve the best-fit Schechter parameters and uncertainties to plot on these axes
@@ -210,7 +212,7 @@ for j in range(len(ax[0])):
 
 			#add entry to the legend
 			if i == 0:
-				by_labels[label] = Line2D([0], [0], color=c_now, marker=mkr_now, alpha=alpha, ms=ms)
+				by_labels[label] = Line2D([0], [0], color=c_now, marker=mkr_now, lw=lw, alpha=alpha, ms=ms)
 
 		#add legend entry for S2COSMOS contours
 		if i == 0:

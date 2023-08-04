@@ -200,8 +200,8 @@ for i in range(n_rows):
 	#settings to plot the combined results as black dots with errorbars
 	label = 'All RQ analogues'
 	labels_ord.append(label)
-	data_kwargs = dict(color='k', label=label, linestyle='none', marker='o', ms=14., zorder=5)
-	ebar_kwargs = dict(ecolor='k', zorder=4)
+	data_kwargs = dict(color='k', label=label, linestyle='none', marker='o', ms=14., zorder=1)
+	ebar_kwargs = dict(ecolor='k', zorder=0)
 
 	#retrieve the results for the combined dataset
 	y_nc, ey_nc_lo, ey_nc_hi = data_nc['ALL']
@@ -242,8 +242,8 @@ for i in range(n_rows):
 
 	#plot the best-fit functions on the relevant axes
 	x_range = np.linspace(bin_edges[0], bin_edges[-1], 100)
-	ax_nc.plot(x_range, nc.schechter_model(x_range, nc_popt), c='k')
-	ax_cc.plot(x_range, nc.cumulative_model(x_range, cc_popt), c='k')
+	ax_nc.plot(x_range, nc.schechter_model(x_range, nc_popt), c='k', zorder=1, lw=2)
+	ax_cc.plot(x_range, nc.cumulative_model(x_range, cc_popt), c='k', zorder=1, lw=2)
 
 
 
@@ -254,8 +254,8 @@ for i in range(n_rows):
 	#settings to plot the combined results as black dots with errorbars
 	label = 'S2COSMOS (Simpson+19)'
 	labels_ord.append(label)
-	data_kwargs = dict(color=ps.crimson, label=label, linestyle='none', marker='D', ms=8., zorder=3, alpha=0.5)
-	ebar_kwargs = dict(ecolor=ps.crimson, zorder=2, alpha=0.5)
+	data_kwargs = dict(color=ps.crimson, label=label, linestyle='none', marker='D', ms=8., zorder=3, alpha=0.7)
+	ebar_kwargs = dict(ecolor=ps.crimson, zorder=2, alpha=0.7)
 
 	#plot the differential number counts
 	nc.plot_numcounts(
@@ -270,7 +270,7 @@ for i in range(n_rows):
 		ebar_kwargs=ebar_kwargs
 		)
 	#plot the best-fit Schechter function
-	ax_nc.plot(x_range, nc.schechter_model(x_range, nc_popt_S19), c=ps.crimson, alpha=0.5, linestyle='--')
+	ax_nc.plot(x_range, nc.schechter_model(x_range, nc_popt_S19), c=ps.crimson, alpha=0.7, linestyle='--', zorder=3, lw=2)
 
 	#plot the cumulative number counts
 	nc.plot_numcounts(
@@ -285,7 +285,7 @@ for i in range(n_rows):
 		ebar_kwargs=ebar_kwargs
 		)
 	#plot the best-fit Schechter function
-	ax_cc.plot(x_range, nc.cumulative_model(x_range, cc_popt_S19), c=ps.crimson, alpha=0.5, linestyle='--')
+	ax_cc.plot(x_range, nc.cumulative_model(x_range, cc_popt_S19), c=ps.crimson, alpha=0.7, linestyle='--', zorder=3, lw=2)
 
 
 	#################################
@@ -313,8 +313,8 @@ for i in range(n_rows):
 		#settings to plot the results as green squares with errorbars
 		label = 'Simulated overdensities'
 		labels_ord.append(label)
-		data_kwargs = dict(color=ps.green, label=label, linestyle='none', marker='s', ms=8., zorder=3, alpha=0.5)
-		ebar_kwargs = dict(ecolor=ps.green, zorder=2, alpha=0.5)
+		data_kwargs = dict(color=ps.teal, label=label, linestyle='none', marker='s', ms=8., zorder=5, alpha=0.7)
+		ebar_kwargs = dict(ecolor=ps.teal, zorder=4, alpha=0.7)
 
 		#retrieve the results for the combined dataset
 		y_nc, ey_nc_lo, ey_nc_hi = nc_sim_data[f'{Nmin_nc}gals']
@@ -332,7 +332,7 @@ for i in range(n_rows):
 			)
 		#plot the best fit
 		nc_popt_sim = [N0_nc, *nc_popt_S19[1:]]
-		ax_nc.plot(x_range, nc.schechter_model(x_range, nc_popt_sim), c=ps.green, alpha=0.5, linestyle=':')
+		ax_nc.plot(x_range, nc.schechter_model(x_range, nc_popt_sim), c=ps.teal, alpha=0.7, linestyle=':', zorder=5, lw=2)
 
 
 		#retrieve the results for the combined dataset
@@ -351,7 +351,7 @@ for i in range(n_rows):
 			)
 		#plot the best fit
 		cc_popt_sim = [N0_cc, *cc_popt_S19[1:]]
-		ax_cc.plot(x_range, nc.cumulative_model(x_range, cc_popt_sim), c=ps.green, alpha=0.5, linestyle=':')
+		ax_cc.plot(x_range, nc.cumulative_model(x_range, cc_popt_sim), c=ps.teal, alpha=0.7, linestyle=':', zorder=5, lw=2)
 
 
 	############################

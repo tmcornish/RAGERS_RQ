@@ -959,7 +959,6 @@ def mask_numcounts(x, y, limits=True, exclude_all_zero=True, Smin=None):
 
 
 
-
 def plot_numcounts(x, y, xerr=None, yerr=None, ax=None, cumulative=False, masks=None, weights=None, offset=0., data_kwargs={}, ebar_kwargs={}, limit_kwargs={}, **plot_kwargs):
 	'''
 	Plots the number counts data, either on an existing set of axes or on a new figure.
@@ -1213,6 +1212,8 @@ def cumulative_model(S, params):
 		G[a < 0] *= N0[:,None][a < 0]
 
 	return G.T
+
+
 
 
 def fit_cumulative_mcmc(x, y, yerr, nwalkers, niter, initial, offsets=0.01, return_sampler=False,  priors_min=[10., 1., -1.], priors_max=[15000., 10., 6.], plot_on_axes=False, **plot_kwargs):
