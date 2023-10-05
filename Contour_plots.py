@@ -173,7 +173,7 @@ for j in range(len(ax[0])):
 				label = r'$R = %.1f^{\prime}$'%gen.r_search_all[k]
 				mkr_now = ps.cycle_mkr[k]
 				ms = 8.
-				lw = 1.
+				lw = 1.5
 				nclr += 1
 
 			#retrieve the data to bin for this subplot

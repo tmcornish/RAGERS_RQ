@@ -604,7 +604,7 @@ def fit_schechter_mcmc(x, y, yerr, nwalkers, niter, initial, offsets=0.01, retur
 	Returns
 	----------
 	best: array
-			Best-fit parameters.
+		Medians of the parameter posteriors.
 
 	e_lo: array
 		Lower uncertainties on the best-fit parameters.
@@ -612,8 +612,12 @@ def fit_schechter_mcmc(x, y, yerr, nwalkers, niter, initial, offsets=0.01, retur
 	e_hi: array
 		Upper uncertainties on the best-fit parameters.
 
+	theta_max: array
+		Best-fit parameters.
+
 	sampler: EnsembleSamper
 		EnsembleSampler object obtained by running emcee. Only returned if return_sampler=True.
+
 
 	'''
 
@@ -880,9 +884,9 @@ def fit_schechter_mcmc(x, y, yerr, nwalkers, niter, initial, offsets=0.01, retur
 					plot_kwargs['ax'].text(xtext, ytext, best_fit_str, color=fc, ha='left', va='top', fontsize=fs, transform=transform)
 
 	if return_sampler:
-		return best, e_lo, e_hi, sampler
+		return best, e_lo, e_hi, theta_max, sampler
 	else:
-		return best, e_lo, e_hi
+		return best, e_lo, e_hi, theta_max
 
 
 def mask_numcounts(x, y, limits=True, exclude_all_zero=True, Smin=None):
@@ -1257,13 +1261,16 @@ def fit_cumulative_mcmc(x, y, yerr, nwalkers, niter, initial, offsets=0.01, retu
 	Returns
 	----------
 	best: array
-			Best-fit parameters.
+		Medians of the parameter posteriors.
 
 	e_lo: array
 		Lower uncertainties on the best-fit parameters.
 
 	e_hi: array
 		Upper uncertainties on the best-fit parameters.
+
+	theta_max: array
+		Best-fit parameters.
 
 	sampler: EnsembleSamper
 		EnsembleSampler object obtained by running emcee. Only returned if return_sampler=True.
@@ -1533,9 +1540,9 @@ def fit_cumulative_mcmc(x, y, yerr, nwalkers, niter, initial, offsets=0.01, retu
 					plot_kwargs['ax'].text(xtext, ytext, best_fit_str, color=fc, ha='left', va='top', fontsize=fs, transform=transform)
 
 	if return_sampler:
-		return best, e_lo, e_hi, sampler
+		return best, e_lo, e_hi, theta_max, sampler
 	else:
-		return best, e_lo, e_hi
+		return best, e_lo, e_hi, theta_max
 
 
 

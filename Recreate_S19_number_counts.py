@@ -30,7 +30,7 @@ if __name__ == '__main__':
 	randomise_fluxes = True		#randomly draw flux densities from possible values
 	comp_corr = True			#apply the completeness corrections to the number counts
 	randomise_comp = True		#calculate completeness corrections for each randomly drawn flux density
-	fit_schechter = True		#fits Schechter functions to the results
+	fit_schechter = False		#fits Schechter functions to the results
 	exclude_faint = True		#exclude faintest bins from Schechter fitting
 	compare_errors = True		#compare the uncertainties from S19 with the reconstruction performed here
 	main_only = gen.main_only	#use only sources from the MAIN region of S2COSMOS
@@ -204,7 +204,7 @@ if __name__ == '__main__':
 		[1400., 0.5, 0.4]])
 
 	x_range_plot = np.logspace(np.log10(bin_edges[0]), np.log10(bin_edges[-1]), 100)
-	ax1.plot(x_range_plot, nc.schechter_model(x_range_plot, S19_fit_params[0]), c='k', zorder=11, label='Simpson+19 best fit')
+	#ax1.plot(x_range_plot, nc.schechter_model(x_range_plot, S19_fit_params[0]), c='k', zorder=11, label='Simpson+19 best fit')
 
 	#create masks for plotting included vs excluded bins
 	plot_masks = nc.mask_numcounts(bin_centres, bin_heights, limits=False, Smin=3.)
@@ -357,7 +357,7 @@ if __name__ == '__main__':
 		yerr=(eN_lo,eN_hi),
 		ax=ax1,
 		offset=plot_offset,
-		masks=plot_masks,
+		#masks=plot_masks,
 		weights=weights,
 		data_kwargs=dict(
 			color=ps.grey,
@@ -416,6 +416,10 @@ if __name__ == '__main__':
 		print(gen.colour_string('Applying completeness corrections...', 'purple'))
 
 		N, eN_lo, eN_hi, counts_comp_corr, weights = nc.differential_numcounts(S850_rand, bin_edges, A, comp=comp_s2c, incl_poisson=True)
+		DELTA = np.abs(N - bin_heights) / bin_heights
+		print(DELTA)
+		print(DELTA[3:].min(), DELTA[3:].max())
+		print(np.median(DELTA[3:]))
 			
 		#write the results as a table to a FITS file
 		t_results = Table([bin_centres, N, eN_lo, eN_hi], names=['S850', 'N_comp_corr', 'eN_lo', 'eN_hi'])
@@ -432,7 +436,7 @@ if __name__ == '__main__':
 			yerr=(eN_lo,eN_hi),
 			ax=ax1,
 			offset=plot_offset,
-			masks=plot_masks,
+			#masks=plot_masks,
 			weights=weights,
 			data_kwargs=dict(
 				color=ps.crimson,
@@ -584,7 +588,9 @@ if __name__ == '__main__':
 	xtick_min_locs = list(np.arange(2,10,1)) + [20]
 	xtick_min_labels = [2, 5, 20]
 	ax1.set_xticks(xtick_min_locs, labels=[f'{s:g}' if s in xtick_min_labels else '' for s in xtick_min_locs], minor=True)
-
+	ax1.set_xlim(1.7740275558139138, 24.802320491472322)
+	ax2.set_ylim(0.026540054875864593, 2844.118795787999)
+	
 	#minimise unnecesary whitespace
 	f1.tight_layout()
 	#save the figure

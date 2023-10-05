@@ -19,7 +19,10 @@ import matplotlib as mpl
 ##################
 
 #toggle `switches' for varying functionality
-plot_sims = True		#plot the simulated number counts required to detect overdensity 
+plot_med = False		#plots the Schechter functions with the median parameter values instead of the true best-fit
+plot_sims = False		#plot the simulated number counts required to detect overdensity 
+plot_var_N0 = True	#plot the number counts fitted by varying N0 on the blank-field function
+save_separate = True	#makes separate plots for each radius in addition to the main plot
 
 #formatting of plots
 plt.style.use(ps.styledict)
@@ -114,10 +117,21 @@ nc_params_bf = np.load(PATH_PARAMS + f'Differential_bf.npz')
 cc_params_bf = np.load(PATH_PARAMS + f'Cumulative_bf.npz')
 
 #retrieve the best-fit parameters
-nc_popt_S19, enc_popt_lo_S19, enc_popt_hi_S19 = nc_params_bf['S2COSMOS']
-cc_popt_S19, ecc_popt_lo_S19, ecc_popt_hi_S19 = cc_params_bf['S2COSMOS']
+if plot_med:
+	nc_popt_S19 = nc_params_bf['S2COSMOS'][0]
+	cc_popt_S19 = cc_params_bf['S2COSMOS'][0]
+else:
+	nc_popt_S19 = nc_params_bf['best_S2COSMOS']
+	cc_popt_S19 = cc_params_bf['best_S2COSMOS']
 
 plot_offset_S19 = 0.01
+
+
+#table containing the best-fit N0 values when S0 and gamma are fixed to the blank-field values
+if plot_var_N0:
+	t_N0_nc = Table.read(PATH_PARAMS + 'Differential_N0_fits.txt', format='ascii')
+	t_N0_cc = Table.read(PATH_PARAMS + 'Cumulative_N0_fits.txt', format='ascii')
+
 
 
 #########################
@@ -141,6 +155,19 @@ for i in range(n_rows):
 	else:
 		ax_nc = f.add_subplot(n_rows, 2, nc_idx, sharex=ax['ax1'], sharey=ax['ax1'])
 		ax_cc = f.add_subplot(n_rows, 2, cc_idx, sharex=ax['ax2'], sharey=ax['ax2'])
+
+	if save_separate:
+		#differential counts
+		fr1, axr_nc = plt.subplots(1, 1)
+		#label x and y axes
+		axr_nc.set_xlabel(r'$S_{850}$ (mJy)')
+		axr_nc.set_ylabel(r'$dN/dS$ (deg$^{-2}$ mJy$^{-1}$)')
+
+		#differential counts
+		fr2, axr_cc = plt.subplots(1, 1)
+		#label x and y axes
+		axr_cc.set_xlabel(r'$S_{850}$ (mJy)')
+		axr_cc.set_ylabel(r'$N(>S)$ (deg$^{-2}$)')
 
 	ax[f'ax{nc_idx}'] = ax_nc
 	ax[f'ax{cc_idx}'] = ax_cc
@@ -193,6 +220,23 @@ for i in range(n_rows):
 			data_kwargs=data_kwargs
 			)
 
+		if save_separate:
+			#plot the results
+			nc.plot_numcounts(
+				bin_centres,
+				y_nc,
+				ax=axr_nc,
+				masks=plot_masks_nc,
+				data_kwargs=data_kwargs
+				)
+			nc.plot_numcounts(
+				bin_edges[:-1],
+				y_cc,
+				ax=axr_cc,
+				masks=plot_masks_cc,
+				data_kwargs=data_kwargs
+				)
+
 	#########################
 	#### ALL RQ GALAXIES ####
 	#########################
@@ -236,8 +280,12 @@ for i in range(n_rows):
 	cc_params = np.load(PATH_PARAMS + f'Cumulative_{r:.1f}am_{gen.n_gal}{gen.gal_type}.npz')
 
 	#retrieve the best-fit parameters
-	nc_popt, enc_popt_lo, enc_popt_hi = nc_params['ALL']
-	cc_popt, ecc_popt_lo, ecc_popt_hi = cc_params['ALL']
+	if plot_med:
+		nc_popt = nc_params['ALL'][0]
+		cc_popt = cc_params['ALL'][0]
+	else:
+		nc_popt = nc_params['best_ALL']
+		cc_popt = cc_params['best_ALL']
 
 
 	#plot the best-fit functions on the relevant axes
@@ -246,6 +294,41 @@ for i in range(n_rows):
 	ax_cc.plot(x_range, nc.cumulative_model(x_range, cc_popt), c='k', zorder=1, lw=2)
 
 
+	if save_separate:
+		nc.plot_numcounts(
+			bin_centres,
+			y_nc,
+			yerr=(ey_nc_lo, ey_nc_hi),
+			ax=axr_nc,
+			masks=plot_masks_nc,
+			data_kwargs=data_kwargs,
+			ebar_kwargs=ebar_kwargs
+			)
+		nc.plot_numcounts(
+			bin_edges[:-1],
+			y_cc,
+			yerr=(ey_cc_lo, ey_cc_hi),
+			ax=axr_cc,
+			masks=plot_masks_cc,
+			data_kwargs=data_kwargs,
+			ebar_kwargs=ebar_kwargs
+			)
+		axr_nc.plot(x_range, nc.schechter_model(x_range, nc_popt), c='k', zorder=1, lw=2)
+		axr_cc.plot(x_range, nc.cumulative_model(x_range, cc_popt), c='k', zorder=1, lw=2)
+
+
+	#plot the rescaled blank-field function if told to do so
+	if plot_var_N0:
+		N0_nc = t_N0_nc['N0'][t_N0_nc['r'] == r][0]
+		N0_cc = t_N0_cc['N0'][t_N0_cc['r'] == r][0]
+		nc_popt_new = np.array([N0_nc, nc_popt_S19[1], nc_popt_S19[2]])
+		cc_popt_new = np.array([N0_cc, cc_popt_S19[1], cc_popt_S19[2]])
+		ax_nc.plot(x_range, nc.schechter_model(x_range, nc_popt_new), c='k', linestyle=':', zorder=1, lw=2)
+		ax_cc.plot(x_range, nc.cumulative_model(x_range, cc_popt_new), c='k', linestyle=':', zorder=1, lw=2)
+
+		if save_separate:
+			axr_nc.plot(x_range, nc.schechter_model(x_range, nc_popt_new), c='k', linestyle=':', zorder=1, lw=2)
+			axr_cc.plot(x_range, nc.cumulative_model(x_range, cc_popt_new), c='k', linestyle=':', zorder=1, lw=2)
 
 	##################
 	#### S2COSMOS ####
@@ -287,6 +370,38 @@ for i in range(n_rows):
 	#plot the best-fit Schechter function
 	ax_cc.plot(x_range, nc.cumulative_model(x_range, cc_popt_S19), c=ps.crimson, alpha=0.7, linestyle='--', zorder=3, lw=2)
 
+
+
+	if save_separate:
+		#plot the differential number counts
+		nc.plot_numcounts(
+			S19_bin_centres,
+			N_S19,
+			yerr=(eN_S19_lo,eN_S19_hi),
+			ax=axr_nc,
+			offset=plot_offset_S19,
+			masks=plot_masks_nc_S19,
+			weights=weights_S19,
+			data_kwargs=data_kwargs,
+			ebar_kwargs=ebar_kwargs
+			)
+		#plot the best-fit Schechter function
+		axr_nc.plot(x_range, nc.schechter_model(x_range, nc_popt_S19), c=ps.crimson, alpha=0.7, linestyle='--', zorder=3, lw=2)
+
+		#plot the cumulative number counts
+		nc.plot_numcounts(
+			S19_bin_edges[:-1],
+			c_S19,
+			yerr=(ec_S19_lo,ec_S19_hi),
+			ax=axr_cc,
+			offset=plot_offset_S19,
+			masks=plot_masks_cc_S19,
+			weights=np.full(len(S19_bin_edges)-1, gen.A_s2c),
+			data_kwargs=data_kwargs,
+			ebar_kwargs=ebar_kwargs
+			)
+		#plot the best-fit Schechter function
+		axr_cc.plot(x_range, nc.cumulative_model(x_range, cc_popt_S19), c=ps.crimson, alpha=0.7, linestyle='--', zorder=3, lw=2)
 
 	#################################
 	#### SIMULATED NUMBER COUNTS ####
@@ -354,6 +469,33 @@ for i in range(n_rows):
 		ax_cc.plot(x_range, nc.cumulative_model(x_range, cc_popt_sim), c=ps.teal, alpha=0.7, linestyle=':', zorder=5, lw=2)
 
 
+		if save_separate:
+			nc.plot_numcounts(
+				sim_bin_centres,
+				y_nc,
+				yerr=(ey_nc_lo, ey_nc_hi),
+				ax=axr_nc,
+				offset=plot_offset_sim,
+				masks=plot_masks_nc,
+				data_kwargs=data_kwargs,
+				ebar_kwargs=ebar_kwargs
+				)
+			axr_nc.plot(x_range, nc.schechter_model(x_range, nc_popt_sim), c=ps.teal, alpha=0.7, linestyle=':', zorder=5, lw=2)
+
+			nc.plot_numcounts(
+				sim_bin_edges[:-1],
+				y_cc,
+				yerr=(ey_cc_lo, ey_cc_hi),
+				ax=axr_cc,
+				offset=plot_offset_sim,
+				masks=plot_masks_cc,
+				data_kwargs=data_kwargs,
+				ebar_kwargs=ebar_kwargs
+				)
+			axr_cc.plot(x_range, nc.cumulative_model(x_range, cc_popt_sim), c=ps.teal, alpha=0.7, linestyle=':', zorder=5, lw=2)
+
+
+
 	############################
 	#### FORMATTING OF AXES ####
 	############################
@@ -368,6 +510,39 @@ for i in range(n_rows):
 	by_label = dict(zip(labels, handles))
 	ax_nc.legend([by_label[l] for l in labels_ord], [l for l in labels_ord], loc=3)
 	ax_cc.legend([by_label[l] for l in labels_ord], [l for l in labels_ord], loc=3)
+
+	if save_separate:
+		axr_nc.text(0.95, 0.95, r'$R = %.0f^{\prime}$'%r, transform=axr_nc.transAxes, ha='right', va='top')
+		axr_cc.text(0.95, 0.95, r'$R = %.0f^{\prime}$'%r, transform=axr_cc.transAxes, ha='right', va='top')
+		axr_nc.legend([by_label[l] for l in labels_ord], [l for l in labels_ord], loc=3)
+		axr_cc.legend([by_label[l] for l in labels_ord], [l for l in labels_ord], loc=3)
+
+		#set the axes to log scale
+		axr_nc.set_xscale('log')
+		axr_nc.set_yscale('log')
+		axr_cc.set_xscale('log')
+		axr_cc.set_yscale('log')
+		#set the minor tick locations on the x-axis
+		axr_nc.set_xticks(xtick_min_locs, labels=xtick_min_labels, minor=True)
+		axr_cc.set_xticks(xtick_min_locs, labels=xtick_min_labels, minor=True)
+		#set the axes limits
+		axr_nc.set_xlim(1.5, 25.)
+		axr_cc.set_xlim(1.5, 25.)
+		axr_nc.set_ylim(0.05, 2500.)
+		axr_cc.set_ylim(0.05, 4000.)
+			
+		#force matplotlib to label with the actual numbers
+		axr_nc.get_xaxis().set_major_formatter(mpl.ticker.StrMethodFormatter('{x:.0f}'))
+		axr_cc.get_xaxis().set_major_formatter(mpl.ticker.StrMethodFormatter('{x:.0f}'))
+		axr_nc.get_yaxis().set_major_formatter(mpl.ticker.StrMethodFormatter('{x:g}'))
+		axr_cc.get_yaxis().set_major_formatter(mpl.ticker.StrMethodFormatter('{x:g}'))
+		#minimise unnecesary whitespace
+		fr1.tight_layout()
+		fr2.tight_layout()
+		frname1 = PATH_PLOTS + f'S850_number_counts_{r:.1f}_{gen.n_gal}{gen.gal_type}{sim_suffix}.png'
+		frname2 = PATH_PLOTS + f'S850_cumulative_counts_{r:.1f}_{gen.n_gal}{gen.gal_type}{sim_suffix}.png'
+		fr1.savefig(frname1, bbox_inches='tight', dpi=300)
+		fr2.savefig(frname2, bbox_inches='tight', dpi=300)
 
 
 ##############################

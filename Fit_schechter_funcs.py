@@ -57,7 +57,7 @@ def perform_fits(xbins, ybins, cumulative=False):
 	#fit to the differential number counts, excluding any bins below the the flux density limit
 	masks = nc.mask_numcounts(xbins, y, limits=False, exclude_all_zero=False, Smin=Smin)
 	if not cumulative:
-		popt, epopt_lo, epopt_hi, sampler = nc.fit_schechter_mcmc(
+		popt, epopt_lo, epopt_hi, best, sampler = nc.fit_schechter_mcmc(
 			xbins[masks[0]],
 			y[masks[0]],
 			ey[masks[0]],
@@ -67,7 +67,7 @@ def perform_fits(xbins, ybins, cumulative=False):
 			offsets_init,
 			return_sampler=True)
 	else:
-		popt, epopt_lo, epopt_hi, sampler = nc.fit_cumulative_mcmc(
+		popt, epopt_lo, epopt_hi, best, sampler = nc.fit_cumulative_mcmc(
 			xbins[masks[0]],
 			y[masks[0]],
 			ey[masks[0]],
@@ -81,7 +81,7 @@ def perform_fits(xbins, ybins, cumulative=False):
 	#add the sampler flatchain to the posteriors dictionary
 	post = sampler.flatchain
 
-	return params, post
+	return params, best, post
 
 #######################################################
 ###############    START OF SCRIPT    #################
@@ -134,8 +134,8 @@ if not os.path.exists(cc_post_file):
 	print(gen.colour_string('S2COSMOS', 'orange'))
 
 	#perform the fits and add the best-fit values and uncertainties to the dictionary in a 2D array
-	nc_params_dict['S2COSMOS'], nc_post_dict['S2COSMOS'] = perform_fits(bin_centres, nc_data['S2COSMOS'])
-	cc_params_dict['S2COSMOS'], cc_post_dict['S2COSMOS'] = perform_fits(bin_edges[:-1], cc_data['S2COSMOS'], cumulative=True)
+	nc_params_dict['S2COSMOS'], nc_params_dict[f'best_S2COSMOS'], nc_post_dict['S2COSMOS'] = perform_fits(bin_centres, nc_data['S2COSMOS'])
+	cc_params_dict['S2COSMOS'], cc_params_dict[f'best_S2COSMOS'], cc_post_dict['S2COSMOS'] = perform_fits(bin_edges[:-1], cc_data['S2COSMOS'], cumulative=True)
 
 	#save the created dictionaries in the destination files
 	np.savez_compressed(nc_params_file, **nc_params_dict)
@@ -186,8 +186,8 @@ for r, ncf, ccf in zip(radii, nc_files, cc_files):
 		print(gen.colour_string(k, 'blue'))
 
 		#perform the fits and add the best-fit values and uncertainties to the dictionary in a 2D array
-		nc_params_dict[k], nc_post_dict[k] = perform_fits(bin_centres, nc_data[k])
-		cc_params_dict[k], cc_post_dict[k] = perform_fits(bin_edges[:-1], cc_data[k], cumulative=True)
+		nc_params_dict[k], nc_params_dict[f'best_{k}'], nc_post_dict[k] = perform_fits(bin_centres, nc_data[k])
+		cc_params_dict[k], cc_params_dict[f'best_{k}'], cc_post_dict[k] = perform_fits(bin_edges[:-1], cc_data[k], cumulative=True)
 
 
 	#save the created dictionaries in the destination files

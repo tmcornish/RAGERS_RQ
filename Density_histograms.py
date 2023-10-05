@@ -53,7 +53,7 @@ for i in range(len(settings_print)):
 	else:
 		settings_print[i] += 'n'
 
-SNR_thresh = 3.0		#SNR threshold to use for peak finding
+SNR_thresh = 5.		#SNR threshold to use for peak finding
 #bin_edges = np.arange(0., 9000., 500.)
 nbins = 10			#number of bins to use for the smallest radius
 N_aper_bf = 10000	#number of apertures to use for measuring the blank field
@@ -252,7 +252,7 @@ coords_bf = SkyCoord(RA_bf, DEC_bf, unit='deg')
 ######################
 
 #axes labels
-xlabel = r'SMG density (deg$^{-2}$)'
+xlabel = r'Source density (deg$^{-2}$)'
 ylabel = r'Normalised counts'
 
 #set up a figure for the current radius
@@ -466,13 +466,14 @@ for i in range(len(gen.r_search_all)):
 	#####################
 	# Overdensity limit #
 	#####################
-
+	'''
 	if SNR_thresh == 4.:
 		#retrieve the overdensity limits for the current radius
 		od_lim_nc = t_od_nc['surface_density'][i]
 		od_lim_cc = t_od_cc['surface_density'][i]
 		ax[nrow,ncol].axvline(od_lim_nc, color=ps.teal, alpha=0.5, linestyle=':')
 		ax[nrow,ncol].axvline(od_lim_cc, color=ps.teal, alpha=0.5, linestyle='-.')
+	'''
 
 
 

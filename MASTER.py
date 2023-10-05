@@ -21,9 +21,10 @@ rq_sample = False			#select the sample of radio-quiet massive galaxies
 calc_numcounts = False		#calculate number counts
 plot_areas = False			#plot the areas searched for a given sample of RQ galaxies
 fit_schechter = False		#run MCMC to fit Schechter functions to the results
+fit_N0 = False				#use chi-squared minimisation to scale the blank-field Schechter functions to the data
 param_tables = False			#format best-fit results from MCMC into a LaTeX-style table
-plot_numcounts = False		#plot the number counts
-contour_plot = True			#make contour plots for the Schechter fit parameters
+plot_numcounts = True		#plot the number counts
+contour_plot = False			#make contour plots for the Schechter fit parameters
 sig_test = False				#find density required to detect signal
 density_hists = False		#construct histograms comparing the SMG density in different environments
 backup = False				#backup selected directories to a folder marked with the current date
@@ -41,6 +42,7 @@ settings = [
 	calc_numcounts,
 	plot_areas,
 	fit_schechter,
+	fit_N0,
 	param_tables,
 	plot_numcounts,
 	contour_plot,
@@ -59,6 +61,7 @@ proc_names = [
 	'Constructing number counts',
 	'Plotting search areas',
 	'Fitting Schechter functions',
+	'Fitting Schechter functions (constant N0)',
 	'Making LaTeX tables of best-fit parameters',
 	'Plotting number counts',
 	'Making contour plots',
@@ -77,6 +80,7 @@ run_str = [
 	'python Calculate_numcounts.py',
 	'python Plot_search_areas.py',
 	'python Fit_schechter_funcs.py',
+	'python Fit_N0_only.py',
 	'python Make_schechter_param_tables.py',
 	'python Plot_numcounts.py',
 	'python Contour_plots.py', 
