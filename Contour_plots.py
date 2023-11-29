@@ -222,7 +222,7 @@ for j in range(len(ax[0])):
 		#ax[i][j].set_xlim(min(xbins), max(xbins))
 		#ax[i][j].set_ylim(min(ybins), max(ybins))
 
-	ax[0][j].legend([by_labels[k] for k in by_labels.keys()], [k for k in by_labels.keys()])
+	ax[0][j].legend([by_labels[k] for k in by_labels.keys()], [k for k in by_labels.keys()], prop={'size':20})
 
 ##############################
 #### FORMATTING OF FIGURE ####

@@ -22,7 +22,7 @@ import matplotlib as mpl
 plot_med = False		#plots the Schechter functions with the median parameter values instead of the true best-fit
 plot_sims = False		#plot the simulated number counts required to detect overdensity 
 plot_var_N0 = True	#plot the number counts fitted by varying N0 on the blank-field function
-save_separate = True	#makes separate plots for each radius in addition to the main plot
+save_separate = False	#makes separate plots for each radius in addition to the main plot
 
 #formatting of plots
 plt.style.use(ps.styledict)
@@ -504,12 +504,13 @@ for i in range(n_rows):
 	ax_nc.text(0.95, 0.95, r'$R = %.0f^{\prime}$'%r, transform=ax_nc.transAxes, ha='right', va='top')
 	ax_cc.text(0.95, 0.95, r'$R = %.0f^{\prime}$'%r, transform=ax_cc.transAxes, ha='right', va='top')
 
-	#add a legend in the bottom left corner, removing duplicate labels
-	handles, labels = ax_nc.get_legend_handles_labels()
-	labels_ord = [s for s in labels_ord if s in labels]
-	by_label = dict(zip(labels, handles))
-	ax_nc.legend([by_label[l] for l in labels_ord], [l for l in labels_ord], loc=3)
-	ax_cc.legend([by_label[l] for l in labels_ord], [l for l in labels_ord], loc=3)
+	if i == (n_rows - 1):
+		#add a legend in the bottom left corner, removing duplicate labels
+		handles, labels = ax_nc.get_legend_handles_labels()
+		labels_ord = [s for s in labels_ord if s in labels]
+		by_label = dict(zip(labels, handles))
+		ax_nc.legend([by_label[l] for l in labels_ord], [l for l in labels_ord], loc=3, prop={'size':20})
+		ax_cc.legend([by_label[l] for l in labels_ord], [l for l in labels_ord], loc=3, prop={'size':20})
 
 	if save_separate:
 		axr_nc.text(0.95, 0.95, r'$R = %.0f^{\prime}$'%r, transform=axr_nc.transAxes, ha='right', va='top')
