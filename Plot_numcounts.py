@@ -242,7 +242,10 @@ for i in range(n_rows):
 	#########################
 
 	#settings to plot the combined results as black dots with errorbars
-	label = 'All RQ analogues'
+	if gen.gal_type == 'rq':
+		label = 'All RQ analogues'
+	else:
+		label = 'All MLAGN/HLAGN analogues'
 	labels_ord.append(label)
 	data_kwargs = dict(color='k', label=label, linestyle='none', marker='o', ms=14., zorder=1)
 	ebar_kwargs = dict(ecolor='k', zorder=0)
@@ -509,8 +512,8 @@ for i in range(n_rows):
 		handles, labels = ax_nc.get_legend_handles_labels()
 		labels_ord = [s for s in labels_ord if s in labels]
 		by_label = dict(zip(labels, handles))
-		ax_nc.legend([by_label[l] for l in labels_ord], [l for l in labels_ord], loc=3, prop={'size':20})
-		ax_cc.legend([by_label[l] for l in labels_ord], [l for l in labels_ord], loc=3, prop={'size':20})
+		ax_nc.legend([by_label[l] for l in labels_ord], [l for l in labels_ord], loc=3, prop={'size':19})
+		ax_cc.legend([by_label[l] for l in labels_ord], [l for l in labels_ord], loc=3, prop={'size':19})
 
 	if save_separate:
 		axr_nc.text(0.95, 0.95, r'$R = %.0f^{\prime}$'%r, transform=axr_nc.transAxes, ha='right', va='top')
