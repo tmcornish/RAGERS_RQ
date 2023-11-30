@@ -16,7 +16,6 @@ from astropy.table import Table
 from matplotlib.ticker import AutoMinorLocator
 import emcee
 import plotstyle as ps
-import mpmath
 from scipy.special import gamma, gammaincc, expn 
 
 def FD_like(x, theta):

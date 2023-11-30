@@ -22,8 +22,8 @@ if pf == 'macOS':
 	PATH_RAGERS = '/Users/thomascornish/Desktop/PhD/RAGERS/'
 	PATH_SIMS = PATH_RAGERS + 'Simulated_data/'
 elif pf == 'Linux':
-	PATH_RAGERS = '/home/cornisht/RAGERS/'
-	PATH_SIMS = '/media/cornisht/DATA/RAGERS/Simulated_data/'
+	PATH_RAGERS = '/media/cornisht/WorkDrive/PhD/RAGERS/'
+	PATH_SIMS = '/media/cornisht/WorkDrive/DATA/RAGERS/Simulated_data/'
 else:
 	PATH_RAGERS = './'
 	PATH_SIMS = PATH_RAGERS + 'Simulated_data/'

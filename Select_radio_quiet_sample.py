@@ -157,7 +157,7 @@ REF_CAT = PATH_CATS + 'COSMOS2020_CLASSIC_R1_v2.0.fits'
 #load the catalogue
 data_ref = Table.read(REF_CAT, format='fits')
 #keep only relevant columns from COSMOS2020 catalogue
-cols_keep = ['ALPHA_J2000', 'DELTA_J2000', 'ez_z_phot', 'ez_z160', 'ez_z840', 'ez_mass', 'ez_mass_p160', 'ez_mass_p840']
+cols_keep = ['ALPHA_J2000', 'DELTA_J2000', 'ez_z_phot', 'ez_z160', 'ez_z840', 'ez_mass', 'ez_mass_p160', 'ez_mass_p840', 'ez_sfr', 'ez_sfr_p160', 'ez_sfr_p840']
 data_ref = data_ref[cols_keep]
 #create mask to remove all sources with no redshift or stellar mass
 mask = ~data_ref['ez_z_phot'].mask * ~data_ref['ez_mass'].mask
