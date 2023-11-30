@@ -481,8 +481,8 @@ if plot_selection:
 	print(gen.colour_string('Plotting selection...', 'purple'))
 
 	#plot the values with their errorbars
-	ax1.plot(z_matched_RQ, Mstar_matched_RQ, marker='.', c=ps.magenta, linestyle='None', alpha=0.3, ms=3., label='COSMOS2020 sample (RQ)')
-	ax1.plot(z_matched_RL, Mstar_matched_RL, marker='.', c=ps.dark_blue, linestyle='None', alpha=0.3, ms=3., label='COSMOS2020 sample (RL)')
+	ax1.plot(z_matched_RQ, Mstar_matched_RQ, marker='.', c=ps.dark_blue, linestyle='None', alpha=0.2, ms=3., label='COSMOS2020 sample (RQ)')
+	ax1.plot(z_matched_RL, Mstar_matched_RL, marker='.', c=ps.magenta, linestyle='None', alpha=0.3, ms=3., label='COSMOS2020 sample (RL)')
 	#ax1.errorbar(z_matched, Mstar_matched, xerr=(ezlo_matched,ezhi_matched), yerr=(eMstarlo_matched,eMstarhi_matched), ecolor=lilac, fmt='None', alpha=0.3)
 
 
