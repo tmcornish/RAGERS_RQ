@@ -157,7 +157,7 @@ REF_CAT = PATH_CATS + 'COSMOS2020_CLASSIC_R1_v2.0.fits'
 #load the catalogue
 data_ref = Table.read(REF_CAT, format='fits')
 #keep only relevant columns from COSMOS2020 catalogue
-cols_keep = ['ALPHA_J2000', 'DELTA_J2000', 'ez_z_phot', 'ez_z160', 'ez_z840', 'ez_mass', 'ez_mass_p160', 'ez_mass_p840', 'ez_sfr', 'ez_sfr_p160', 'ez_sfr_p840']
+cols_keep = ['ALPHA_J2000', 'DELTA_J2000', 'ez_z_phot', 'ez_z160', 'ez_z840', 'ez_mass', 'ez_mass_p160', 'ez_mass_p840', 'ez_sfr', 'ez_sfr_p160', 'ez_sfr_p840', 'ez_restU', 'ez_restU_err', 'ez_restB', 'ez_restB_err', 'ez_restV', 'ez_restV_err', 'ez_restJ', 'ez_restJ_err', 'lp_MNUV', 'lp_MR', 'lp_MJ']
 data_ref = data_ref[cols_keep]
 #create mask to remove all sources with no redshift or stellar mass
 mask = ~data_ref['ez_z_phot'].mask * ~data_ref['ez_mass'].mask
@@ -481,8 +481,8 @@ if plot_selection:
 	print(gen.colour_string('Plotting selection...', 'purple'))
 
 	#plot the values with their errorbars
-	ax1.plot(z_matched_RQ, Mstar_matched_RQ, marker='.', c=ps.dark_blue, linestyle='None', alpha=0.2, ms=3., label='COSMOS2020 sample (RQ)')
-	ax1.plot(z_matched_RL, Mstar_matched_RL, marker='.', c=ps.magenta, linestyle='None', alpha=0.3, ms=3., label='COSMOS2020 sample (RL)')
+	ax1.plot(z_matched_RQ, Mstar_matched_RQ, marker='o', c=ps.magenta, linestyle='None', alpha=0.3, ms=1.5, label='COSMOS2020 sample (RQ)')
+	ax1.plot(z_matched_RL, Mstar_matched_RL, marker='^', c=ps.dark_blue, linestyle='None', alpha=0.6, ms=2, label='COSMOS2020 sample\n(MLAGN/HLAGN)')
 	#ax1.errorbar(z_matched, Mstar_matched, xerr=(ezlo_matched,ezhi_matched), yerr=(eMstarlo_matched,eMstarhi_matched), ecolor=lilac, fmt='None', alpha=0.3)
 
 

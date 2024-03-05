@@ -47,7 +47,7 @@ bin_edges_all = [
 	np.array([2., 3., 3.6, 4.2, 4.9, 5.7, 6.6, 7.7, 9., 10.4, 12.1, 14.1, 16.3, 19., 22. ])
 	]
 '''
-gal_type = 'rl'	#type of counterpart to be analysed (rq or rl)
+gal_type = 'rq'	#type of counterpart to be analysed (rq or rl)
 n_gal = 1		#minimum number of counterparts required per RL galaxy
 sens_lim = 1.3	#SCUBA-2 sensitivity limit (mJy) for searching for submm companions 
 nsim = 10000	#number of simulated datasets to generate when constructing number counts

@@ -37,7 +37,7 @@ import stats
 ##################
 
 #toggle `switches' for additional functionality
-incl_rl = False			#make histograms for the environments of RL analogues as well
+incl_rl = True			#make histograms for the environments of RL analogues as well
 all_fig = False			#make a figure showing all histograms on one set of axes
 settings = [
 	incl_rl
@@ -53,7 +53,7 @@ for i in range(len(settings_print)):
 	else:
 		settings_print[i] += 'n'
 
-SNR_thresh = 5.		#SNR threshold to use for peak finding
+SNR_thresh = 1.7		#SNR threshold to use for peak finding
 #bin_edges = np.arange(0., 9000., 500.)
 nbins = 10			#number of bins to use for the smallest radius
 N_aper_bf = 10000	#number of apertures to use for measuring the blank field
@@ -452,8 +452,8 @@ for i in range(len(gen.r_search_all)):
 		counts_rl, bins_rl, _ = ax[nrow,ncol].hist(density_rl, weights=weights_rl, bins=bins_bf, color=ps.dark_blue, linestyle=':', label=rl_label, histtype='step')
 		#plot the median and shade the region between the 16th and 84th percentiles
 		p16, p50, p84 = np.percentile(density_rl, [stats.p16, 50, stats.p84])
-		ax[nrow,ncol].axvline(p50, color=ps.dark_blue, alpha=0.5)
-		ax[nrow,ncol].axvspan(p16, p84, color=ps.dark_blue, hatch='|', alpha=0.1)
+		ax[nrow,ncol].axvline(p50, color=ps.dark_blue, alpha=0.5, linestyle=':')
+		ax[nrow,ncol].axvspan(p16, p84, color=ps.dark_blue, hatch='+', alpha=0.1)
 		if all_fig:
 			ax_rl.hist(density_rl, weights=weights_rl, bins=bins_bf, color=c_now, alpha=alpha, label=label, histtype='step')
 

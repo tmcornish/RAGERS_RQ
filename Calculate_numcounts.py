@@ -613,8 +613,8 @@ if __name__ == '__main__':
 	print(gen.colour_string(f'Calculating results for S2COSMOS.', 'orange'))
 
 	#files in which the results will be stored
-	nc_bf_file = PATH_COUNTS + 'Differential_with_errs_bf.npz'
-	cc_bf_file = PATH_COUNTS + 'Cumulative_with_errs_bf.npz'
+	nc_bf_file = PATH_COUNTS + 'Differential_with_errs_bf_raw.npz'
+	cc_bf_file = PATH_COUNTS + 'Cumulative_with_errs_bf_raw.npz'
 
 	#create dictionaries for storing the results
 	nc_bf_dict = {'bin_edges' : s2c_bin_edges}
