@@ -1082,8 +1082,8 @@ def sample_walkers(X, func, flattened_chain, nsamples):
 	draw = np.floor(np.random.uniform(0,len(flattened_chain),size=nsamples)).astype(int)
 	thetas = flattened_chain[draw]
 	for i in thetas:
-	    mod = func(X, i)
-	    models.append(mod)
+		mod = func(X, i)
+		models.append(mod)
 	spread_hi = np.percentile(models,p84,axis=0)
 	spread_lo = np.percentile(models,p16,axis=0)
 	med_model = np.median(models,axis=0)
