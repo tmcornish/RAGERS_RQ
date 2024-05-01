@@ -191,6 +191,19 @@ for ax,r in zip([ax1, ax2, ax3, ax4],[1, 2, 4, 6]):
 	#label the axes with the radius
 	#ax.text(0.05, 0.95, r'$R = %i^{\prime}$'%r, va='top', ha='left', transform=ax.transAxes)
 	ax.text(0.95, 0.58, r'$R = %i^{\prime}$'%r, va='center', ha='right', transform=ax.transAxes)
+
+	#retrieve the x and y limits again
+	xmin, xmax = ax.get_xlim()
+	ymin, ymax = ax.get_ylim()
+	#plot a Gaussian with width 1 centred at 0
+	x_g = np.linspace(xmin, xmax, 1000)
+	y_g = stats.gaussian(x_g, 0, 1)
+	ax.plot(x_g, y_g, c='k', alpha=0.2, zorder=0)
+
+	#reset the x and y limits
+	ax.set_xlim(xmin, xmax)
+	ax.set_ylim(ymin, ymax)
+
 '''
 legend_elements = [
 	Line2D([0], [0], color='w', mec='k', mfc='k', marker='o', ms=7., alpha=0.8, label='RQ'),
