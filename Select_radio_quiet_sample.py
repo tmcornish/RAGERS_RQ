@@ -361,7 +361,7 @@ with open(N_matched_file, 'w') as file:
 		#begin by plotting the RAGERS RL sample
 		ax1.plot(z_rl, Mstar_rl, linestyle='none', marker='o', c='k', ms=5., label='RAGERS sample', zorder=10.)
 		if include_lims:
-			ax1.quiver(z_rl[Mstar_lims], Mstar_rl[Mstar_lims], 0., -1., color='k', scale=scale, scale_units='inches', width=aw, headwidth=hw, headlength=hl, headaxislength=hal, zorder=9.)
+			ax1.quiver(z_rl[Mstar_lims], Mstar_rl[Mstar_lims], 0., -1., color='k', scale=ps.scale, scale_units='inches', width=ps.aw, headwidth=ps.hw, headlength=ps.hl, headaxislength=ps.hal, zorder=9.)
 
 	'''
 	#create a mask that's initially all False (one for RQ and one for RL galaxies)
