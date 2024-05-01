@@ -18,6 +18,7 @@ from matplotlib.lines import Line2D
 from matplotlib.legend_handler import HandlerTuple
 from matplotlib.patches import Rectangle
 
+
 #######################################################
 ###############    START OF SCRIPT    #################
 #######################################################
@@ -118,9 +119,15 @@ for ax,r in zip([ax1, ax2, ax3, ax4],[1, 2, 4, 6]):
 
 	X_all = np.concatenate([X_rq, X_rl])
 	bins = np.linspace(X_all.min(), X_all.max(), 11)
+	#bin the data so that the maxmima can be retrieved prior to plotting
+	hist_rq, _ = np.histogram(X_rq, bins=bins)
+	hist_rl, _ = np.histogram(X_rl, bins=bins)
 
-	ax.hist(X_rq, bins=bins, color=ps.magenta, histtype='step', density=True, label='RQ_analogues')
-	ax.hist(X_rl, bins=bins, color=ps.dark_blue, histtype='step', linestyle=':', density=True, label='HLAGN/MLAGN analogues')
+	#plot the histograms, normalised such that the maximum is 1
+	ax.hist(X_rq, bins=bins, color=ps.magenta, histtype='step', weights=[1/hist_rq.max()]*len(X_rq), label='RQ_analogues')
+	ax.hist(X_rl, bins=bins, color=ps.dark_blue, histtype='step', linestyle=':', weights=[1/hist_rl.max()]*len(X_rl), label='HLAGN/MLAGN analogues')
+
+
 
 	print(gen.colour_string(f'R = {r} arcmin'))
 	
