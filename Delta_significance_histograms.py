@@ -17,6 +17,7 @@ from matplotlib.cm import ScalarMappable
 from matplotlib.lines import Line2D
 from matplotlib.legend_handler import HandlerTuple
 from matplotlib.patches import Rectangle
+from scipy.special import erf
 
 
 #######################################################
@@ -124,33 +125,50 @@ for ax,r in zip([ax1, ax2, ax3, ax4],[1, 2, 4, 6]):
 	hist_rl, _ = np.histogram(X_rl, bins=bins)
 
 	#plot the histograms, normalised such that the maximum is 1
-	ax.hist(X_rq, bins=bins, color=ps.magenta, histtype='step', weights=[1/hist_rq.max()]*len(X_rq), label='RQ_analogues')
-	ax.hist(X_rl, bins=bins, color=ps.dark_blue, histtype='step', linestyle=':', weights=[1/hist_rl.max()]*len(X_rl), label='HLAGN/MLAGN analogues')
+	ax.hist(X_rq, bins=bins, color=ps.magenta, histtype='step', density=True, label='RQ_analogues')
+	ax.hist(X_rl, bins=bins, color=ps.dark_blue, histtype='step', linestyle=':', density=True, label='HLAGN/MLAGN analogues')
 
 
 
 	print(gen.colour_string(f'R = {r} arcmin'))
 	
-	print(gen.colour_string('RQ', 'purple'))
-	print(f'f(underdense) = {(X_rq < -1).sum() / len(X_rq)}')
-	print(f'f(average) = {((X_rq >= -1) * (X_rq <= 1.)).sum() / len(X_rq)}')
-	print(f'f(overdense) = {(X_rq > 1).sum() / len(X_rq)}')
+	'''print(gen.colour_string('RQ', 'purple'))
+	print(f'f(<-3) = {(X_rq < -3).sum() / len(X_rq)}')
+	print(f'f(<-1) = {(X_rq < -1).sum() / len(X_rq)}')
+	print(f'f(-1 -> 1) = {((X_rq >= -1) * (X_rq <= 1.)).sum() / len(X_rq)}')
+	print(f'f(>1) = {(X_rq > 1).sum() / len(X_rq)}')
+	print(f'f(>3) = {(X_rq > 3).sum() / len(X_rq)}')
 	print(gen.colour_string('HLAGN/MLAGN', 'purple'))
-	print(f'f(underdense) = {(X_rl < -1).sum() / len(X_rl)}')
-	print(f'f(average) = {((X_rl >= -1) * (X_rl <= 1.)).sum() / len(X_rl)}')
-	print(f'f(overdense) = {(X_rl > 1).sum() / len(X_rl)}')
+	print(f'f(<-3) = {(X_rl < -3).sum() / len(X_rl)}')
+	print(f'f(<-1) = {(X_rl < -1).sum() / len(X_rl)}')
+	print(f'f(-1 -> 1) = {((X_rl >= -1) * (X_rl <= 1.)).sum() / len(X_rl)}')
+	print(f'f(>1) = {(X_rl > 1).sum() / len(X_rl)}')
+	print(f'f(>3) = {(X_rl > 3).sum() / len(X_rl)}')
 	print(gen.colour_string('ALL', 'purple'))
-	print(f'f(underdense) = {((X_rl < -1).sum() + (X_rq < -1).sum())/ (len(X_rl)+len(X_rq))}')
-	print(f'f(average) = {(((X_rl >= -1) * (X_rl <= 1.)).sum() + ((X_rq >= -1) * (X_rq <= 1.)).sum())/ (len(X_rl)+len(X_rq))}')
-	print(f'f(overdense) = {((X_rl > 1).sum() + (X_rq > 1.).sum())/ (len(X_rl)+len(X_rq))}')
-	'''
-	print(gen.colour_string('RQ', 'purple'))
-	print(f'f(overdense) = {(delta_rq > 0).sum() / len(delta_rq)}')
-	print(f'f(underdense) = {(delta_rq <= 0).sum() / len(delta_rq)}')
+	print(f'f(<-3) = {((X_rl < -3).sum() + (X_rq < -3).sum())/ (len(X_rl)+len(X_rq))}')
+	print(f'f(<-1) = {((X_rl < -1).sum() + (X_rq < -1).sum())/ (len(X_rl)+len(X_rq))}')
+	print(f'f(-1 -> 1) = {(((X_rl >= -1) * (X_rl <= 1.)).sum() + ((X_rq >= -1) * (X_rq <= 1.)).sum())/ (len(X_rl)+len(X_rq))}')
+	print(f'f(>1) = {((X_rl > 1).sum() + (X_rq > 1.).sum())/ (len(X_rl)+len(X_rq))}')
+	print(f'f(>3) = {((X_rl > 3).sum() + (X_rq > 3.).sum())/ (len(X_rl)+len(X_rq))}')'''
+
+	'''print(gen.colour_string('RQ', 'purple'))
+	print(f'N(<-3) = {(X_rq < -3).sum()}')
+	print(f'N(<-1) = {(X_rq < -1).sum()}')
+	print(f'N(-1 -> 1) = {((X_rq >= -1) * (X_rq <= 1.)).sum()}')
+	print(f'N(>1) = {(X_rq > 1).sum()}')
+	print(f'N(>3) = {(X_rq > 3).sum()}')
 	print(gen.colour_string('HLAGN/MLAGN', 'purple'))
-	print(f'f(overdense) = {(delta_rl > 0).sum() / len(delta_rl)}')
-	print(f'f(underdense) = {(delta_rl <= 0).sum() / len(delta_rl)}')
-	'''
+	print(f'N(<-3) = {(X_rl < -3).sum()}')
+	print(f'N(<-1) = {(X_rl < -1).sum()}')
+	print(f'N(-1 -> 1) = {((X_rl >= -1) * (X_rl <= 1.)).sum()}')
+	print(f'N(>1) = {(X_rl > 1).sum()}')
+	print(f'N(>3) = {(X_rl > 3).sum()}')
+	print(gen.colour_string('ALL', 'purple'))
+	print(f'N(<-3) = {((X_rl < -3).sum() + (X_rq < -3).sum())}')
+	print(f'N(<-1) = {((X_rl < -1).sum() + (X_rq < -1).sum())}')
+	print(f'N(-1 -> 1) = {(((X_rl >= -1) * (X_rl <= 1.)).sum() + ((X_rq >= -1) * (X_rq <= 1.)).sum())}')
+	print(f'N(>1) = {((X_rl > 1).sum() + (X_rq > 1.).sum())}')
+	print(f'N(>3) = {((X_rl > 3).sum() + (X_rq > 3.).sum())}')'''
 	#add a horizontal line at 1
 	xmin, xmax = ax.get_xlim()
 	ymin, ymax = ax.get_ylim()
@@ -165,7 +183,7 @@ for ax,r in zip([ax1, ax2, ax3, ax4],[1, 2, 4, 6]):
 	#ax.set_ylim(ymin, ymax)
 
 	#add some space to the top of the subplot
-	ymin, ymax = ax.set_ylim(ymin, ymax*1.5)
+	ymin, ymax = ax.set_ylim(ymin, ymax*1.6)
 	ymax_hists = ymax * 0.67
 
 	#add lines for the medians
@@ -197,12 +215,38 @@ for ax,r in zip([ax1, ax2, ax3, ax4],[1, 2, 4, 6]):
 	ymin, ymax = ax.get_ylim()
 	#plot a Gaussian with width 1 centred at 0
 	x_g = np.linspace(xmin, xmax, 1000)
-	y_g = stats.gaussian(x_g, 0, 1)
+	y_g = stats.gaussian(x_g, 0, 1) / np.sqrt(2. * np.pi)
 	ax.plot(x_g, y_g, c='k', alpha=0.2, zorder=0)
 
 	#reset the x and y limits
 	ax.set_xlim(xmin, xmax)
 	ax.set_ylim(ymin, ymax)
+
+	#fraction of normal distribution above 1 and 3 sigma
+	f_g1 = 0.5 * (1 - erf(1/np.sqrt(2)))
+	f_g3 = 0.5 * (1 - erf(3/np.sqrt(2)))
+	N_exp_rq1 = f_g1 * len(X_rq)
+	N_exp_rl1 = f_g1 * len(X_rl)
+	N_exp_rq3 = f_g3 * len(X_rq)
+	N_exp_rl3 = f_g3 * len(X_rl)
+	N_exp_all1 = f_g1 * (len(X_rq) + len(X_rl))
+	N_exp_all3 = f_g3 * (len(X_rl) + len(X_rq))
+
+	print(gen.colour_string('RQ', 'purple'))
+	print(f'N(<-3 & >G) = {np.round((X_rq < -3).sum() - N_exp_rq3)}')
+	print(f'N(<-1 & >G) = {np.round((X_rq < -1).sum() - N_exp_rq1)}')
+	print(f'N(>1 & >G) = {np.round((X_rq > 1).sum() - N_exp_rq1)}')
+	print(f'N(>3 & G) = {np.round((X_rq > 3).sum() - N_exp_rq3)}')
+	print(gen.colour_string('HLAGN/MLAGN', 'purple'))
+	print(f'N(<-3 & >G) = {np.round((X_rl < -3).sum() - N_exp_rl3)}')
+	print(f'N(<-1 & >G) = {np.round((X_rl < -1).sum() - N_exp_rl1)}')
+	print(f'N(>1 & >G) = {np.round((X_rl > 1).sum() - N_exp_rl1)}')
+	print(f'N(>3 & >G) = {np.round((X_rl > 3).sum() - N_exp_rl3)}')
+	print(gen.colour_string('ALL', 'purple'))
+	print(f'N(<-3 & >G) = {np.round(((X_rl < -3).sum() + (X_rq < -3).sum()) - N_exp_all3)}')
+	print(f'N(<-1 & >G) = {np.round(((X_rl < -1).sum() + (X_rq < -1).sum()) - N_exp_all1)}')
+	print(f'N(>1 & >G) = {np.round(((X_rl > 1).sum() + (X_rq > 1.).sum()) - N_exp_all1)}')
+	print(f'N(>3 & >G) = {np.round(((X_rl > 3).sum() + (X_rq > 3.).sum()) - N_exp_all3)}')
 
 '''
 legend_elements = [
