@@ -187,12 +187,14 @@ for ax,r in zip([ax1, ax2, ax3, ax4],[1, 2, 4, 6]):
 	ymax_hists = ymax * 0.67
 
 	#add lines for the medians
+	print(f'median(RQ) = {np.median(X_rq)}')
+	print(f'median(HLAGN/MLAGN) = {np.median(X_rl)}')
 	ax.plot([np.median(X_rq)]*2, [ymin, ymax_hists], c=ps.magenta)
 	ax.plot([np.median(X_rl)]*2, [ymin, ymax_hists], c=ps.dark_blue, linestyle=':')
 	#1sigma range
-	#ax.fill_between(np.percentile(X_rq, q=[stats.p16, stats.p84]), y1=[ymax_hists]*2, color=ps.magenta,  hatch='\\', alpha=0.2)
-	#ax.fill_between(np.percentile(X_rl, q=[stats.p16, stats.p84]), y1=[ymax_hists]*2, color=ps.dark_blue,  hatch='/', alpha=0.2)
-	ax.fill_between([-1., 1.], y1=[ymax]*2, color='k', alpha=0.1, hatch='/')
+	ax.fill_between(np.percentile(X_rq, q=[stats.p16, stats.p84]), y1=[ymax_hists]*2, color=ps.magenta,  hatch='\\', alpha=0.1)
+	ax.fill_between(np.percentile(X_rl, q=[stats.p16, stats.p84]), y1=[ymax_hists]*2, color=ps.dark_blue,  hatch='/', alpha=0.1)
+	ax.fill_between([-1., 1.], y1=[ymax_hists]*2, color='k', alpha=0.1, hatch='+')
 
 	#plot the data points and colour according to radio luminosity; y-coordinates are randomly generated
 	dy = ymax - ymin
@@ -225,28 +227,56 @@ for ax,r in zip([ax1, ax2, ax3, ax4],[1, 2, 4, 6]):
 	#fraction of normal distribution above 1 and 3 sigma
 	f_g1 = 0.5 * (1 - erf(1/np.sqrt(2)))
 	f_g3 = 0.5 * (1 - erf(3/np.sqrt(2)))
+	#fraction between -1 and 1
+	f_gm1to1 = erf(1/np.sqrt(2))
 	N_exp_rq1 = f_g1 * len(X_rq)
 	N_exp_rl1 = f_g1 * len(X_rl)
+	N_exp_rqm1to1 = f_gm1to1 * len(X_rq)
+	N_exp_rlm1to1 = f_gm1to1 * len(X_rl)
 	N_exp_rq3 = f_g3 * len(X_rq)
 	N_exp_rl3 = f_g3 * len(X_rl)
 	N_exp_all1 = f_g1 * (len(X_rq) + len(X_rl))
+	N_exp_allm1to1 = f_gm1to1 * (len(X_rq) + len(X_rl))
 	N_exp_all3 = f_g3 * (len(X_rl) + len(X_rq))
 
-	print(gen.colour_string('RQ', 'purple'))
-	print(f'N(<-3 & >G) = {np.round((X_rq < -3).sum() - N_exp_rq3)}')
-	print(f'N(<-1 & >G) = {np.round((X_rq < -1).sum() - N_exp_rq1)}')
-	print(f'N(>1 & >G) = {np.round((X_rq > 1).sum() - N_exp_rq1)}')
+
+	'''print(gen.colour_string('RQ', 'purple'))
+	print(f'N(<-3) - G = {np.round((X_rq < -3).sum() - N_exp_rq3)}')
+	print(f'N(<-1) - G = {np.round((X_rq < -1).sum() - N_exp_rq1)}')
+	print(f'N([-1,1]) - G = {np.round(((X_rq >= -1) * (X_rq <= 1.)).sum() - N_exp_rqm1to1)}')
+	print(f'N(>1) - G = {np.round((X_rq > 1).sum() - N_exp_rq1)}')
 	print(f'N(>3 & G) = {np.round((X_rq > 3).sum() - N_exp_rq3)}')
 	print(gen.colour_string('HLAGN/MLAGN', 'purple'))
-	print(f'N(<-3 & >G) = {np.round((X_rl < -3).sum() - N_exp_rl3)}')
-	print(f'N(<-1 & >G) = {np.round((X_rl < -1).sum() - N_exp_rl1)}')
-	print(f'N(>1 & >G) = {np.round((X_rl > 1).sum() - N_exp_rl1)}')
-	print(f'N(>3 & >G) = {np.round((X_rl > 3).sum() - N_exp_rl3)}')
+	print(f'N(<-3) - G = {np.round((X_rl < -3).sum() - N_exp_rl3)}')
+	print(f'N(<-1) - G = {np.round((X_rl < -1).sum() - N_exp_rl1)}')
+	print(f'N([-1,1]) - G = {np.round(((X_rl >= -1) * (X_rl <= 1.)).sum() - N_exp_rlm1to1)}')
+	print(f'N(>1) - G = {np.round((X_rl > 1).sum() - N_exp_rl1)}')
+	print(f'N(>3) - G = {np.round((X_rl > 3).sum() - N_exp_rl3)}')
 	print(gen.colour_string('ALL', 'purple'))
-	print(f'N(<-3 & >G) = {np.round(((X_rl < -3).sum() + (X_rq < -3).sum()) - N_exp_all3)}')
-	print(f'N(<-1 & >G) = {np.round(((X_rl < -1).sum() + (X_rq < -1).sum()) - N_exp_all1)}')
-	print(f'N(>1 & >G) = {np.round(((X_rl > 1).sum() + (X_rq > 1.).sum()) - N_exp_all1)}')
-	print(f'N(>3 & >G) = {np.round(((X_rl > 3).sum() + (X_rq > 3.).sum()) - N_exp_all3)}')
+	print(f'N(<-3) - G = {np.round(((X_rl < -3).sum() + (X_rq < -3).sum()) - N_exp_all3)}')
+	print(f'N(<-1) - G = {np.round(((X_rl < -1).sum() + (X_rq < -1).sum()) - N_exp_all1)}')
+	print(f'N([-1,1]) - G = {np.round(((X_rq >= -1) * (X_rq <= 1.)).sum() + ((X_rl >= -1) * (X_rl <= 1.)).sum() - N_exp_allm1to1)}')
+	print(f'N(>1) - G = {np.round(((X_rl > 1).sum() + (X_rq > 1.).sum()) - N_exp_all1)}')
+	print(f'N(>3) - G = {np.round(((X_rl > 3).sum() + (X_rq > 3.).sum()) - N_exp_all3)}')'''
+	
+	print(gen.colour_string('RQ', 'purple'))
+	print(f'f(<-3) - G = {(np.round((X_rq < -3).sum() - N_exp_rq3)) / len(X_rq)}')
+	print(f'f(<-1) - G = {(np.round((X_rq < -1).sum() - N_exp_rq1)) / len(X_rq)}')
+	print(f'f([-1,1]) - G = {(np.round(((X_rq >= -1) * (X_rq <= 1.)).sum() - N_exp_rqm1to1)) / len(X_rq)}')
+	print(f'f(>1) - G = {(np.round((X_rq > 1).sum() - N_exp_rq1)) / len(X_rq)}')
+	print(f'f(>3 & G) = {(np.round((X_rq > 3).sum() - N_exp_rq3)) / len(X_rq)}')
+	print(gen.colour_string('HLAGN/MLAGN', 'purple'))
+	print(f'f(<-3) - G = {(np.round((X_rl < -3).sum() - N_exp_rl3)) / len(X_rl)}')
+	print(f'f(<-1) - G = {(np.round((X_rl < -1).sum() - N_exp_rl1)) / len(X_rl)}')
+	print(f'f([-1,1]) - G = {(np.round(((X_rl >= -1) * (X_rl <= 1.)).sum() - N_exp_rlm1to1)) / len(X_rl)}')
+	print(f'f(>1) - G = {(np.round((X_rl > 1).sum() - N_exp_rl1)) / len(X_rl)}')
+	print(f'f(>3) - G = {(np.round((X_rl > 3).sum() - N_exp_rl3)) / len(X_rl)}')
+	print(gen.colour_string('ALL', 'purple'))
+	print(f'f(<-3) - G = {(np.round(((X_rl < -3).sum() + (X_rq < -3).sum()) - N_exp_all3)) / (len(X_rq) + len(X_rl))}')
+	print(f'f(<-1) - G = {(np.round(((X_rl < -1).sum() + (X_rq < -1).sum()) - N_exp_all1)) / (len(X_rq) + len(X_rl))}')
+	print(f'f([-1,1]) - G = {(np.round(((X_rq >= -1) * (X_rq <= 1.)).sum() + ((X_rl >= -1) * (X_rl <= 1.)).sum() - N_exp_allm1to1)) / (len(X_rq) + len(X_rl))}')
+	print(f'f(>1) - G = {(np.round(((X_rl > 1).sum() + (X_rq > 1.).sum()) - N_exp_all1)) / (len(X_rq) + len(X_rl))}')
+	print(f'f(>3) - G = {(np.round(((X_rl > 3).sum() + (X_rq > 3.).sum()) - N_exp_all3)) / (len(X_rq) + len(X_rl))}')
 
 '''
 legend_elements = [
