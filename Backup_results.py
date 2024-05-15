@@ -12,8 +12,8 @@ import general as gen
 
 #choice of things to back up
 numcounts = True
-numcount_dists = False
-plots = False
+numcount_dists = True
+plots = True
 params = True
 posteriors = True
 settings = [
@@ -69,6 +69,8 @@ if posteriors:
 
 for D in dirs:
 	D_new = D + today_str + '/'
-	os.system(f'mkdir {D_new}')
-	os.system(f'mv {D}*.' + '{npz,pdf,png} ' + D_new)
+	os.system(f'mkdir -p {D_new}')
+	os.system(f'mv {D}*.npz '+ D_new)
+	os.system(f'mv {D}*.pdf '+ D_new)
+	os.system(f'mv {D}*.png '+ D_new)
 
