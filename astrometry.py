@@ -137,7 +137,7 @@ def find_pixscale(f, hdu=0, update_header=False):
 			ps = np.mean(ps_all)
 			#if the header is to be updated, then do so
 			if update_header == True:
-				hdr['PIXSCALE'] = (round_sigfigs(ps,5), 'Pixel scale in arcsec/pix')
+				hdr['PIXSCALE'] = (gen.round_sigfigs(ps,5), 'Pixel scale in arcsec/pix')
 				i.writeto(f, overwrite=True)
 	return ps
 
