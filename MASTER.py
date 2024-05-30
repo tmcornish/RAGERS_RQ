@@ -70,9 +70,9 @@ proc_names = [
 	'Plotting number counts',
 	'Making contour plots',
 	'Finding densities required to detect signal',
+	'Constructing SMG density histograms',
 	'Calculating individual deltas',
 	'Plotting histograms of delta significance',
-	'Constructing SMG density histograms',
 	'Back up results'
 	#'Constructing number counts (mega script)',
 	#'Test different apertures'
