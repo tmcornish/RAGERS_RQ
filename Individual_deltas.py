@@ -71,16 +71,16 @@ icomp_rand[mask] = 0.
 
 #cycle through the search radii
 for r in radii:
-	A = np.pi * (r / 60.) ** 2.
+	A_rq = data_rq[f'area_main_{int(r)}']
 
 	#expected number of sources in blank field
-	Ntot_exp = N_S19[1] * A
-	eNtot_exp_lo = eN_S19_lo[1] * A
-	eNtot_exp_hi = eN_S19_hi[1] * A
+	Ntot_exp_rq = N_S19[1] * A_rq
+	eNtot_exp_rq_lo = eN_S19_lo[1] * A_rq
+	eNtot_exp_rq_hi = eN_S19_hi[1] * A_rq
 	#generate random values of the expected counts
-	Ntot_exp_rand = stats.random_asymmetric_gaussian(Ntot_exp, eNtot_exp_lo, eNtot_exp_hi, 10000)
+	Ntot_exp_rq_rand = np.array([stats.random_asymmetric_gaussian(Ntot_exp_rq[i], eNtot_exp_rq_lo[i], eNtot_exp_rq_hi[i], 10000) for i in range(len(data_rq))])
 	#symmetrise for simplicity
-	eNtot_exp = 0.5 * (eNtot_exp_hi + eNtot_exp_lo)
+	eNtot_exp_rq = 0.5 * (eNtot_exp_rq_hi + eNtot_exp_rq_lo)
 	#set up lists for number of matches
 	N_matches_rq = []
 	N_matches_rl = []
@@ -106,7 +106,7 @@ for r in radii:
 		#now regenerate 10000 random values for N_matches with the Poissonian uncertainties included
 		N_matches_rand = stats.random_asymmetric_gaussian(N_matches, eN_lo, eN_hi, 10000)
 		#calculate delta
-		delta_rand = (N_matches_rand / Ntot_exp_rand) - 1.
+		delta_rand = (N_matches_rand / Ntot_exp_rq_rand) - 1.
 		d16, delta, d84 = np.nanpercentile(delta_rand, q=[stats.p16, 50., stats.p84])
 		edelta_lo, edelta_hi = np.diff([d16, delta, d84])
 		N_matches_rq.append(N_matches)
@@ -123,11 +123,21 @@ for r in radii:
 	data_rq[f'nsig_delta_{r:g}'][ud_mask_rq] = data_rq[f'delta_{r:g}'][ud_mask_rq] / data_rq[f'edelta_hi_{r:g}'][ud_mask_rq]
 	#data_rq.write(PATH_CATS + 'RAGERS_COSMOS2020_matches_Mstar_z_rq_with_deltas.fits', overwrite=True)
 
+	A_rl = data_rl[f'area_main_{int(r)}']
+
+	#expected number of sources in blank field
+	Ntot_exp_rl = N_S19[1] * A_rl
+	eNtot_exp_rl_lo = eN_S19_lo[1] * A_rl
+	eNtot_exp_rl_hi = eN_S19_hi[1] * A_rl
+	#generate random values of the expected counts
+	Ntot_exp_rl_rand = np.array([stats.random_asymmetric_gaussian(Ntot_exp_rl[i], eNtot_exp_rl_lo[i], eNtot_exp_rl_hi[i], 10000) for i in range(len(data_rl))])
+	#symmetrise for simplicity
+	eNtot_exp_rl = 0.5 * (eNtot_exp_rl_hi + eNtot_exp_rl_lo)
 	#cycle through the RL sources
 	for i in range(len(data_rl)):
 		coord_central = coords_rl[i]
 		#find matched sources
-		matches = coords_rq[i].separation(coords_submm) < r * u.arcmin
+		matches = coords_rl[i].separation(coords_submm) < r * u.arcmin
 		#retrieve the inverse completenesses for these sources
 		icomp = icomp_rand[matches]
 		#sum these values 
@@ -141,7 +151,7 @@ for r in radii:
 		#now regenerate 10000 random values for N_matches with the Poissonian uncertainties included
 		N_matches_rand = stats.random_asymmetric_gaussian(N_matches, eN_lo, eN_hi, 10000)
 		#calculate delta
-		delta_rand = (N_matches_rand / Ntot_exp_rand) - 1.
+		delta_rand = (N_matches_rand / Ntot_exp_rl_rand) - 1.
 		d16, delta, d84 = np.nanpercentile(delta_rand, q=[stats.p16, 50., stats.p84])
 		edelta_lo, edelta_hi = np.diff([d16, delta, d84])
 		N_matches_rl.append(N_matches)
