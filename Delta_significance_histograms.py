@@ -184,7 +184,7 @@ for ax,r in zip([ax1, ax2, ax3, ax4],[1, 2, 4, 6]):
 
 	#add some space to the top of the subplot
 	ymin, ymax = ax.set_ylim(ymin, ymax*1.6)
-	ymax_hists = ymax * 0.67
+	ymax_hists = ymax * 0.7
 
 	#add lines for the medians
 	print(f'median(RQ) = {np.median(X_rq)}')
@@ -192,14 +192,14 @@ for ax,r in zip([ax1, ax2, ax3, ax4],[1, 2, 4, 6]):
 	ax.plot([np.median(X_rq)]*2, [ymin, ymax_hists], c=ps.magenta)
 	ax.plot([np.median(X_rl)]*2, [ymin, ymax_hists], c=ps.dark_blue, linestyle=':')
 	#1sigma range
-	ax.fill_between(np.percentile(X_rq, q=[stats.p16, stats.p84]), y1=[ymax_hists]*2, color=ps.magenta,  hatch='\\', alpha=0.1)
-	ax.fill_between(np.percentile(X_rl, q=[stats.p16, stats.p84]), y1=[ymax_hists]*2, color=ps.dark_blue,  hatch='/', alpha=0.1)
-	ax.fill_between([-1., 1.], y1=[ymax_hists]*2, color='k', alpha=0.1, hatch='+')
+	#ax.fill_between(np.percentile(X_rq, q=[stats.p16, stats.p84]), y1=[ymax_hists]*2, color=ps.magenta,  hatch='\\', alpha=0.1)
+	#ax.fill_between(np.percentile(X_rl, q=[stats.p16, stats.p84]), y1=[ymax_hists]*2, color=ps.dark_blue,  hatch='/', alpha=0.1)
+	ax.fill_between([-1., 1.], y1=[ymax_hists]*2, color='k', alpha=0.1, hatch='/')
 
 	#plot the data points and colour according to radio luminosity; y-coordinates are randomly generated
 	dy = ymax - ymin
-	Y_rq = np.random.uniform(low=ymax-0.3*dy, high=ymax-0.05*dy, size=len(X_rq))
-	Y_rl = np.random.uniform(low=ymax-0.3*dy, high=ymax-0.05*dy, size=len(X_rl))
+	Y_rq = np.random.uniform(low=ymax-0.27*dy, high=ymax-0.05*dy, size=len(X_rq))
+	Y_rl = np.random.uniform(low=ymax-0.27*dy, high=ymax-0.05*dy, size=len(X_rl))
 	ax.scatter(X_rq, Y_rq, c=L_rq, cmap=cmap, marker='o', s=40., linewidth=0.5, vmin=Lmin, vmax=Lmax, alpha=0.8)
 	ax.scatter(X_rl, Y_rl, c=L_rl, cmap=cmap, marker='^', s=60., linewidth=0.5, vmin=Lmin, vmax=Lmax, alpha=0.8)
 
