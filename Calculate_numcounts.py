@@ -221,10 +221,13 @@ def number_counts(
 
 			#if each aperture is independent, the area is simply the sum of their areas
 			if independent_rq:
-				#calculate the total area surveyed for this RL galaxy
-				A_rl = A_sqdeg * len(data_rq_rl)
+				if gen.main_only:
+					A_rl = data_rq_rl[f'area_main_{int(r_search)}'].sum()
+				else:
+					#calculate the total area surveyed for this RL galaxy
+					A_rl = A_sqdeg * len(data_rq_rl)
 			#if not treating each aperture as independent, remove duplicate matches from the list for this RL galaxy
-			if not independent_rq:
+			else:
 				idx_matched_rl = np.unique(idx_matched_rl)
 				#calculate the area covered, accounting for overlap between apertures
 				A_rl = ast.apertures_area(coords_rq_rl, r=R_deg)
@@ -261,10 +264,13 @@ def number_counts(
 		
 		#if each aperture is independent, the area is simply the sum of their areas
 		if independent_rq:
-			#calculate the total area surveyed for this RL galaxy
-			A_zbin = A_sqdeg * len(data_rq_zbin)
+			if gen.main_only:
+				A_zbin = data_rq_zbin[f'area_main_{int(r_search)}'].sum()
+			else:
+				#calculate the total area surveyed for this RL galaxy
+				A_zbin = A_sqdeg * len(data_rq_zbin)
 		#if not treating each aperture as independent, remove duplicate matches from the list for this RL galaxy
-		if not independent_rq:
+		else:
 			idx_matched_zbin = np.unique(idx_matched_zbin)
 			#calculate the area covered, accounting for overlap between apertures
 			A_zbin = ast.apertures_area(coords_rq_zbin, r=R_deg, save_fig=False)	
@@ -321,10 +327,13 @@ def number_counts(
 		
 		#if each aperture is independent, the area is simply the sum of their areas
 		if independent_rq:
-			#calculate the total area surveyed for this RL galaxy
-			A_Mbin = A_sqdeg * len(data_rq_Mbin)
+			if gen.main_only:
+				A_Mbin = data_rq_Mbin[f'area_main_{int(r_search)}'].sum()
+			else:
+				#calculate the total area surveyed for this RL galaxy
+				A_Mbin = A_sqdeg * len(data_rq_Mbin)
 		#if not treating each aperture as independent, remove duplicate matches from the list for this RL galaxy
-		if not independent_rq:
+		else:
 			idx_matched_Mbin = np.unique(idx_matched_Mbin)
 			#calculate the area covered, accounting for overlap between apertures
 			A_Mbin = ast.apertures_area(coords_rq_Mbin, r=R_deg, save_fig=False)
@@ -365,10 +374,13 @@ def number_counts(
 	
 	#if each aperture is independent, the area is simply the sum of their areas
 	if independent_rq:
-		#calculate the total area surveyed for this RL galaxy
-		A_ALL = A_sqdeg * len(data_rq_sub)
+		if gen.main_only:
+			A_ALL = data_rq_sub[f'area_main_{int(r_search)}'].sum()
+		else:
+			#calculate the total area surveyed for this RL galaxy
+			A_ALL = A_sqdeg * len(data_rq_sub)
 	#if not treating each aperture as independent, remove duplicate matches from the list for this RL galaxy
-	if not independent_rq:
+	else:
 		idx_matched_ALL = np.unique(idx_matched_ALL)
 		#calculate the area covered, accounting for overlap between apertures
 		A_ALL = ast.apertures_area(coords_rq_sub, r=R_deg, save_fig=False)
