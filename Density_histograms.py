@@ -37,7 +37,7 @@ import stats
 ##################
 
 #toggle `switches' for additional functionality
-incl_rl = True			#make histograms for the environments of RL analogues as well
+incl_rl = False			#make histograms for the environments of RL analogues as well
 all_fig = False			#make a figure showing all histograms on one set of axes
 settings = [
 	incl_rl
@@ -53,7 +53,7 @@ for i in range(len(settings_print)):
 	else:
 		settings_print[i] += 'n'
 
-SNR_thresh = 1.7		#SNR threshold to use for peak finding
+SNR_thresh = 4.		#SNR threshold to use for peak finding
 #bin_edges = np.arange(0., 9000., 500.)
 nbins = 10			#number of bins to use for the smallest radius
 N_aper_bf = 10000	#number of apertures to use for measuring the blank field
@@ -505,15 +505,15 @@ t_ks.write(ks_filename, format='ascii', overwrite=True)
 
 #format and save histograms
 f.tight_layout()
-f.savefig(figname, dpi=300, bbox_inches='tight')
+f.savefig(figname, dpi=800, bbox_inches='tight')
 
 
 if all_fig:
 	f_rq.tight_layout()
-	f_rq.savefig(figname_rq, dpi=300, bbox_inches='tight')
+	f_rq.savefig(figname_rq, dpi=800, bbox_inches='tight')
 
 	if incl_rl:
 		f_rl.tight_layout()
-		f_rl.savefig(figname_rl, dpi=300, bbox_inches='tight')
+		f_rl.savefig(figname_rl, dpi=800, bbox_inches='tight')
 
 

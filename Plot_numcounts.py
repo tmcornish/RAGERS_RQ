@@ -578,5 +578,5 @@ ax['ax2'].get_yaxis().set_major_formatter(mpl.ticker.StrMethodFormatter('{x:g}')
 #minimise unnecesary whitespace
 f.tight_layout()
 figname = PATH_PLOTS + f'S850_number_counts_by_radius_{gen.n_gal}{gen.gal_type}{sim_suffix}.png'
-f.savefig(figname, bbox_inches='tight', dpi=300)
+f.savefig(figname, bbox_inches='tight', dpi=800)
 

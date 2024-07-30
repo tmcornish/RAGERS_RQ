@@ -255,7 +255,7 @@ f.tight_layout()
 figname = PATH_PLOTS + f'Schechter_contours_{gen.n_gal}{gen.gal_type}.png'
 if show_data:
 	figname = figname[:-4] + '_with_markers.png'
-f.savefig(figname, bbox_inches='tight', dpi=300)
+f.savefig(figname, bbox_inches='tight', dpi=800)
 
 
 

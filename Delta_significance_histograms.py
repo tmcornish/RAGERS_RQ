@@ -304,5 +304,5 @@ cbar.set_label(r'$\log_{10}(L_{500~{\rm MHz}}$ / W~Hz$^{-1}$)', fontsize=30.)
 #f.text(-0.05, 0.5, r'$\delta / \sigma_{\delta}^{-}$', va='center', rotation='vertical')
 
 #plt.tight_layout()
-plt.savefig(PATH_PLOTS + 'delta_significance_histograms.png', dpi=300, bbox_inches='tight')
+plt.savefig(PATH_PLOTS + 'delta_significance_histograms.png', dpi=800, bbox_inches='tight')
 

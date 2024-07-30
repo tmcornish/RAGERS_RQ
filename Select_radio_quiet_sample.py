@@ -245,7 +245,7 @@ if plot_selection and plot_cosmos:
 		ax_sep.set_ylim(7., 12.6)
 
 		f_sep.tight_layout()
-		f_sep.savefig(PATH_PLOTS + 'RAGERS_RL_with_COSMOS_Mstar_z.png', dpi=300)
+		f_sep.savefig(PATH_PLOTS + 'RAGERS_RL_with_COSMOS_Mstar_z.png', dpi=800)
 
 
 print(gen.colour_string('Loading VLA-COSMOS catalogue...', 'purple'))
@@ -504,7 +504,7 @@ if plot_selection:
 	#xmin, xmax = ax1.set_xlim(0.88, 3.2)
 	#ymin, ymax = ax1.set_ylim(11.04, 11.9)
 	#ymin, ymax = ax1.set_ylim(10., 11.9)
-	f1.savefig(PATH_PLOTS+figname, bbox_inches='tight', dpi=300)
+	f1.savefig(PATH_PLOTS+figname, bbox_inches='tight', dpi=800)
 
 
 
@@ -550,7 +550,7 @@ if plot_N_per_RL:
 		figname = 'N_RQ_vs_Mstar_and_z_incl_RL_limits.png'
 	else:
 		figname = 'N_RQ_vs_Mstar_and_z.png'
-	f2.savefig(PATH_PLOTS+figname, bbox_inches='tight', dpi=300)
+	f2.savefig(PATH_PLOTS+figname, bbox_inches='tight', dpi=800)
 
 
 
@@ -583,7 +583,7 @@ if plot_positions:
 		figname = 'RQ_positions_sky_incl_RL_limits.png'
 	else:
 		figname = 'RQ_positions_sky.png'
-	f3.savefig(PATH_PLOTS+figname, bbox_inches='tight', dpi=300)
+	f3.savefig(PATH_PLOTS+figname, bbox_inches='tight', dpi=800)
 
 
 
