@@ -76,7 +76,7 @@ ax_xlabel.tick_params(labelcolor='none', top=False, bottom=False, left=False, ri
 ax_xlabel.set_xlabel(r'$\delta / \sigma_{\delta}$', fontsize=30., labelpad=-20)
 ax_ylabel = f.add_subplot(gs[0:2,0], frameon=False)
 ax_ylabel.tick_params(labelcolor='none', top=False, bottom=False, left=False, right=False, which='both')
-ax_ylabel.set_ylabel('Noramlised counts', fontsize=30.)
+ax_ylabel.set_ylabel('Normalised counts', fontsize=30.)
 
 #colourmap settings
 cmap = mpl.cm.viridis
