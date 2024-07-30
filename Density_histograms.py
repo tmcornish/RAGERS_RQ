@@ -475,6 +475,16 @@ for i in range(len(gen.r_search_all)):
 		ax[nrow,ncol].axvline(od_lim_cc, color=ps.teal, alpha=0.5, linestyle='-.')
 	'''
 
+########################
+# Text boxes for paper #
+########################
+
+if SNR_thresh == 1.5:
+	ax[0,0].text(0.03, 0.95, r'$\mathbf{SNR > 1.5~peaks}$', transform=ax[0,0].transAxes,
+		ha='left', va='top', bbox=dict(facecolor='none', edgecolor='k', linewidth=2.), fontsize=15.)
+elif SNR_thresh == 4.0:
+	ax[0,0].text(0.57, 0.95, r'$\mathbf{SNR > 4.0~peaks}$', transform=ax[0,0].transAxes,
+		ha='center', va='top', bbox=dict(facecolor='none', edgecolor='k', linewidth=2.,), fontsize=15.)
 
 
 #legend formatting
