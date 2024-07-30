@@ -198,7 +198,9 @@ for ax,r in zip([ax1, ax2, ax3, ax4],[1, 2, 4, 6]):
 
 	#plot the data points and colour according to radio luminosity; y-coordinates are randomly generated
 	dy = ymax - ymin
+	np.random.seed(0)
 	Y_rq = np.random.uniform(low=ymax-0.27*dy, high=ymax-0.05*dy, size=len(X_rq))
+	np.random.seed(1)
 	Y_rl = np.random.uniform(low=ymax-0.27*dy, high=ymax-0.05*dy, size=len(X_rl))
 	ax.scatter(X_rq, Y_rq, c=L_rq, cmap=cmap, marker='o', s=40., linewidth=0.5, vmin=Lmin, vmax=Lmax, alpha=0.8)
 	ax.scatter(X_rl, Y_rl, c=L_rl, cmap=cmap, marker='^', s=60., linewidth=0.5, vmin=Lmin, vmax=Lmax, alpha=0.8)
