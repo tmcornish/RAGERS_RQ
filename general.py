@@ -39,14 +39,6 @@ r_search = 6.	#default search radius to use when finding submm counterparts
 #r_search_all = [0.5, 1.5, 2.5, 3., 3.5, 5., 7., 8.]		#list of different radii to try
 r_search_all = [1., 2., 4., 6.]		#list of different radii to try
 bin_edges = np.array([2., 3., 5., 7., 9., 12., 15., 18., 22.])
-'''
-bin_edges_all = [
-	np.array([2., 3., 5., 8., 12., 17., 22.]),
-	np.array([2., 3., 4.5, 6.5, 9., 13., 17.5, 22.]),
-	np.array([2., 3., 4., 5., 6.5, 8., 9.5, 11., 14., 18., 22.]),
-	np.array([2., 3., 3.6, 4.2, 4.9, 5.7, 6.6, 7.7, 9., 10.4, 12.1, 14.1, 16.3, 19., 22. ])
-	]
-'''
 gal_type = 'rq'	#type of counterpart to be analysed (rq or rl)
 n_gal = 1		#minimum number of counterparts required per RL galaxy
 sens_lim = 1.3	#SCUBA-2 sensitivity limit (mJy) for searching for submm companions 
