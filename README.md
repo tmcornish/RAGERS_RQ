@@ -8,7 +8,7 @@ Three public catalogues are required for the analysis:
 
 These should be downloaded and stored in the same directory.
 
-Maps of the SNR and RMS sensitivity from S2COSMOS ae also required, and should be saved together in the same directory (not necessarily the same as the catalogues).
+Maps of the SNR and RMS sensitivity from S2COSMOS are also required, and should be saved together in the same directory (not necessarily the same as the catalogues).
 
 Additionally, certain Python packages are required for the pipeline to run. These are listed in `requirements.txt`.
 
