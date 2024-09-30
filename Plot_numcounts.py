@@ -81,7 +81,7 @@ ax_big1 = f.add_subplot(121, frameon=False)
 ax_big1.tick_params(labelcolor='none', top=False, bottom=False, left=False, right=False, which='both')
 #label x and y axes
 ax_big1.set_xlabel(r'$S_{850}$ (mJy)', labelpad=10.)
-ax_big1.set_ylabel(r'$dN/dS$ (deg$^{-2}$ mJy$^{-1}$)', labelpad=20.)
+ax_big1.set_ylabel(r'${\rm d}N/{\rm d}S$ (deg$^{-2}$ mJy$^{-1}$)', labelpad=20.)
 
 #create a second big subplot covering the second column make it invisible, and label its axes
 ax_big2 = f.add_subplot(122, frameon=False)
@@ -161,7 +161,7 @@ for i in range(n_rows):
 		fr1, axr_nc = plt.subplots(1, 1)
 		#label x and y axes
 		axr_nc.set_xlabel(r'$S_{850}$ (mJy)')
-		axr_nc.set_ylabel(r'$dN/dS$ (deg$^{-2}$ mJy$^{-1}$)')
+		axr_nc.set_ylabel(r'${\rm d}N/{rm d}S$ (deg$^{-2}$ mJy$^{-1}$)')
 
 		#differential counts
 		fr2, axr_cc = plt.subplots(1, 1)
@@ -577,6 +577,6 @@ ax['ax1'].get_yaxis().set_major_formatter(mpl.ticker.StrMethodFormatter('{x:g}')
 ax['ax2'].get_yaxis().set_major_formatter(mpl.ticker.StrMethodFormatter('{x:g}'))
 #minimise unnecesary whitespace
 f.tight_layout()
-figname = PATH_PLOTS + f'S850_number_counts_by_radius_{gen.n_gal}{gen.gal_type}{sim_suffix}.png'
-f.savefig(figname, bbox_inches='tight', dpi=800)
+figname = PATH_PLOTS + f'S850_number_counts_by_radius_{gen.n_gal}{gen.gal_type}{sim_suffix}_300dpi.png'
+f.savefig(figname, bbox_inches='tight', dpi=300)
 
