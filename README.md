@@ -10,7 +10,7 @@ These should be downloaded and stored in the same directory.
 
 Maps of the SNR and RMS sensitivity from S2COSMOS are also required, and should be saved together in the same directory (not necessarily the same as the catalogues).
 
-Additionally, certain Python packages are required for the pipeline to run. These are listed in `requirements.txt`.
+Additionally, certain Python packages are required for the pipeline to run. These are listed in `requirements.txt`- installing these should be enough to get things running, but I may have missed something. For completeness, the full list of packages in the `conda` environment used to run this pipeline can be found in `conda_environment.yml`.
 
 # Pipeline structure
 Each stage of the pipeline has its own script. These can be run individually, or one can run multiple steps sequentially by toggling the `True/False` settings in MASTER.py and running this instead.
