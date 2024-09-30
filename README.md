@@ -5,7 +5,10 @@ Three public catalogues are required for the analysis:
 1. COSMOS2020 ([Weaver et al. 2022](https://ui.adsabs.harvard.edu/abs/2022ApJS..258...11W/abstract))
 2. VLA-COSMOS ([Smolčić et al. 2017](https://ui.adsabs.harvard.edu/abs/2017A%26A...602A...2S/abstract))
 3. S2COSMOS ([Simpson et al. 2019](https://ui.adsabs.harvard.edu/abs/2019ApJ...880...43S/abstract)).
+
 These should be downloaded and stored in the same directory.
+
+Maps of the SNR and RMS sensitivity from S2COSMOS ae also required, and should be saved together in the same directory (not necessarily the same as the catalogues).
 
 Additionally, certain Python packages are required for the pipeline to run. These are listed in `requirements.txt`.
 
