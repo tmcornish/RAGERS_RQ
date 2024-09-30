@@ -30,8 +30,6 @@ density_hists = False		#construct histograms comparing the SMG density in differ
 indiv_delta = False			#calculate delta for individual environments
 deltasig_hists = True		#plot histograms of the ratio of delta to its uncertainty for individual environments
 backup = False				#backup selected directories to a folder marked with the current date
-#numcounts_mega = False		#number counts mega script
-#apertures_test = False		#test the effect of different aperture sizes on the number counts
 
 ##################
 
@@ -53,8 +51,6 @@ settings = [
 	indiv_delta,
 	deltasig_hists,
 	backup
-	#numcounts_mega,
-	#apertures_test
 	]
 proc_names = [
 	'Estimating L_500MHz for VLA-COSMOS galaxies',
@@ -74,8 +70,6 @@ proc_names = [
 	'Calculating individual deltas',
 	'Plotting histograms of delta significance',
 	'Back up results'
-	#'Constructing number counts (mega script)',
-	#'Test different apertures'
 	]
 run_str = [
 	'python Update_VLA_COSMOS_cat.py',
@@ -95,8 +89,6 @@ run_str = [
 	'python Individual_deltas.py',
 	'python Delta_significance_histograms.py',
 	'python Backup_results.py'
-	#'python Submm_number_counts.py',
-	#'python Test_search_radius.py'
 	]
 
 print(gen.colour_string(gen.string_important('PROCESSES TO RUN')+'\n', 'cyan'))
